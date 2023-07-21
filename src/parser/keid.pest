@@ -1,0 +1,381 @@
+WHITESPACE = _{ " " | "\t" }
+COMMENT = _{ ("//" ~ (!NEWLINE ~ ANY)*) | ("/*" ~ (!"*/" ~ ANY)* ~ "*/") }
+
+keyword_import = @{ "import" ~ WHITESPACE }
+keyword_function = @{ "function" ~ WHITESPACE }
+keyword_let = @{ "let" ~ WHITESPACE }
+keyword_from = @{ "from" ~ WHITESPACE }
+keyword_return_void = @{ "return" }
+keyword_return = @{ "return" ~ WHITESPACE }
+keyword_class = @{ "class" ~ WHITESPACE }
+keyword_enum = @{ "enum" ~ WHITESPACE }
+keyword_struct = @{ "struct" ~ WHITESPACE }
+keyword_interface = @{ "interface" ~ WHITESPACE }
+keyword_new = @{ "new" ~ WHITESPACE }
+keyword_ref = @{ "ref" ~ WHITESPACE }
+keyword_deref = @{ "deref" ~ WHITESPACE }
+keyword_namespace = @{ "namespace" ~ WHITESPACE }
+keyword_if = @{ "if"  ~ WHITESPACE}
+keyword_else = @{ "else" ~ WHITESPACE }
+keyword_type = @{ "type" ~ WHITESPACE }
+keyword_for = @{ "for" ~ WHITESPACE }
+keyword_while = @{ "while" ~ WHITESPACE }
+keyword_implement = @{ "implement"  ~ WHITESPACE }
+keyword_get = @{ "get" ~ WHITESPACE }
+keyword_set = @{ "set" ~ WHITESPACE }
+keyword_in = @{ "in" ~ WHITESPACE }
+keyword_extends = @{ "extends" ~ WHITESPACE }
+keyword_fixed = @{ "fixed" ~ WHITESPACE }
+keyword_const = @{ "const" ~ WHITESPACE }
+keyword_attribute = @{ "attribute" ~ WHITESPACE }
+keyword_throw = @{ "throw" ~ WHITESPACE }
+keyword_match = @{ "match" ~ WHITESPACE }
+keyword_try = @{ "try" }
+keyword_catch = @{ "catch" }
+keyword_loop = @{ "loop" }
+keyword_default = @{ "default" }
+keyword_sizeof = @{ "sizeof" }
+keyword_unsafe = @{ "unsafe" }
+keyword_unreachable = @{ "unreachable" }
+
+integer = @{ "-"? ~ (("0x" ~ ('0'..'9' | 'a'..'f' | 'A'..'F')+) | ("0" | '1'..'9' ~ ('0'..'9')*)) }
+string = @{ "\"" ~ (!("\"") ~ ANY)* ~ "\"" }
+boolean = @{ "true" | "false" }
+null = @{ "null" }
+nullable = { "?" }
+
+newline = _{ NEWLINE+ }
+block_start = _{ "{" ~ newline }
+block_end = _{ "}" }
+
+all_chars = _{ 'a'..'z' | 'A'..'Z' | "_" | '0'..'9' }
+ident = @{
+    ('a'..'z' | 'A'..'Z' | "_") ~
+    all_chars*
+}
+
+array_type = { "[" ~ variable_type ~ "]" }
+qualifier = { (ident ~ "::")* }
+literal_qualifier = { ident ~ ("::" ~ ident)* }
+anonymous_struct_type = { "{" ~ NEWLINE* ~ (ident ~ (":" ~ variable_type)? ~ ("," | NEWLINE*))+ ~ "}" }
+
+variable_type = { nullable* ~ (array_type | anonymous_struct_type | (qualifier? ~ ident ~ generic_args?)) }
+
+func_call = { ident ~ generic_args? ~ ("(" ~ NEWLINE* ~ (expr ~ "," ~ NEWLINE*)* ~ NEWLINE* ~ expr? ~ NEWLINE* ~ ")") }
+static_func_call = { qualifier ~ func_call }
+
+// this rule is used for both static fields AND local function variables AND valueless enums
+static_field_ref = { qualifier? ~ ident }
+enum_with_data_ref = { qualifier ~ ident ~ anonymous_struct }
+
+range = { logic_val ~ ".." ~ logic_val }
+
+new_call_field = { ident ~ "=" ~ expr }
+new_call = { keyword_new ~ variable_type ~ (NEWLINE* ~ "{" ~ NEWLINE* ~ ((new_call_field | ident) ~ ("," | NEWLINE*))* ~ block_end)? }
+
+new_array = { keyword_new ~ variable_type ~ "[" ~ expr ~ ";" ~ expr ~ "]" }
+specified_array = { keyword_new ~ variable_type ~ "[" ~ expr? ~ ("," ~ expr)* ~ "]" }
+
+initial_member_val = _{ static_func_call | enum_with_data_ref | static_field_ref | func_call | sizeof_expr | default_expr }
+initial_member_expr = { initial_member_val ~ postfix_operator* }
+
+member_val = _{ func_call | ident }
+member_expr = { member_val ~ postfix_operator* }
+
+class_member = { "." ~ member_expr }
+array_member = { "[" ~ expr ~ "]" }
+
+member = { initial_member_expr ~ (class_member | array_member)* }
+
+assign_statement = { keyword_deref? ~ member ~ self_operator ~ expr }
+
+import_statement = { keyword_import ~ "(" ~ NEWLINE+ ~ literal_qualifier ~ (NEWLINE+ ~ literal_qualifier)* ~ NEWLINE+ ~ ")" }
+namespace_statement = { keyword_namespace ~ literal_qualifier }
+
+let_statement = {
+    (keyword_let | keyword_const) ~ ident ~ (":" ~ variable_type)?
+    ~ ("=" ~ expr)?
+}
+
+if_statement = {
+    keyword_if ~ expr ~ block
+    ~ (keyword_else ~ keyword_if ~ expr ~ block)*
+    ~ (keyword_else ~ block)?
+}
+
+for_loop = {
+    keyword_for ~ ident ~ keyword_in ~ expr ~ block
+}
+
+while_loop = {
+    keyword_while ~ expr ~ block
+}
+
+indefinite_loop = { keyword_loop ~ block }
+
+return_statement = { (keyword_return ~ expr) | (keyword_return_void) }
+unreachable_statement = { keyword_unreachable }
+
+reference_op = { keyword_ref ~ expr }
+dereference_op = { keyword_deref ~ expr }
+
+op_equal = { "==" }
+op_not_equal = { "!=" }
+op_add = { "+" }
+op_sub = { "-" }
+op_mul = { "*" }
+op_div = { "/" }
+op_rem = { "%" }
+op_shl = { "<<" }
+op_shr = { ">>" }
+op_or = { "||" }
+op_and = { "&&" }
+op_lte = { "<=" }
+op_gte = { ">=" }
+op_lt = { "<" }
+op_gt = { ">" }
+op_not = { "!" }
+op_spread = { "..." }
+op_as = @{ "as" }
+op_null_assert = { "!" }
+op_null_coalesce = { "??" }
+op_null_propagate = { "?" }
+
+op_set_self = { "=" }
+op_add_self = { "+=" }
+op_sub_self = { "-=" }
+op_mul_self = { "*=" }
+op_div_self = { "/=" }
+op_rem_self = { "%=" }
+op_shl_self = { "<<=" }
+op_shr_self = { ">>=" }
+op_bit_and_self = { "&=" }
+op_bit_or_self = { "|=" }
+op_bit_xor_self = { "^=" }
+
+self_operator = _{
+    op_set_self |
+    op_add_self |
+    op_sub_self |
+    op_mul_self |
+    op_div_self |
+    op_rem_self |
+    op_shl_self |
+    op_shr_self |
+    op_bit_and_self |
+    op_bit_or_self |
+    op_bit_xor_self
+}
+
+prefix_operator = _{
+    op_not |
+    op_spread
+}
+operator = _{
+    op_equal |
+    op_not_equal | 
+    op_add | 
+    op_sub |
+    op_mul |
+    op_div |
+    op_rem | 
+    op_shl | 
+    op_shr |
+    op_or |
+    op_and |
+    op_lte |
+    op_gte |
+    op_lt |
+    op_gt |
+    op_null_coalesce
+}
+postfix_operator = _{
+    op_null_assert ~ !("=")
+}
+logic_val = _{ reference_op | dereference_op | string | integer | match_expr | sizeof_expr | default_expr | specified_array | new_array | new_call | null | boolean | anonymous_struct | member | ("(" ~ logic_expr ~ ")") }
+logic_expr = { prefix_operator* ~ logic_val ~ postfix_operator* ~ ((operator ~ prefix_operator* ~ logic_val ~ postfix_operator*) | (op_as ~ variable_type))* }
+
+default_expr = { keyword_default ~ "(" ~ variable_type ~ ")" }
+
+sizeof_expr = { keyword_sizeof ~ "(" ~ variable_type ~ ")" }
+
+unsafe_block = { keyword_unsafe ~ block }
+fixed_block = { keyword_fixed ~ let_statement ~ block }
+
+arrow_expr = { "=>" ~ expr }
+
+anonymous_struct = { "{" ~ NEWLINE* ~ ((new_call_field | ident) ~ ("," | NEWLINE*))* ~ block_end }
+
+inner_match_catchall = { "_" }
+inner_match_enum = { ident ~ anonymous_struct_type }
+
+match_arg_expr = _{ string | integer | sizeof_expr | default_expr | specified_array | null | boolean | ident }
+
+inner_match_arg = _{ (inner_match_catchall | inner_match_enum | match_arg_expr) ~ "=>" }
+inner_match_statement = { inner_match_arg ~ statement } // newline is implied by statement
+
+match_block = _{ block_start ~ inner_match_statement+ ~ block_end }
+match_expr = { keyword_match ~ expr ~ match_block }
+
+expr = _{ logic_expr | arrow_expr | reference_op | dereference_op | string | integer | match_expr | sizeof_expr | default_expr | specified_array | new_array | new_call | null | boolean | anonymous_struct | member }
+statement = _{ (try_statement | if_statement | match_expr | for_loop | while_loop | indefinite_loop | unsafe_block | fixed_block | block | assign_statement | import_statement | let_statement | return_statement | unreachable_statement | throw_statement | expr) ~ newline }
+block = { block_start ~ statement* ~ block_end }
+
+function_modifier = @{ "public" | "static" | "extern" | "unsafe" }
+function_modifiers = { function_modifier+ }
+varargs = @{ "..." }
+native_varargs = @{ "..." }
+function_params_decl = { "(" ~ NEWLINE* ~ (function_param_decl ~ "," ~ NEWLINE*)* ~ ((varargs? ~ function_param_decl) | native_varargs)? ~ ","? ~ NEWLINE* ~ ")" }
+function_param_decl = { ident ~ ":" ~ variable_type }
+ 
+function_decl = {
+    attributes?
+    ~ function_modifiers?
+    ~ keyword_function
+    ~ ident
+    ~ generics_decl?
+    ~ function_params_decl
+    ~ (":" ~ variable_type)?
+    ~ (block | arrow_expr)?
+}
+method_decl = {
+    attributes?
+    ~ function_modifiers?
+    ~ ident
+    ~ generics_decl?
+    ~ function_params_decl
+    ~ (":" ~ variable_type)?
+    ~ (block | arrow_expr)?
+}
+
+get_accessor_decl = {
+    function_modifiers?
+    ~ keyword_get
+    ~ ident
+    ~ ":"
+    ~ variable_type
+    ~ (block | arrow_expr)?
+}
+set_accessor_decl = {
+    function_modifiers?
+    ~ keyword_set
+    ~ ident
+    ~ ("(" ~ ident ~ ")")?
+    ~ ":"
+    ~ variable_type
+    ~ (block | arrow_expr)?
+}
+interface_accessor_decl = {
+    function_modifiers?
+    ~ ((keyword_set ~ keyword_get) | (keyword_get ~ keyword_set) | (keyword_get))
+    ~ ident
+    ~ ":"
+    ~ variable_type
+}
+associated_type_decl = { keyword_type ~ ident ~ ("=" ~ variable_type)? }
+accessor_decl = _{ get_accessor_decl | set_accessor_decl }
+
+constructor_modifier = { "public" }
+constructor_modifiers = { constructor_modifier+ }
+constructor_decl = {
+    constructor_modifiers?
+    ~ "constructor"
+    ~ block
+}
+destructor_decl = {
+    "destructor" ~ block
+}
+
+field_decl = {
+    ident ~ ":" ~ variable_type
+    ~ ("=" ~ expr)?
+}
+
+type_modifier = { "public" }
+type_modifiers = { type_modifier+ }
+
+type_decl = {
+    type_modifiers?
+    ~ keyword_type
+    ~ ident
+    ~ "="
+    ~ variable_type
+}
+
+generic_decl = { ident ~ (":" ~ literal_qualifier ~ ("+" ~ literal_qualifier)*)? }
+generics_decl = { "<" ~ generic_decl ~ ("," ~ generic_decl)* ~ ">" }
+generic_args  = { "<" ~ variable_type ~ ("," ~ variable_type)* ~ ">" }
+
+class_statement = _{ (method_decl | constructor_decl | destructor_decl | accessor_decl | field_decl) ~ newline }
+class_extends = { keyword_extends ~ literal_qualifier ~ generic_args? }
+class_block = { (block_start ~ class_statement* ~ block_end) | ("{" ~ "}") }
+class_decl = {
+    type_modifiers?
+    ~ keyword_class
+    ~ ident
+    ~ generics_decl?
+    ~ class_extends?
+    ~ class_block
+}
+
+enum_element_decl = { ident ~ anonymous_struct_type? }
+enum_statement = _{ enum_element_decl ~ newline }
+enum_block = { (block_start ~ enum_statement* ~ block_end) | ("{" ~ "}") }
+enum_decl = {
+    type_modifiers?
+    ~ keyword_enum
+    ~ ident
+    ~ generics_decl?
+    ~ enum_block
+}
+
+interface_statement = _{ (method_decl | interface_accessor_decl | associated_type_decl) ~ newline }
+interface_block = { block_start ~ interface_statement* ~ block_end }
+interface_decl = {
+    type_modifiers?
+    ~ keyword_interface
+    ~ ident
+    ~ generics_decl?
+    ~ interface_block
+}
+
+struct_statement = _{ (method_decl | accessor_decl | field_decl) ~ newline }
+struct_block = { (block_start ~ struct_statement* ~ block_end) | ("{" ~ "}") }
+struct_decl = {
+    type_modifiers?
+    ~ keyword_struct
+    ~ ident
+    ~ generics_decl?
+    ~ struct_block
+}
+
+interface_impl_statement = _{ (method_decl | accessor_decl | associated_type_decl) ~ newline }
+interface_impl_block = { block_start ~ interface_impl_statement* ~ block_end }
+interface_impl = {
+    keyword_implement
+    ~ generics_decl?
+    ~ literal_qualifier
+    ~ generic_args?
+    ~ keyword_for
+    ~ literal_qualifier
+    ~ generic_args?
+    ~ interface_impl_block
+}
+
+attribute_decl = {
+    type_modifiers?
+    ~ keyword_attribute
+    ~ ident
+    ~ "(" ~ NEWLINE* ~ (function_param_decl ~ "," ~ NEWLINE*)* ~ function_param_decl? ~ ","? ~ NEWLINE* ~ ")" 
+}
+
+static_expr = _{ sizeof_expr | null | boolean | integer | string }
+attribute_statement = { "@" ~ literal_qualifier ~ generic_args? ~ ("(" ~ (static_expr ~ ",")* ~ static_expr? ~ ")")? }
+attributes = { (attribute_statement ~ NEWLINE)* }
+
+throw_statement = { keyword_throw ~ expr }
+
+try_statement = { keyword_try ~ block ~ keyword_catch ~ ident? ~ block }
+
+root_statement = _{ (import_statement | class_decl | enum_decl | struct_decl | interface_decl | interface_impl | function_decl | type_decl | let_statement | attribute_decl) ~ newline }
+program = { SOI ~ NEWLINE* ~ namespace_statement ~ NEWLINE* ~ root_statement* ~ NEWLINE* ~ EOI }

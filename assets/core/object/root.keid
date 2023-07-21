@@ -1,0 +1,65 @@
+namespace core::object
+
+import (
+    core::string
+)
+
+public interface Default {
+    static default(): object
+}
+
+public class Object {
+}
+
+public class Box<T> {
+    element: T
+}
+
+public struct Bool {
+    value: bool
+}
+
+implement ToString for Bool {
+    toString(): string {
+        if this.value {
+            return "true"
+        }
+        return "false"
+    }
+}
+
+macro $IMPL_INT_TYPE(#wrapper, #primitive)
+    public struct #wrapper {
+        value: #primitive
+    }
+
+    implement ToString for #wrapper {
+        toString(): string {
+            let current = this.value
+            if current == 0 {
+                return "0"
+            }
+            
+            let sb = StringBuilder::empty()
+            while current > 0 {
+                let digit = (current % 10) + 0x30 // converts the digit to its ascii equivalent
+                sb.insert(0, String::fromUtf8Slice(new char[digit as char]))
+                current /= 10
+            }
+
+            return sb.toString()
+        }
+    }
+end macro
+
+$IMPL_INT_TYPE(Int8,  int8)
+$IMPL_INT_TYPE(Int16, int16)
+$IMPL_INT_TYPE(Int32, int32)
+$IMPL_INT_TYPE(Int64, int64)
+$IMPL_INT_TYPE(ISize, isize)
+
+$IMPL_INT_TYPE(UInt8,  uint8)
+$IMPL_INT_TYPE(UInt16, uint16)
+$IMPL_INT_TYPE(UInt32, uint32)
+$IMPL_INT_TYPE(UInt64, uint64)
+$IMPL_INT_TYPE(USize,  usize)

@@ -1,0 +1,18 @@
+namespace std::os::impl
+
+import (
+    core::runtime
+)
+
+@ExternalFunction("exit")
+extern function libc_exit(code: int32)
+
+public function platform(): string {
+    return "linux"
+}
+
+public function exit(code: int32) {
+    unsafe {
+        libc_exit(code)
+    }
+}

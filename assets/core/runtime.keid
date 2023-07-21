@@ -1,0 +1,62 @@
+namespace core::runtime
+
+import (
+    core::mem
+)
+
+public attribute ExternalFunction(name: string)
+
+/// True if `keid.init()` has finished executing, otherwise `false.`
+let hasInit: bool = false
+let preventRecursivePush: usize = 0
+
+extern function keid_core_runtime_push_stack_frame(frame: Pointer<char>)
+extern function keid_core_runtime_pop_stack_frame()
+extern function keid_core_runtime_print_stack_frames()
+extern function keid_core_runtime_get_stack_frames(): Pointer<char>
+extern function keid_core_runtime_free_stack_frames(frames: Pointer<char>)
+
+function pushStackFrame(name: string) {
+    if preventRecursivePush > 0 {
+        return
+    }
+    if hasInit {
+        preventRecursivePush += 1
+        let cstr = name.toNullTerminated()
+        unsafe {
+            fixed let cstrPtr: Pointer<char> = ref cstr {
+                keid_core_runtime_push_stack_frame(cstrPtr)
+            }
+        }
+        preventRecursivePush -= 1
+    }
+}
+
+function popStackFrame() {
+    if preventRecursivePush > 0 {
+        return
+    }
+    if hasInit {
+        preventRecursivePush += 1
+        unsafe {
+            keid_core_runtime_pop_stack_frame()
+        }
+        preventRecursivePush -= 1
+    }
+}
+
+function getStackFrames(): string {
+    unsafe {
+        let cstrFrames = keid_core_runtime_get_stack_frames()
+        let str = string::fromCStr(cstrFrames)
+        keid_core_runtime_free_stack_frames(cstrFrames)
+        return str
+    }
+}
+
+function printStackFrames() {
+    // std::io::println(getStackFrames())
+    unsafe {
+        keid_core_runtime_print_stack_frames()
+    }
+}

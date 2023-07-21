@@ -1,0 +1,73 @@
+namespace core::string
+
+import (
+    core::mem
+    core::object
+    core::ops
+)
+
+extern function keid_cstrlen(cstr: Pointer<char>): usize
+
+public class String {
+    chars: [char]
+
+    public get length: usize => this.chars.length
+
+    public static unsafe fromCStr(cstr: Pointer<char>): string {
+        let len = keid_cstrlen(cstr)
+        if len == 0 {
+            return ""
+        }
+        return String::fromUtf8Slice(array::copyFromPtr<char>(cstr, len))
+    }
+
+    /// Note that any changes to the new underlying array will be reflected in the string's value.
+    public static fromUtf8Slice(chars: [char]): string => new String { chars, }
+
+    ///: an array containing the characters in the string as NUL-terminated and UTF-8 encoded.
+    public toNullTerminated(): [char] {
+        if this.chars.length == 0 {
+            return new char[0] // return just a null terminator
+        }
+
+        // the last char stays zero, making it null terminated
+        let terminated = new char[0; this.chars.length + 1]
+        array::copy<char>(this.chars, 0, terminated, 0, this.chars.length)
+        return terminated
+    }
+}
+
+implement ToString for String {
+    toString(): string => this
+}
+
+implement Equals<String> for String {
+    equals(other: string): bool {
+        if this.length != other.length {
+            return false
+        }
+
+        for i in range::create(0, this.length) {
+            if this.chars[i] != other.chars[i] {
+                return false
+            }
+        }
+
+        return true
+    }
+}
+
+implement Add<String> for String {
+    type Output = string
+
+    add(other: string): Output {
+        let sb = StringBuilder::withCapacity(this.length + other.length)
+        sb.append(this)
+        sb.append(other)
+        return sb.toString()
+    }
+}
+
+implement Default for String {
+    static default(): object => ""
+}

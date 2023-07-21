@@ -1,0 +1,88 @@
+
+namespace test {
+    extern function printf(msg: &char, val: int32)
+
+    class Useless {
+        destructor {
+            printf("Useless Destructor! %i\n", 77)
+        }
+
+        constructor {
+            printf("Useless Constructor! %i\n", 77)
+        }
+
+        public doSomething() {
+            printf("I'm doing something with %i!\n", 50)
+        }
+
+        public doSomethingElse() {
+            printf("I'm doing something else with %i!\n", 125)
+        }
+    }
+
+    class Card {
+        cardId: int32
+        isValid: int32
+
+        destructor {
+            printf("Card Destructor! My Card ID was #%i.\n", this.cardId)
+            this.isValid = 0
+        }
+
+        public setCardId(newCardId: int32) {
+            this.cardId = newCardId
+        }
+    }
+
+    class Object {
+        field1: int32
+        card: Card
+
+        destructor {
+            printf("Object Destructor! %i\n", 88)
+        }
+    }
+
+    class Basic {
+        useless: Useless
+
+        destructor {
+            printf("Basic Destructor! %i\n", 0)
+        }
+
+        constructor {
+            printf("Basic Constructor! %i\n", 0)
+        }   
+    }
+
+    public extern function main(): int32 {
+        // let higherScopedCard = new Card {
+        //     cardId = 1,
+        //     isValid = 0,
+        // }
+        // {
+        //     let obj = new Object {
+        //         field1 = 2,
+        //         card = new Card {
+        //             cardId = 5,
+        //             isValid = 0,
+        //         },
+        //     }
+        //     higherScopedCard = obj.card
+        // }
+
+        // printf("Higher scoped card ID: #%i.\n", higherScopedCard.cardId)
+        // printf("Is the higher scoped card still valid? %i.\n", higherScopedCard.isValid)
+
+        let range = Range::create(10, 20)
+        // let rnext = range.next
+        // printf("Get item in range: %i.\n", rnext!)
+        // printf("Get item in range: %i.\n", range.next!)
+
+        for i in range {
+            printf("Next item in range: %i.\n", i)
+        }
+
+        return 0
+    }
+}

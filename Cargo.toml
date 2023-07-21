@@ -1,0 +1,15 @@
+[package]
+name = "keid"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pest = "2.3"
+pest_derive = "2.3"
+anyhow = { version = "1.0.66", features = ["backtrace"] }
+thiserror = "1.0"
+lazy_static = "1.4"
+bincode = "2.0.0-rc.3"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+llvm-sys = { path = "../llvm-sys" }

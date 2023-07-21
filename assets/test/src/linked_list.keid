@@ -1,0 +1,73 @@
+
+namespace test {
+    extern function printf(msg: &char, val1: int32, val2: int32)
+    extern function puts(msg: &char)
+    extern function keidInitialize()
+
+    public class LinkedList {
+        head: ?LinkedListNode
+
+        public push(value: TestObject) {
+            let current = this.head
+            loop {
+                if current!.next == null {
+                    current!.next = new LinkedListNode {
+                        next = null,
+                        value,
+                    }
+                    return
+                }
+                current = current!.next
+            }
+        }
+
+        destructor {
+            puts("Destroying LinkedList object")
+        }
+    }
+
+    public class LinkedListNode {
+        next: ?LinkedListNode
+        value: TestObject
+
+        destructor {
+            puts("Destroying LinkedListNode object")
+        }
+    }
+
+    public class TestObject {
+        val1: int32
+        val2: int32
+
+        destructor {
+            printf("Destroying test object: val1 = %i, val2 = %i\n", this.val1, this.val2)
+        }
+    }
+
+    public extern function main() {
+        keidInitialize()
+
+        let list = new LinkedList {
+            head = new LinkedListNode {
+                next = null,
+                value = new TestObject {
+                    val1 = 500,
+                    val2 = 1000,
+                },
+            },
+        }
+
+        list.push(new TestObject {
+            val1 = 5,
+            val2 = 10,
+        })
+
+        list.head!.next = new LinkedListNode {
+            next = null,
+            value = new TestObject {
+                val1 = 50,
+                val2 = 100,
+            },
+        }
+    }
+}

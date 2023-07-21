@@ -1,0 +1,26 @@
+WHITESPACE = _{ " " | "\t" | "\n" }
+keyword_macro = @{ "macro" }
+
+all_chars = _{ 'a'..'z' | 'A'..'Z' | "_" | '0'..'9' }
+ident = @{
+    ('a'..'z' | 'A'..'Z' | "_") ~
+    all_chars*
+}
+
+macro_arg = @{ "#" ~ ident }
+macro_args = { macro_arg ~ ("," ~ macro_arg)* }
+macro_name = @{ "$" ~ ident }
+macro_body = { (!"end macro" ~ ANY)* ~ "end macro" }
+macro_decl = { keyword_macro ~ macro_name ~ "(" ~ macro_args? ~ ")" ~ macro_body  }
+
+marked_macro_param = { "```" ~ (!"```" ~ ANY)+ ~ "```" }
+simple_macro_param = { (!("," | "(" | ")") ~ ANY)+ }
+macro_param = _{ marked_macro_param | simple_macro_param }
+macro_call = { macro_name ~ "(" ~ macro_param? ~ ("," ~ macro_param)* ~ ")" }
+
+raw_text = { (!(keyword_macro | macro_call | EOI) ~ ANY)+ }
+
+program_statement = _{ macro_decl | macro_call | raw_text }
+// program_statement = _{ (!keyword_macro ~ ) }
+
+program = { SOI ~ program_statement* ~ EOI }

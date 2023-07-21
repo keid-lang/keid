@@ -1,0 +1,60 @@
+namespace std::fs::impl
+
+import (
+    core::mem
+)
+
+/// Sets the seek offset to be `n` bytes from the start of the file.
+const LIBC_SEEK_SET: uint32 = 0
+/// Sets the seek offset to be `n` bytes from the current seek offset of the file.
+const LIBC_SEEK_CUR: uint32 = 1
+/// Sets the seek offset to be at the end of the file.
+const LIBC_SEEK_END: uint32 = 2
+
+extern function fseek(fd: usize, offset: uint32, whence: uint32): uint32
+extern function fopen(pathname: Pointer<char>, mode: Pointer<char>): usize
+extern function ftell(fd: usize): usize
+extern function fread(buf: Pointer<uint8>, count: usize, length: usize, fd: usize): uint32
+extern function fclose(fd: usize): uint32
+extern function perror(msg: Pointer<char>)
+extern function exit(status: int32)
+
+public function openFile(path: string): usize {
+    unsafe {
+        let fd = fopen(path.chars, "r")
+        if fd == 0 {
+            perror("fopen() failed")
+            exit(1)
+        }
+        return fd
+    }
+}
+
+public function closeFile(fd: usize): uint32 {
+    unsafe {
+        return fclose(fd)
+    }
+}
+
+public function getFileLength(fd: usize): usize {
+    unsafe {
+        fseek(fd, 0, LIBC_SEEK_END)
+        let size = ftell(fd)
+        fseek(fd, 0, LIBC_SEEK_SET)
+        return size
+    }
+}
+
+public function seekFile(fd: usize, pos: usize) {
+    unsafe {
+        fseek(fd, pos, LIBC_SEEK_SET)
+    }
+}
+
+public function readFileBytes(fd: usize, buf: [uint8], count: usize) {
+    unsafe {
+        fixed let ptr: Pointer<uint8> = ref buf {
+            fread(ptr, 1, count, fd)
+        }
+    }
+}

@@ -1,0 +1,102 @@
+namespace core::collections
+
+public interface Iterator<T> {
+    get next: ?T
+}
+
+public interface Iterable<T> {
+    get iterator: Iterator<T>
+}
+
+public class Range {
+    // The range type can be represented as [start..end) in interval notation.
+    start: usize // inclusive bound
+    end: usize   // exclusive bound
+    current: usize
+
+    public static create(start: usize, end: usize): Range {
+        return new Range {
+            start
+            end
+            current = start
+        }
+    }
+}
+
+implement Iterator<usize> for Range {
+    get next: ?usize {
+        if this.current >= this.end {
+            return null
+        }
+
+        let tmp = this.current
+        this.current += 1
+        return tmp
+    }
+}
+
+public interface PositionalStorage<T> {
+    getElement(index: usize): T
+    setElement(index: usize, value: T)
+    ensureCapacity(capacity: usize)
+
+    get capacity: usize
+}
+
+public class ArrayBackedStorage<T: Default> {
+    array: [T]
+
+    public static empty<T: Default>(): ArrayBackedStorage<T> {
+        return new ArrayBackedStorage<T> {
+            array = new T[default(T); 0]
+        }
+    }
+}
+
+implement <T: Default> PositionalStorage<T> for ArrayBackedStorage<T> {
+    getElement(index: usize): T => this.array[index]
+
+    setElement(index: usize, value: T) {
+        this.array[index] = value
+    }
+
+    ensureCapacity(capacity: usize) {            
+        if capacity > this.array.length {
+            let newCapacity = capacity
+            // let newCapacity = this.array.length * 2 + 1
+            // while newCapacity < capacity {
+            //     newCapacity *= 2
+            // }
+
+            let newBuffer = new T[default(T); newCapacity]
+            array::copy<T>(this.array, 0, newBuffer, 0, this.array.length)
+            this.array = newBuffer
+        }
+    }
+
+    public get capacity: usize => this.array.length
+}
+
+public class ArrayIterator<T> {
+    arr: [T]
+    idx: usize
+
+    static create<T>(arr: [T]): ArrayIterator<T> {
+        return new ArrayIterator<T> {
+            arr
+            idx = 0
+        }
+    }
+}
+
+implement <T> Iterator<T> for ArrayIterator<T> {
+    get next: ?T {
+        if this.idx >= this.arr.length {
+            return null
+        }
+
+        let element = this.arr[this.idx]
+        this.idx += 1
+        return element
+    }
+}

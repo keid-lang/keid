@@ -1,0 +1,35 @@
+
+namespace std::mem::impl {
+    extern function malloc(size: usize): &void
+    extern function free(ptr: &void)
+
+    public function allocRegion(size: usize): &void {
+        return malloc(size)
+    }
+
+    public function freeRegion(ptr: &void) {
+        free(ptr)
+    }
+}
+
+namespace std::os::impl {
+    public function platform(): string {
+        return "win32"
+    }
+}
+
+namespace std::fs::impl {
+    extern function CreateFileA(
+        lpFileName: &char,
+        dwDesiredAccess: uint32,
+        dwShareMode: uint32,
+        lpSecurityAttributes: usize,
+        dwCreationDisposition: uint32,
+        dwFlagsAndAttributes: uint32,
+        hTemplateFile: usize
+    ): usize
+
+    public function openFile(path: string): usize {
+        return CreateFileA(path.chars, 0, 0, 0, 0, 0, 0)
+    }
+}

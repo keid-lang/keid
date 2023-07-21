@@ -1,0 +1,27 @@
+namespace core::object::test 
+
+import (
+    core::collections
+    core::object
+)
+
+public function testClassFromInstance() {
+    let strCls = Class::fromInstance("this is a string")
+    test::assertEqual(strCls.name, "core::string::String")
+
+    let objCls = Class::fromInstance(new object)
+    test::assertEqual(objCls.name, "core::object::Object")
+
+    let stringArray = new string["Hello", "World!"]
+    let stringArrayIterator = ArrayIterator::create<string>(stringArray)
+    let stringArrayIteratorCls = Class::fromInstance(stringArrayIterator)
+    test::assertEqual(stringArrayIteratorCls.name, "core::collections::ArrayIterator<core::string::String>")
+
+    // let int32Cls = Class::fromInstance(5)
+    // test::assertEqual(int32Cls.name, "core::object::Int32")
+
+    // let uint32StructCls = Class::fromInstance(new UInt32 {
+    //     value = 5,
+    // })
+    // test::assertEqual(uint32StructCls.name, "core::object::UInt32")
+}

@@ -1,0 +1,54 @@
+namespace core::mem
+
+import (
+    core::runtime
+)
+
+public struct Pointer<T> {
+    address: usize
+
+    public static null<T>(): Pointer<T> {
+        return Pointer::to<T>(0)
+    }
+
+    public static to<T>(address: usize): Pointer<T> {
+        return new Pointer<T> {
+            address
+        }
+    }
+
+    public static cast<A, B>(from: Pointer<A>): Pointer<B> {
+        return new Pointer<B> {
+            address = from.address
+        }
+    }
+
+    public offset(val: isize): Pointer<T> {
+        return Pointer::to<T>(((this.address as isize) + val * (sizeof(T) as isize)) as usize)
+    }
+
+    public get isNull: bool => this.address == 0
+}
+
+// Copies `sizeof(T) * count` bytes from `src` to `dst`.
+public function copy<T>(src: Pointer<T>, dst: Pointer<T>, count: usize) {
+    std::mem::impl::copy(Pointer::cast<T, void>(src), Pointer::cast<T, void>(dst), count * sizeof(T))
+}
+
+// Allocates `sizeof(T) * count` bytes of heap and returns the pointer to the allocated region.
+public function alloc<T>(count: usize): Pointer<T> {
+    return Pointer::cast<void, T>(std::mem::impl::alloc(count * sizeof(T)))
+}
+
+// Deallocates the heap memory at a pointer returned by `core::mem::alloc<T>`.
+public function dealloc<T>(ptr: Pointer<T>) {
+    std::mem::impl::dealloc(Pointer::cast<T, void>(ptr))
+}
+
+// Increases the reference count of an object by 1.
+@ExternalFunction("keid.scope")
+public extern function scope(ptr: Pointer<void>)
+
+// Decreases the reference count of an object by 1.
+@ExternalFunction("keid.unscope")
+public extern function unscope(ptr: Pointer<void>)

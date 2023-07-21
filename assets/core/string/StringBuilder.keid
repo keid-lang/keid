@@ -1,0 +1,61 @@
+namespace core::string
+
+import (
+    core::collections
+)
+
+public class StringBuilder {
+    buffer: ArrayBackedStorage<char>
+    pos: usize
+
+    public get capacity: usize => this.buffer.capacity
+
+    public static empty(): StringBuilder => StringBuilder::withCapacity(0)
+
+    public static withCapacity(capacity: usize): StringBuilder {
+        let buffer = ArrayBackedStorage::empty<char>()
+        buffer.ensureCapacity(capacity)
+        return new StringBuilder {
+            buffer
+            pos = 0
+        }
+    }
+
+    public append(val: string): StringBuilder {
+        this.buffer.ensureCapacity(this.pos + val.length)
+        for i in range::create(0, val.chars.length) {
+            this.buffer.setElement(this.pos, val.chars[i])
+            this.pos += 1
+        }
+
+        return this
+    }
+
+    public insert(index: usize, val: string): StringBuilder {
+        this.buffer.ensureCapacity(this.pos + val.length)
+        for i in range::create(index, this.pos) {
+            let currentCh = this.buffer.getElement(this.pos - i - 1)
+            this.buffer.setElement((this.pos - i - 1) + val.length, currentCh)
+        }
+        for i in range::create(0, val.length) {
+            this.buffer.setElement(i + index, val.chars[i])
+        }
+        this.pos += val.length
+        return this
+    }
+
+    ///: a new string whose value is a copy of the current state of this `Builder`.
+    public toString(): string {
+        let copy = new char[default(char); this.pos]
+        array::copy<char>(this.buffer.array, 0, copy, 0, this.pos)
+        return String::fromUtf8Slice(copy)
+    }
+
+    ///: a new string whose value is shared with this buffer.
+    /// Changes to the buffer MAY OR MAY NOT be reflected in the value of the string.
+    /// This should only ever be used when it is GUARANTEED that no further changes
+    /// to this `Builder` occur during the entire lifetime of this object. 
+    /// This is almost never what you want to use. You should use `toString` instead.
+    public toRefString(): string => String::fromUtf8Slice(this.buffer.array)
+}
+

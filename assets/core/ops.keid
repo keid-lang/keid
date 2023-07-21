@@ -1,0 +1,41 @@
+namespace core::ops
+
+public interface Equals<T> {
+    equals(other: T): bool
+}
+
+public interface Add<T> {
+    type Output
+
+    add(other: T): Output
+}
+
+public interface Subtract<T> {
+    type Output
+    
+    subtract(other: T): Output
+}
+
+public interface Multiply<T> {
+    type Output
+
+    multiply(other: T): Output
+}
+
+public interface Divide<T> {
+    type Output
+    
+    divide(other: T): Output
+}
+
+public interface Index<K> {
+    type Element
+
+    index(key: K): Element
+}
+
+public interface IndexAssign<K> {
+    type Element
+
+    indexAssign(key: K, element: Element)
+}

@@ -1,0 +1,47 @@
+namespace std::fs
+
+import (
+    std::io
+    std::os
+)
+ 
+public class File {
+    handle: usize
+    open: bool
+
+    public static open(path: string): File {
+        return new File {
+            handle = std::fs::impl::openFile(path)
+            open = true
+        }
+    }
+
+    assertOpen() {
+        if !this.open {
+            io::println("assertOpen() failed")
+            os::exit(1)
+        }
+    }
+
+    public read(buf: [uint8]) {
+        this.assertOpen()
+
+        std::fs::impl::readFileBytes(this.handle, buf, buf.length)
+    }
+
+    public close() {
+        // closing more than once is a no-op
+        if !this.open {
+            return
+        }
+
+        std::fs::impl::closeFile(this.handle)
+        this.open = false
+    }
+
+    public get length: usize {
+        this.assertOpen()
+
+        return std::fs::impl::getFileLength(this.handle)
+    }
+}
