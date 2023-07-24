@@ -14,14 +14,14 @@ public class List<T> {
 
     public static empty<T>(): List<T> {
         return new List<T> {
-            storage = Pointer::null<T>()
+            storage = Pointer.null<T>()
             length = 0
             capacity = 0
         }
     }
 
     public static from<T>(...elements: T): List<T> {
-        let list = List::withCapacity<T>(elements.length)
+        let list = List.withCapacity<T>(elements.length)
         for element in elements {
             list.push(element)
         }
@@ -30,7 +30,7 @@ public class List<T> {
 
     public static withCapacity<T>(capacity: usize): List<T> {
         return new List<T> {
-            storage = mem::alloc<T>(capacity)
+            storage = mem.alloc<T>(capacity)
             length = 0
             capacity
         }
@@ -43,9 +43,9 @@ public class List<T> {
                 newCapacity *= 2
             }
             
-            let newStorage = mem::alloc<T>(newCapacity)
-            mem::copy<T>(this.storage, newStorage, this.length)
-            mem::dealloc<T>(this.storage)
+            let newStorage = mem.alloc<T>(newCapacity)
+            mem.copy<T>(this.storage, newStorage, this.length)
+            mem.dealloc<T>(this.storage)
 
             this.storage = newStorage
             this.capacity = newCapacity
@@ -58,22 +58,22 @@ public class List<T> {
             deref this.storage.offset(this.length as isize) = item
 
             // manually take a reference to the object
-            mem::scope(Pointer::cast<T, void>(this.storage.offset(this.length as isize)))
+            // TODO: type check mem.scope(Pointer.cast<T, void>(this.storage.offset(this.length as isize)))
         }
         this.length += 1
     }
 
     public remove(index: usize) {
         if index >= this.length {
-            throw error::indexOutOfBounds(index)
+            throw error.indexOutOfBounds(index)
         }
 
         unsafe {
             // manually drop the reference to the object
-            mem::unscope(Pointer::cast<T, void>(this.storage.offset(index as isize)))
+            // TODO: type check mem.unscope(Pointer.cast<T, void>(this.storage.offset(index as isize)))
 
             // move all elements after the index one element towards the start
-            mem::copy<T>(
+            mem.copy<T>(
                 this.storage.offset(index as isize + 1),
                 this.storage.offset(index as isize),
                 this.length - index,
@@ -84,7 +84,7 @@ public class List<T> {
 
     public get(index: usize): T {
         if index >= this.length {
-            throw error::indexOutOfBounds(index)
+            throw error.indexOutOfBounds(index)
         }
 
         unsafe {
@@ -94,7 +94,7 @@ public class List<T> {
 
     public toArray(): [T] {
         let array = new T[default(T); this.length]
-        for i in range::create(0, this.length) {
+        for i in range.create(0, this.length) {
             array[i] = this.get(i)
         }
         return array
@@ -102,7 +102,7 @@ public class List<T> {
 }
 
 implement <T: ToString + Default> ToString for List<T> {
-    toString(): string => array::toString<T>(this.toArray<T>())
+    toString(): string => array.toString<T>(this.toArray<T>())
 }
 
 public class ListIterator<T> {

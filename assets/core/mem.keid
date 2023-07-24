@@ -8,7 +8,7 @@ public struct Pointer<T> {
     address: usize
 
     public static null<T>(): Pointer<T> {
-        return Pointer::to<T>(0)
+        return Pointer.to<T>(0)
     }
 
     public static to<T>(address: usize): Pointer<T> {
@@ -24,7 +24,7 @@ public struct Pointer<T> {
     }
 
     public offset(val: isize): Pointer<T> {
-        return Pointer::to<T>(((this.address as isize) + val * (sizeof(T) as isize)) as usize)
+        return Pointer.to<T>(((this.address as isize) + val * (sizeof(T) as isize)) as usize)
     }
 
     public get isNull: bool => this.address == 0
@@ -32,17 +32,17 @@ public struct Pointer<T> {
 
 // Copies `sizeof(T) * count` bytes from `src` to `dst`.
 public function copy<T>(src: Pointer<T>, dst: Pointer<T>, count: usize) {
-    std::mem::impl::copy(Pointer::cast<T, void>(src), Pointer::cast<T, void>(dst), count * sizeof(T))
+    std::mem::impl.copy(Pointer.cast<T, void>(src), Pointer.cast<T, void>(dst), count * sizeof(T))
 }
 
 // Allocates `sizeof(T) * count` bytes of heap and returns the pointer to the allocated region.
 public function alloc<T>(count: usize): Pointer<T> {
-    return Pointer::cast<void, T>(std::mem::impl::alloc(count * sizeof(T)))
+    return Pointer.cast<void, T>(std::mem::impl.alloc(count * sizeof(T)))
 }
 
-// Deallocates the heap memory at a pointer returned by `core::mem::alloc<T>`.
+// Deallocates the heap memory at a pointer returned by `core::mem.alloc<T>`.
 public function dealloc<T>(ptr: Pointer<T>) {
-    std::mem::impl::dealloc(Pointer::cast<T, void>(ptr))
+    std::mem::impl.dealloc(Pointer.cast<T, void>(ptr))
 }
 
 // Increases the reference count of an object by 1.

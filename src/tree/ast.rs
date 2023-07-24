@@ -22,16 +22,13 @@ impl Identifier {
     pub fn from_string(string: &str) -> Token<Identifier> {
         Token {
             token: Identifier(string.to_owned()),
-            loc: TokenLocation {
-                start: 0,
-                end: 0,
-            },
+            loc: TokenLocation { start: 0, end: 0 },
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Qualifier(pub Vec<Token<Identifier>>); // ends in implicit "::"
+pub struct Qualifier(pub Vec<Token<Identifier>>);
 
 impl Qualifier {
     pub fn into_tokens(self) -> Vec<Token<Identifier>> {
@@ -96,7 +93,9 @@ impl QualifiedType {
             }
             Rule::array_type => {
                 pairs.next();
-                ComplexType::Array(Box::new(Self::from_idents(token.into_inner().next().unwrap()).complex))
+                ComplexType::Array(Box::new(
+                    Self::from_idents(token.into_inner().next().unwrap()).complex,
+                ))
             }
             Rule::anonymous_struct_type => {
                 pairs.next();
@@ -122,9 +121,7 @@ impl QualifiedType {
                         Rule::ident => path.push(Identifier::from_ident(&token)),
                         Rule::generic_args => {
                             let args = token.into_inner().map(QualifiedType::from_idents).collect();
-                            generic_args = Some(GenericArgs {
-                                args,
-                            })
+                            generic_args = Some(GenericArgs { args })
                         }
                         _ => unreachable!(),
                     }
@@ -173,6 +170,8 @@ pub enum FunctionModifier {
     Public,
     Internal,
     Unsafe,
+    Virtual,
+    Override,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -415,7 +414,6 @@ pub struct TryCatch {
 pub enum Statement {
     Let(Let),
     Return(Option<Token<Expr>>),
-    StaticFuncCall(StaticFuncCall),
     Assign(Assign),
     IfChain(IfChain),
     ForLoop(ForLoop),
@@ -489,11 +487,12 @@ pub enum MemberType {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Member {
     pub ty: MemberType,
-    pub name: Token<Expr>,
+    pub value: Token<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MemberExpr {
+    pub namespace: Option<Qualifier>,
     pub members: Vec<Member>,
 }
 
@@ -533,8 +532,6 @@ pub enum Expr {
     BoolLit(bool),
     StringLit(String),
     SignedIntLit(i64),
-    StaticFuncCall(StaticFuncCall),
-    StaticFieldReference(Qualifier),
     EnumWithData(EnumWithDataExpr),
     FuncCall(FuncCall),
     Ident(Token<Identifier>),

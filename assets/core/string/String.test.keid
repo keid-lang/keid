@@ -7,36 +7,36 @@ import (
  
 function testEmptyString() {
     let s = ""
-    test::assertEqual(s, "")
-    test::assertTrue(s.equals(""))
-    test::assertNotEqual(s, "not empty")
-    test::assertTrue(!s.equals("not empty"))
-    test::assertEqual(s.length, 0)
-    test::assertEqual(s.chars.length, 0)
+    test.assertEqual(s, "")
+    test.assertTrue(s.equals(""))
+    test.assertNotEqual(s, "not empty")
+    test.assertTrue(!s.equals("not empty"))
+    test.assertEqual(s.length, 0)
+    test.assertEqual(s.chars.length, 0)
 }
 
 function testFromUtf8Slice() {
     let chars = new char[65; 5] // 65 == 'A'
-    let s = String::fromUtf8Slice(chars)
-    test::assertEqual(s, "AAAAA")
-    test::assertTrue(s.equals("AAAAA"))
-    test::assertNotEqual(s, "not AAAAA")
-    test::assertTrue(!s.equals("not AAAAA"))
-    test::assertEqual(s.length, 5)
-    test::assertEqual(s.chars.length, 5)
+    let s = String.fromUtf8Slice(chars)
+    test.assertEqual(s, "AAAAA")
+    test.assertTrue(s.equals("AAAAA"))
+    test.assertNotEqual(s, "not AAAAA")
+    test.assertTrue(!s.equals("not AAAAA"))
+    test.assertEqual(s.length, 5)
+    test.assertEqual(s.chars.length, 5)
 }
 
 function testStringToString() {
     let s = "This is a String!"
-    test::assertEqual(s, "This is a String!")
-    test::assertNotEqual(s, "This is not a String!")
-    test::assertEqual(s.toString(), s)
-    test::assertTrue(s.toString().equals(s))
-    test::assertEqual(s.toString(), s.toString())
-    test::assertTrue(s.toString().equals(s.toString()))
-    test::assertEqual(s.toString(), "This is a String!")
-    test::assertNotEqual(s.toString(), "This is not a String!")
-    test::assertEqual(s.toString().length, s.length)
+    test.assertEqual(s, "This is a String!")
+    test.assertNotEqual(s, "This is not a String!")
+    test.assertEqual(s.toString(), s)
+    test.assertTrue(s.toString().equals(s))
+    test.assertEqual(s.toString(), s.toString())
+    test.assertTrue(s.toString().equals(s.toString()))
+    test.assertEqual(s.toString(), "This is a String!")
+    test.assertNotEqual(s.toString(), "This is not a String!")
+    test.assertEqual(s.toString().length, s.length)
 }
 
 function testStringEquals() {
@@ -45,17 +45,17 @@ function testStringEquals() {
     let anotherA = " STRING A "
     let empty = ""
 
-    test::assertEqual(a.length, b.length)
-    test::assertEqual(a, a)
-    test::assertEqual(b, b)
-    test::assertNotEqual(a, b)
-    test::assertEqual(anotherA, anotherA)
-    test::assertNotEqual(a, anotherA)
-    test::assertNotEqual(b, anotherA)
-    test::assertNotEqual(a, empty)
-    test::assertNotEqual(b, empty)
-    test::assertNotEqual(anotherA, empty)
-    test::assertEqual(empty, empty)
+    test.assertEqual(a.length, b.length)
+    test.assertEqual(a, a)
+    test.assertEqual(b, b)
+    test.assertNotEqual(a, b)
+    test.assertEqual(anotherA, anotherA)
+    test.assertNotEqual(a, anotherA)
+    test.assertNotEqual(b, anotherA)
+    test.assertNotEqual(a, empty)
+    test.assertNotEqual(b, empty)
+    test.assertNotEqual(anotherA, empty)
+    test.assertEqual(empty, empty)
 }
 
 function testStringsWithNul() {
@@ -64,22 +64,22 @@ function testStringsWithNul() {
     chars[4] = 0
     // chars is now [66, 0, 66, 66, 0]
 
-    let s = String::fromUtf8Slice(chars)
-    test::assertEqual(s.length, 5)
-    test::assertNotEqual(s, "B")
-    test::assertNotEqual(s, "B\0")
-    test::assertNotEqual(s, "B\0BB")
-    // FAILS test::assertTrue(s == "B\0BB\0")
+    let s = String.fromUtf8Slice(chars)
+    test.assertEqual(s.length, 5)
+    test.assertNotEqual(s, "B")
+    test.assertNotEqual(s, "B\0")
+    test.assertNotEqual(s, "B\0BB")
+    // FAILS test.assertTrue(s == "B\0BB\0")
 
     let chars2 = new char[0; 1]
-    let s2 = String::fromUtf8Slice(chars2)
-    test::assertEqual(s2.length, 1)
-    // FAILS test::assertTrue(s2 == "\0")
+    let s2 = String.fromUtf8Slice(chars2)
+    test.assertEqual(s2.length, 1)
+    // FAILS test.assertTrue(s2 == "\0")
 }
 
 function testStringAddition() {
-    test::assertEqual("a" + "b", "ab")
-    test::assertEqual("a" + "b" + "c", "abc")
+    test.assertEqual("a" + "b", "ab")
+    test.assertEqual("a" + "b" + "c", "abc")
 }
 
 function testStringFromCStr() {
@@ -87,8 +87,8 @@ function testStringFromCStr() {
     let myStringNul = myString.toNullTerminated()
     unsafe {
         fixed let myStringCStr = ref myStringNul {
-            let myStringFromCStr = string::fromCStr(myStringCStr) 
-            test::assertEqual(myStringFromCStr, "Hello, I am a String.")
+            let myStringFromCStr = string.fromCStr(myStringCStr) 
+            test.assertEqual(myStringFromCStr, "Hello, I am a String.")
         }
     }
 }

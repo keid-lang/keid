@@ -1,9 +1,9 @@
 namespace std::os
 
 public function platform(): string {
-    return std::os::impl::platform()
+    return std::os::impl.platform()
 }
 
 public function exit(code: int32) {
-    std::os::impl::exit(code)
+    std::os::impl.exit(code)
 }

@@ -63,13 +63,14 @@ implement <T: Default> PositionalStorage<T> for ArrayBackedStorage<T> {
     ensureCapacity(capacity: usize) {            
         if capacity > this.array.length {
             let newCapacity = capacity
+            // TODO implement a load factor
             // let newCapacity = this.array.length * 2 + 1
             // while newCapacity < capacity {
             //     newCapacity *= 2
             // }
 
             let newBuffer = new T[default(T); newCapacity]
-            array::copy<T>(this.array, 0, newBuffer, 0, this.array.length)
+            array.copy<T>(this.array, 0, newBuffer, 0, this.array.length)
             this.array = newBuffer
         }
     }

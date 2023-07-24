@@ -1,1 +1,24 @@
 namespace keidc
+
+// import (
+//     std::io
+// )
+
+// public class Cookie {
+//     radius: uint32
+//     thickness: uint32
+
+//     public virtual bake() {
+//         io.println("Baked a ", this.radius.toString(), "x", this.thickness.toString(), " simple cookie")
+//     }
+// }
+
+// public class ChocolateChipCookie extends Cookie {
+//     chips: uint32
+
+//     public override bake() {
+//         super.bake()
+
+//         io.println("Making ChocolateChipCookie! with ", this.chips.toString(), " chips")
+//     }
+// }

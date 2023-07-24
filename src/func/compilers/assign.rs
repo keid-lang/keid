@@ -76,23 +76,24 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
             Expr::Member(member_expr) => {
                 let previous_members = &member_expr.members[0..member_expr.members.len() - 1];
                 let previous_result = if previous_members.len() == 1 {
-                    self.compile_expr(&member_expr.members[0].name, None)?
+                    self.compile_expr(&member_expr.members[0].value, None)?
                 } else if previous_members.len() > 0 {
                     self.compile_expr(
                         &Token {
                             loc: lhs.loc.clone(),
                             token: Expr::Member(MemberExpr {
+                                namespace: None,
                                 members: previous_members.to_vec(),
                             }),
                         },
                         None,
                     )?
                 } else {
-                    return self.compile_assign(&member_expr.members[0].name, op, rhs, deref);
+                    return self.compile_assign(&member_expr.members[0].value, op, rhs, deref);
                 };
 
                 let last_member = member_expr.members.last().unwrap();
-                self.loc(&last_member.name.loc);
+                self.loc(&last_member.value.loc);
 
                 match &previous_result.ty {
                     ComplexType::Basic(BasicType::Object(ident)) => {
@@ -103,7 +104,7 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                             .ok_or_else(|| {
                                 compiler_error!(self, "No such type `{}`", ident.to_string())
                             })?;
-                        match &last_member.name.token {
+                        match &last_member.value.token {
                             Expr::Ident(field_name) => {
                                 let class_member = self.resolve_class_member_ptr(
                                     &previous_result,
@@ -127,7 +128,7 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                     }
                     ComplexType::Array(element_type) => {
                         let index = self.compile_expr(
-                            &last_member.name,
+                            &last_member.value,
                             Some(&BasicType::USize.to_complex()),
                         )?;
                         self.assert_assignable_to(&index.ty, &BasicType::USize.to_complex())?;
@@ -151,16 +152,16 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                     }
                 }
             }
-            Expr::StaticFieldReference(ident) => match self.resolve_static_field_reference(ident) {
-                Ok(static_field) => {
-                    self.try_unscope(&static_field)?;
-                    let compiled_rhs = self.compile_expr(rhs, Some(&static_field.ty))?;
+            Expr::Ident(ident) => {
+                match self.resolve_static_field_reference(&Qualifier(vec![ident.clone()])) {
+                    Ok(static_field) => {
+                        self.try_unscope(&static_field)?;
+                        let compiled_rhs = self.compile_expr(rhs, Some(&static_field.ty))?;
 
-                    self.store(op, compiled_rhs, &static_field)?;
-                }
-                Err(e) => {
-                    if ident.0.len() == 1 {
-                        let local_var = self.resolve_ident(&ident.0[0]).map_err(|_| e)?;
+                        self.store(op, compiled_rhs, &static_field)?;
+                    }
+                    Err(e) => {
+                        let local_var = self.resolve_ident(ident).map_err(|_| e)?;
                         if local_var.source == LocalVarSource::Scalar {
                             return Err(compiler_error!(self, "Cannot assign to scalar values"));
                         }
@@ -171,9 +172,8 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
 
                         return Ok(());
                     }
-                    return Err(e);
                 }
-            },
+            }
             x => unimplemented!("{:?}", x),
         }
 

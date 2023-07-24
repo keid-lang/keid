@@ -73,7 +73,7 @@ pub trait FunctionCompilerUtils {
         generic_args: Option<Vec<ComplexType>>,
     ) -> Result<Option<TypedValue>>;
 
-    fn autobox(&mut self, primitive: TypedValue) -> Result<TypedValue>;
+    fn autobox_primitive(&mut self, primitive: TypedValue) -> Result<TypedValue>;
     fn handle_unhandled_error(&mut self, check: bool) -> Result<()>;
     fn return_null(&mut self);
 
@@ -533,7 +533,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                 | BasicType::Int32,
             ) => {
                 if parent == "core::object::Object" {
-                    return Ok(Some(self.autobox(src)?));
+                    return Ok(Some(self.autobox_primitive(src)?));
                 }
                 return Ok(None);
             }
@@ -580,7 +580,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
         Ok(None)
     }
 
-    fn autobox(&mut self, primitive: TypedValue) -> Result<TypedValue> {
+    fn autobox_primitive(&mut self, primitive: TypedValue) -> Result<TypedValue> {
         let boxed_name = match &primitive.ty {
             ComplexType::Basic(basic) => match basic {
                 BasicType::Bool => "core::object::Bool",

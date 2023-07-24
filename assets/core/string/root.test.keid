@@ -1,22 +1,22 @@
 namespace core::string::test
 
 public function testIdentityFormat() {
-    test::assertEqual("Hello World", string::format("Hello World"))
-    test::assertNotEqual("Goodbye World", string::format("Not Goodbye World"))
+    test.assertEqual("Hello World", string.format("Hello World"))
+    test.assertNotEqual("Goodbye World", string.format("Not Goodbye World"))
 }
 
 public function testAppendFormat() {
-    test::assertEqual(core::string::format("Hello, ", "World"), "Hello, World")
-    test::assertNotEqual(core::string::format("Hello, ", "Not World"), "Hello, World")
-    test::assertNotEqual(core::string::format("Hello, ", "World"), "Not Hello, World")
-    test::assertEqual(core::string::format("", "", "", "", "", ""), "")
-    test::assertEqual(core::string::format("", "", "a", "", "b", ""), "ab")
-    test::assertEqual(core::string::format("Blank", ""), "Blank")
-    test::assertEqual(core::string::format("", "\0", ""), "\0")
-    test::assertEqual(core::string::format("", "\AAA", ""), "\AAA")
-    test::assertEqual(core::string::format("", "\0AAA", ""), "\0AAA")
-    // FAILS test::assertEqual(core::string::format("", "\0", "AAA", ""), "\0AAA")
-    // FAILS test::assertEqual(core::string::format("", "AAA", "\0", ""), "AAA\0")
-    test::assertEqual(core::string::format("", "AAA\0", ""), "AAA\0")
-    test::assertEqual(core::string::format("a", "b", "cdef", "g", "hijkl", "mnop"), "abcdefghijklmnop")
+    test.assertEqual(core::string.format("Hello, ", "World"), "Hello, World")
+    test.assertNotEqual(core::string.format("Hello, ", "Not World"), "Hello, World")
+    test.assertNotEqual(core::string.format("Hello, ", "World"), "Not Hello, World")
+    test.assertEqual(core::string.format("", "", "", "", "", ""), "")
+    test.assertEqual(core::string.format("", "", "a", "", "b", ""), "ab")
+    test.assertEqual(core::string.format("Blank", ""), "Blank")
+    test.assertEqual(core::string.format("", "\0", ""), "\0")
+    test.assertEqual(core::string.format("", "\AAA", ""), "\AAA")
+    test.assertEqual(core::string.format("", "\0AAA", ""), "\0AAA")
+    // FAILS test.assertEqual(core::string.format("", "\0", "AAA", ""), "\0AAA")
+    // FAILS test.assertEqual(core::string.format("", "AAA", "\0", ""), "AAA\0")
+    test.assertEqual(core::string.format("", "AAA\0", ""), "AAA\0")
+    test.assertEqual(core::string.format("a", "b", "cdef", "g", "hijkl", "mnop"), "abcdefghijklmnop")
 }

@@ -11,22 +11,22 @@ public class File {
 
     public static open(path: string): File {
         return new File {
-            handle = std::fs::impl::openFile(path)
+            handle = std::fs::impl.openFile(path)
             open = true
         }
     }
 
     assertOpen() {
         if !this.open {
-            io::println("assertOpen() failed")
-            os::exit(1)
+            io.println("assertOpen() failed")
+            os.exit(1)
         }
     }
 
     public read(buf: [uint8]) {
         this.assertOpen()
 
-        std::fs::impl::readFileBytes(this.handle, buf, buf.length)
+        std::fs::impl.readFileBytes(this.handle, buf, buf.length)
     }
 
     public close() {
@@ -35,13 +35,13 @@ public class File {
             return
         }
 
-        std::fs::impl::closeFile(this.handle)
+        std::fs::impl.closeFile(this.handle)
         this.open = false
     }
 
     public get length: usize {
         this.assertOpen()
 
-        return std::fs::impl::getFileLength(this.handle)
+        return std::fs::impl.getFileLength(this.handle)
     }
 }

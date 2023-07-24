@@ -11,7 +11,7 @@ public function toString<T: ToString>(arr: [T]): string {
     }
 
     let strArr = new string[""; arr.length]
-    for i in range::create(0, arr.length) {
+    for i in range.create(0, arr.length) {
         strArr[i] = arr[i].toString()
     }
 
@@ -20,9 +20,9 @@ public function toString<T: ToString>(arr: [T]): string {
         cap += val.length + 2
     }
 
-    let sb = StringBuilder::withCapacity(cap)
+    let sb = StringBuilder.withCapacity(cap)
     sb.append("[")
-    for i in range::create(0, strArr.length) {
+    for i in range.create(0, strArr.length) {
         let val = strArr[i]
         sb.append(val)
         if i < strArr.length - 1 {
@@ -35,7 +35,7 @@ public function toString<T: ToString>(arr: [T]): string {
 }
 
 public function copy<T>(src: [T], srcOffset: usize, dst: [T], dstOffset: usize, length: usize) {
-    for i in range::create(0, length) {
+    for i in range.create(0, length) {
         dst[dstOffset + (i as usize)] = src[srcOffset + (i as usize)]
     }
 }
@@ -45,7 +45,7 @@ public function equals<T>(a: [T], b: [T]): bool {
         return false
     }
 
-    for i in range::create(0, a.length) {
+    for i in range.create(0, a.length) {
         if a[i] != b[i] {
             return false
         }
@@ -58,7 +58,7 @@ public function fill<T>(dst: [T], value: T) {
     if dst.length == 0 {
         return
     }
-    for i in range::create(0, dst.length) {
+    for i in range.create(0, dst.length) {
         dst[i as usize] = value
     }
 }
@@ -69,7 +69,7 @@ public function fill<T>(dst: [T], value: T) {
 public unsafe function copyFromPtr<T>(ptr: Pointer<T>, len: usize): [T] {
     let currentPtr = ptr
     let arr = new T[default(T); len]
-    for i in range::create(0, len) {
+    for i in range.create(0, len) {
         arr[i] = deref currentPtr
         currentPtr = currentPtr.offset<T>(1)
     }

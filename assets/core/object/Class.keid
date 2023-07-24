@@ -13,7 +13,7 @@ public class Class {
     public static fromInstance(instance: object): Class {
         unsafe {
             let classNameCStr = keid_reflect_get_object_class_name(instance)
-            let name = String::fromCStr(classNameCStr)
+            let name = String.fromCStr(classNameCStr)
             return new Class {
                 name
             }

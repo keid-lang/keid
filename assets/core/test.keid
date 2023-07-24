@@ -4,7 +4,7 @@ import (
     core::error
 )
 
-public function assertionError(message: string): Error => Error::create(string::format("assertion failed: ", message))
+public function assertionError(message: string): Error => Error.create(string.format("assertion failed: ", message))
 
 function fail(msg: string) {
     throw assertionError(msg)
@@ -12,32 +12,32 @@ function fail(msg: string) {
 
 public function assertTrue(cond: bool) {
     if !cond {
-        test::fail("expecting true, received false")
+        test.fail("expecting true, received false")
     }
 }
 
 public function assertFalse(cond: bool) {
     if cond {
-        test::fail("expecting false, received true")
+        test.fail("expecting false, received true")
     }
 }
 
 public function assertEqual(a: string, b: string) {
     if a != b {
-        test::fail(string::format("'", a, "' != '", b, "'"))
+        test.fail(string.format("'", a, "' != '", b, "'"))
     }
 }
 
 public function assertNotEqual(a: string, b: string) {
     if a == b {
-        test::fail(string::format("'", a, "' == '", b, "'"))
+        test.fail(string.format("'", a, "' == '", b, "'"))
     }
 }
 
 macro $DEFINE_INT_ASSERTION(#type, #operator, #name)
     public function assert#name(a: #type, b: #type) {
         if a #operator b {
-            test::fail(string::format(a.toString(), " #operator ", b.toString()))
+            test.fail(string.format(a.toString(), " #operator ", b.toString()))
         }
     }
 end macro

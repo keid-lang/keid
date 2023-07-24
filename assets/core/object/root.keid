@@ -40,10 +40,10 @@ macro $IMPL_INT_TYPE(#wrapper, #primitive)
                 return "0"
             }
             
-            let sb = StringBuilder::empty()
+            let sb = StringBuilder.empty()
             while current > 0 {
                 let digit = (current % 10) + 0x30 // converts the digit to its ascii equivalent
-                sb.insert(0, String::fromUtf8Slice(new char[digit as char]))
+                sb.insert(0, String.fromUtf8Slice(new char[digit as char]))
                 current /= 10
             }
 

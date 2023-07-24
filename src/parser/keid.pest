@@ -62,21 +62,17 @@ anonymous_struct_type = { "{" ~ NEWLINE* ~ (ident ~ (":" ~ variable_type)? ~ (",
 variable_type = { nullable* ~ (array_type | anonymous_struct_type | (qualifier? ~ ident ~ generic_args?)) }
 
 func_call = { ident ~ generic_args? ~ ("(" ~ NEWLINE* ~ (expr ~ "," ~ NEWLINE*)* ~ NEWLINE* ~ expr? ~ NEWLINE* ~ ")") }
-static_func_call = { qualifier ~ func_call }
-
-// this rule is used for both static fields AND local function variables AND valueless enums
-static_field_ref = { qualifier? ~ ident }
-enum_with_data_ref = { qualifier ~ ident ~ anonymous_struct }
+enum_with_data_ref = { keyword_new ~ literal_qualifier ~ "." ~ ident ~ anonymous_struct }
 
 range = { logic_val ~ ".." ~ logic_val }
 
 new_call_field = { ident ~ "=" ~ expr }
-new_call = { keyword_new ~ variable_type ~ (NEWLINE* ~ "{" ~ NEWLINE* ~ ((new_call_field | ident) ~ ("," | NEWLINE*))* ~ block_end)? }
+new_call = { keyword_new ~ variable_type ~ NEWLINE* ~ "{" ~ NEWLINE* ~ ((new_call_field | ident) ~ ("," | NEWLINE*))* ~ block_end }
 
 new_array = { keyword_new ~ variable_type ~ "[" ~ expr ~ ";" ~ expr ~ "]" }
 specified_array = { keyword_new ~ variable_type ~ "[" ~ expr? ~ ("," ~ expr)* ~ "]" }
 
-initial_member_val = _{ static_func_call | enum_with_data_ref | static_field_ref | func_call | sizeof_expr | default_expr }
+initial_member_val = _{ enum_with_data_ref | ((literal_qualifier ~ ".")? ~ func_call) | ((literal_qualifier ~ ".")? ~ ident) }
 initial_member_expr = { initial_member_val ~ postfix_operator* }
 
 member_val = _{ func_call | ident }
@@ -221,7 +217,7 @@ expr = _{ logic_expr | arrow_expr | reference_op | dereference_op | string | int
 statement = _{ (try_statement | if_statement | match_expr | for_loop | while_loop | indefinite_loop | unsafe_block | fixed_block | block | assign_statement | import_statement | let_statement | return_statement | unreachable_statement | throw_statement | expr) ~ newline }
 block = { block_start ~ statement* ~ block_end }
 
-function_modifier = @{ "public" | "static" | "extern" | "unsafe" }
+function_modifier = @{ "public" | "static" | "extern" | "unsafe" | "virtual" | "override" }
 function_modifiers = { function_modifier+ }
 varargs = @{ "..." }
 native_varargs = @{ "..." }

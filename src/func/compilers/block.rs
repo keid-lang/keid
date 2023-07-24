@@ -88,7 +88,6 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                     res
                 }
                 Statement::Let(lt) => self.compile_let(lt),
-                Statement::StaticFuncCall(sfc) => self.compile_static_func_call(sfc).map(|_| (())),
                 Statement::Assign(assign) => {
                     self.compile_assign(&assign.lhs, assign.op, &assign.rhs, assign.deref)
                 }
@@ -116,7 +115,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                     let res = self.compile_throw(throw);
                     returns = true;
                     res
-                },
+                }
                 Statement::TryCatch(try_catch) => self.compile_try_catch(try_catch),
                 x => unimplemented!("{:#?}", x),
             };
@@ -543,7 +542,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
             // compile the contents of the catch block
             self.compile_block(&try_catch.catch_block);
             self.pop_block()?; // pop the catch block
-        
+
             self.emit(Insn::Br(rotated_parent.llvm_block.as_val())); // jump to after the catch block
         }
 

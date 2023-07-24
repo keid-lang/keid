@@ -5,7 +5,7 @@ import (
 )
 
 public function join<T: ToString>(arr: Iterator<T>, delimiter: string): string {
-    let b = StringBuilder::empty()
+    let b = StringBuilder.empty()
     for e in arr {
         b.append(e.toString())
         b.append(delimiter)
@@ -18,7 +18,7 @@ public function format(format: string, ...args: [string]): string {
     for arg in args {
         capacity += arg.length
     }
-    let builder = StringBuilder::withCapacity(capacity)
+    let builder = StringBuilder.withCapacity(capacity)
     builder.append(format)
     for arg in args {
         builder.append(arg)

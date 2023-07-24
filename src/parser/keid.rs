@@ -58,7 +58,10 @@ fn parse_import(mut pairs: Pairs<Rule>) -> Result<Vec<Qualifier>> {
 
 fn parse_string_lit(str: Pair<Rule>) -> String {
     let raw = str.as_str();
-    let slice = &raw[1..raw.len() - 1].replace("\\n", "\n").replace("\\t", "\t").replace("\\r", "\r");
+    let slice = &raw[1..raw.len() - 1]
+        .replace("\\n", "\n")
+        .replace("\\t", "\t")
+        .replace("\\r", "\r");
     slice.to_owned()
 }
 
@@ -84,22 +87,33 @@ fn parse_sint_lit(int: Pair<Rule>) -> Result<i64> {
 
 fn parse_member(pairs: Pairs<Rule>) -> Result<MemberExpr> {
     let mut members = Vec::new();
+    let mut namespace = None;
     for pair in pairs {
         let (ty, member) = match pair.as_rule() {
-            Rule::initial_member_expr => (MemberType::Root, parse_logic_expr(pair.into_inner())?),
-            Rule::class_member => (MemberType::Class, parse_expr(pair.into_inner().next().unwrap())?),
-            Rule::array_member => (MemberType::Array, parse_expr(pair.into_inner().next().unwrap())?),
+            Rule::initial_member_expr => {
+                let mut inner = pair.into_inner();
+                match inner.peek().unwrap().as_rule() {
+                    Rule::literal_qualifier => {
+                        namespace = Some(Qualifier::from_idents(inner.next().unwrap()));
+                    }
+                    _ => (),
+                }
+                (MemberType::Root, parse_expr(inner.next().unwrap())?)
+            }
+            Rule::class_member => (
+                MemberType::Class,
+                parse_expr(pair.into_inner().next().unwrap())?,
+            ),
+            Rule::array_member => (
+                MemberType::Array,
+                parse_expr(pair.into_inner().next().unwrap())?,
+            ),
             x => unimplemented!("{:?}", x),
         };
-        members.push(Member {
-            ty,
-            name: member,
-        });
+        members.push(Member { ty, value: member });
     }
 
-    Ok(MemberExpr {
-        members,
-    })
+    Ok(MemberExpr { namespace, members })
 }
 
 fn parse_reference(mut pairs: Pairs<Rule>) -> Result<Token<Expr>> {
@@ -245,8 +259,6 @@ fn parse_expr(pair: Pair<Rule>) -> Result<Token<Expr>> {
         Rule::boolean => Expr::BoolLit(pair.as_str() == "true"),
         Rule::string => Expr::StringLit(parse_string_lit(pair)),
         Rule::integer => Expr::SignedIntLit(parse_sint_lit(pair)?),
-        Rule::static_func_call => Expr::StaticFuncCall(parse_static_func_call(pair.into_inner())?),
-        Rule::static_field_ref => Expr::StaticFieldReference(Qualifier::from_idents(pair)),
         Rule::enum_with_data_ref => Expr::EnumWithData(parse_enum_with_data(pair.into_inner())?),
         Rule::func_call => Expr::FuncCall(parse_func_call(pair.into_inner())?),
         Rule::ident => Expr::Ident(Identifier::from_ident(&pair)),
@@ -275,25 +287,22 @@ fn parse_match_expr(mut pairs: Pairs<Rule>) -> Result<MatchExpr> {
         let mut stmt = next.into_inner();
         let arg = stmt.next().unwrap();
         let arg = match arg.as_rule() {
-            Rule::inner_match_catchall => MatchExprBranchArg::Catchall(span_to_location(&arg.as_span())),
+            Rule::inner_match_catchall => {
+                MatchExprBranchArg::Catchall(span_to_location(&arg.as_span()))
+            }
             Rule::inner_match_enum => {
                 let mut inner_enum = arg.into_inner();
                 let member = Identifier::from_ident(&inner_enum.next().unwrap());
-                let data_type = parse_anonymous_struct_type_decl(inner_enum.next().unwrap().into_inner());
-                MatchExprBranchArg::EnumWithData {
-                    member,
-                    data_type,
-                }
+                let data_type =
+                    parse_anonymous_struct_type_decl(inner_enum.next().unwrap().into_inner());
+                MatchExprBranchArg::EnumWithData { member, data_type }
             }
             Rule::ident => MatchExprBranchArg::Enum(Identifier::from_ident(&arg)),
             _ => MatchExprBranchArg::Expr(parse_expr(arg.clone())?),
         };
         let statement = parse_statement(stmt.next().unwrap())?;
 
-        branches.push(MatchExprBranch {
-            arg,
-            statement,
-        })
+        branches.push(MatchExprBranch { arg, statement })
     }
 
     Ok(MatchExpr {
@@ -384,13 +393,6 @@ fn parse_func_call(mut pairs: Pairs<Rule>) -> Result<FuncCall> {
     })
 }
 
-fn parse_static_func_call(mut pairs: Pairs<Rule>) -> Result<StaticFuncCall> {
-    Ok(StaticFuncCall {
-        owner: Qualifier::from_idents(pairs.next().unwrap()),
-        call: parse_func_call(pairs.next().unwrap().into_inner())?,
-    })
-}
-
 fn parse_anonymous_struct(pairs: Pairs<Rule>) -> Result<Vec<NewCallField>> {
     let mut args = Vec::new();
     for arg in pairs {
@@ -418,10 +420,7 @@ fn parse_new_call(mut pairs: Pairs<Rule>) -> Result<Expr> {
     let ty = QualifiedType::from_idents(type_token);
     let args = parse_anonymous_struct(pairs)?;
 
-    Ok(Expr::New(NewCall {
-        ty,
-        args,
-    }))
+    Ok(Expr::New(NewCall { ty, args }))
 }
 
 fn parse_assign(mut pairs: Pairs<Rule>) -> Result<Assign> {
@@ -501,10 +500,7 @@ fn parse_while_loop(mut pairs: Pairs<Rule>) -> Result<WhileLoop> {
     let condition = parse_expr(pairs.next().unwrap())?;
     let block = parse_block(pairs.next().unwrap())?;
 
-    Ok(WhileLoop {
-        condition,
-        block,
-    })
+    Ok(WhileLoop { condition, block })
 }
 
 fn parse_throw_statement(mut pairs: Pairs<Rule>) -> Result<Token<Expr>> {
@@ -531,10 +527,7 @@ fn parse_fixed_block(mut pairs: Pairs<Rule>) -> Result<FixedBlock> {
 
     let variable = parse_let(pairs.next().unwrap().into_inner())?;
     let block = parse_block(pairs.next().unwrap())?;
-    Ok(FixedBlock {
-        variable,
-        block,
-    })
+    Ok(FixedBlock { variable, block })
 }
 
 fn parse_try_catch_statement(mut pairs: Pairs<Rule>) -> Result<TryCatch> {
@@ -558,7 +551,6 @@ fn parse_statement(pair: Pair<Rule>) -> Result<Token<Statement>> {
         match pair.as_rule() {
             Rule::let_statement => Statement::Let(parse_let(inner)?),
             Rule::return_statement => Statement::Return(parse_return(inner)?),
-            Rule::static_func_call => Statement::StaticFuncCall(parse_static_func_call(inner)?),
             Rule::assign_statement => Statement::Assign(parse_assign(inner)?),
             Rule::if_statement => Statement::IfChain(parse_if_chain(inner)?),
             Rule::for_loop => Statement::ForLoop(parse_for_loop(inner)?),
@@ -578,7 +570,10 @@ fn parse_statement(pair: Pair<Rule>) -> Result<Token<Statement>> {
 fn parse_block(pair: Pair<Rule>) -> Result<Vec<Token<Statement>>> {
     if pair.as_rule() == Rule::arrow_expr {
         let expr = pair.into_inner().next().unwrap();
-        return Ok(vec![tokenize(&expr.as_span(), Statement::ArrowExpr(parse_expr(expr)?))]);
+        return Ok(vec![tokenize(
+            &expr.as_span(),
+            Statement::ArrowExpr(parse_expr(expr)?),
+        )]);
     }
 
     let pairs = pair.into_inner();
@@ -597,6 +592,8 @@ fn parse_modifiers(parts: Pairs<Rule>) -> Vec<FunctionModifier> {
             "static" => modifiers.push(FunctionModifier::Static),
             "public" => modifiers.push(FunctionModifier::Public),
             "unsafe" => modifiers.push(FunctionModifier::Unsafe),
+            "virtual" => modifiers.push(FunctionModifier::Virtual),
+            "override" => modifiers.push(FunctionModifier::Override),
             x => unreachable!("{:?}", x),
         }
     }
@@ -629,7 +626,10 @@ fn parse_attributes(pairs: &mut Pairs<Rule>) -> Result<Vec<Attribute>> {
     Ok(Vec::new())
 }
 
-fn parse_function_decl(mut pairs: Pairs<Rule>, namespace: Option<Qualifier>) -> Result<FunctionDecl> {
+fn parse_function_decl(
+    mut pairs: Pairs<Rule>,
+    namespace: Option<Qualifier>,
+) -> Result<FunctionDecl> {
     let attributes = parse_attributes(&mut pairs)?;
     let scoped = namespace.is_none();
     let mut modifiers = Vec::new();
@@ -662,10 +662,7 @@ fn parse_function_decl(mut pairs: Pairs<Rule>, namespace: Option<Qualifier>) -> 
                 let mut params_inner = function_param_decl.into_inner();
                 let name = Identifier::from_ident(&params_inner.next().unwrap());
                 let param_type = QualifiedType::from_idents(params_inner.next().unwrap());
-                params.push(NamedParameter {
-                    name,
-                    param_type,
-                });
+                params.push(NamedParameter { name, param_type });
             }
             Rule::varargs => varargs = Varargs::Array,
             Rule::native_varargs => varargs = Varargs::Native,
@@ -723,10 +720,7 @@ fn parse_attribute_decl(mut pairs: Pairs<Rule>, namespace: Qualifier) -> Result<
         let mut params_inner = function_param_decl.into_inner();
         let name = Identifier::from_ident(&params_inner.next().unwrap());
         let param_type = QualifiedType::from_idents(params_inner.next().unwrap());
-        params.push(NamedParameter {
-            name,
-            param_type,
-        });
+        params.push(NamedParameter { name, param_type });
     }
 
     Ok(AttributeDecl {
@@ -761,16 +755,20 @@ fn parse_generic_decl(mut pairs: Pairs<Rule>) -> GenericDecl {
     while let Some(interface) = pairs.next().map(|q| Qualifier::from_idents(q)) {
         interfaces.push(interface);
     }
-    GenericDecl {
-        name,
-        interfaces,
-    }
+    GenericDecl { name, interfaces }
 }
 
 fn parse_generics_decl(pairs: &mut Pairs<Rule>) -> Result<Option<Vec<GenericDecl>>> {
-    if pairs.peek().map(|x| x.as_rule() == Rule::generics_decl).unwrap_or(false) {
+    if pairs
+        .peek()
+        .map(|x| x.as_rule() == Rule::generics_decl)
+        .unwrap_or(false)
+    {
         let args = pairs.next().unwrap();
-        let types = args.into_inner().map(|arg| parse_generic_decl(arg.into_inner())).collect();
+        let types = args
+            .into_inner()
+            .map(|arg| parse_generic_decl(arg.into_inner()))
+            .collect();
         return Ok(Some(types));
     }
 
@@ -778,12 +776,14 @@ fn parse_generics_decl(pairs: &mut Pairs<Rule>) -> Result<Option<Vec<GenericDecl
 }
 
 pub fn parse_generic_args(pairs: &mut Pairs<Rule>) -> Result<Option<GenericArgs>> {
-    if pairs.peek().map(|x| x.as_rule() == Rule::generic_args).unwrap_or(false) {
+    if pairs
+        .peek()
+        .map(|x| x.as_rule() == Rule::generic_args)
+        .unwrap_or(false)
+    {
         let args = pairs.next().unwrap();
         let args = args.into_inner().map(QualifiedType::from_idents).collect();
-        return Ok(Some(GenericArgs {
-            args,
-        }));
+        return Ok(Some(GenericArgs { args }));
     }
 
     Ok(None)
@@ -805,10 +805,7 @@ fn parse_associated_type_decl(mut pairs: Pairs<Rule>) -> Result<AssociatedTypeDe
         return Err(anyhow!("expecting type declaration in associated type"));
     }
     let ty = QualifiedType::from_idents(pairs.next().unwrap());
-    Ok(AssociatedTypeDecl {
-        name,
-        ty,
-    })
+    Ok(AssociatedTypeDecl { name, ty })
 }
 
 fn parse_interface_accessor_decl(mut pairs: Pairs<Rule>) -> Result<Vec<AccessorDecl>> {
@@ -864,7 +861,8 @@ fn parse_accessor_decl(mut pairs: Pairs<Rule>) -> Result<AccessorDecl> {
             }
             Rule::keyword_set => {
                 name = Identifier::from_ident(&pairs.next().unwrap());
-                accessor_type = AccessorType::Setter(Identifier::from_ident(&pairs.next().unwrap()));
+                accessor_type =
+                    AccessorType::Setter(Identifier::from_ident(&pairs.next().unwrap()));
                 break;
             }
             Rule::function_modifiers => modifiers = parse_modifiers(pair.into_inner()),
@@ -872,7 +870,10 @@ fn parse_accessor_decl(mut pairs: Pairs<Rule>) -> Result<AccessorDecl> {
         }
     }
     let value_type = QualifiedType::from_idents(pairs.next().unwrap());
-    let body = pairs.next().map(|pair| parse_block(pair)).map_or(Ok(None), |r| r.map(Some))?;
+    let body = pairs
+        .next()
+        .map(|pair| parse_block(pair))
+        .map_or(Ok(None), |r| r.map(Some))?;
 
     Ok(AccessorDecl {
         modifiers,
@@ -885,22 +886,28 @@ fn parse_accessor_decl(mut pairs: Pairs<Rule>) -> Result<AccessorDecl> {
 
 fn parse_interface_block(
     interface_block: Pairs<Rule>,
-) -> Result<(Vec<FunctionDecl>, Vec<AccessorDecl>, Vec<AssociatedTypeDecl>)> {
+) -> Result<(
+    Vec<FunctionDecl>,
+    Vec<AccessorDecl>,
+    Vec<AssociatedTypeDecl>,
+)> {
     let mut methods = Vec::new();
     let mut accessors = Vec::new();
     let mut associated_types = Vec::new();
     for interface_statement in interface_block {
         match interface_statement.as_rule() {
-            Rule::method_decl => methods.push(parse_function_decl(interface_statement.into_inner(), None)?),
+            Rule::method_decl => {
+                methods.push(parse_function_decl(interface_statement.into_inner(), None)?)
+            }
             Rule::get_accessor_decl | Rule::set_accessor_decl => {
                 accessors.push(parse_accessor_decl(interface_statement.into_inner())?)
             }
-            Rule::interface_accessor_decl => {
-                accessors.extend(parse_interface_accessor_decl(interface_statement.into_inner())?)
-            }
-            Rule::associated_type_decl => {
-                associated_types.push(parse_associated_type_decl(interface_statement.into_inner())?)
-            }
+            Rule::interface_accessor_decl => accessors.extend(parse_interface_accessor_decl(
+                interface_statement.into_inner(),
+            )?),
+            Rule::associated_type_decl => associated_types.push(parse_associated_type_decl(
+                interface_statement.into_inner(),
+            )?),
             x => unreachable!("{:?}", x),
         }
     }
@@ -919,7 +926,8 @@ fn parse_interface_impl(mut pairs: Pairs<Rule>) -> Result<InterfaceImpl> {
 
     let target_name = Qualifier::from_idents(pairs.next().unwrap());
     let target_generic_args = parse_generic_args(&mut pairs)?;
-    let (functions, accessors, associated_types) = parse_interface_block(pairs.next().unwrap().into_inner())?;
+    let (functions, accessors, associated_types) =
+        parse_interface_block(pairs.next().unwrap().into_inner())?;
 
     Ok(InterfaceImpl {
         generics,
@@ -946,9 +954,7 @@ fn parse_anonymous_struct_type_decl(mut pairs: Pairs<Rule>) -> AnonymousStructTy
         })
     }
 
-    AnonymousStructTypeDecl {
-        fields,
-    }
+    AnonymousStructTypeDecl { fields }
 }
 
 fn parse_enum_decl(mut pairs: Pairs<Rule>, namespace: Qualifier) -> Result<EnumDecl> {
@@ -969,12 +975,11 @@ fn parse_enum_decl(mut pairs: Pairs<Rule>, namespace: Qualifier) -> Result<EnumD
     for enum_statement in enum_statements {
         let mut enum_statement = enum_statement.into_inner();
         let name = Identifier::from_ident(&enum_statement.next().unwrap());
-        let data = enum_statement.next().map(|anon| parse_anonymous_struct_type_decl(anon.into_inner()));
+        let data = enum_statement
+            .next()
+            .map(|anon| parse_anonymous_struct_type_decl(anon.into_inner()));
 
-        elements.push(EnumElementDecl {
-            name,
-            data,
-        })
+        elements.push(EnumElementDecl { name, data })
     }
 
     Ok(EnumDecl {
@@ -984,7 +989,11 @@ fn parse_enum_decl(mut pairs: Pairs<Rule>, namespace: Qualifier) -> Result<EnumD
     })
 }
 
-fn parse_class_decl(mut pairs: Pairs<Rule>, namespace: Qualifier, ty: ClassType) -> Result<ClassDecl> {
+fn parse_class_decl(
+    mut pairs: Pairs<Rule>,
+    namespace: Qualifier,
+    ty: ClassType,
+) -> Result<ClassDecl> {
     for pair in pairs.by_ref() {
         match pair.as_rule() {
             Rule::keyword_class | Rule::keyword_interface | Rule::keyword_struct => break,
@@ -1016,7 +1025,9 @@ fn parse_class_decl(mut pairs: Pairs<Rule>, namespace: Qualifier, ty: ClassType)
     let class_block = pairs.next().unwrap().into_inner();
     for class_statement in class_block {
         match class_statement.as_rule() {
-            Rule::method_decl => methods.push(parse_function_decl(class_statement.into_inner(), None)?),
+            Rule::method_decl => {
+                methods.push(parse_function_decl(class_statement.into_inner(), None)?)
+            }
             Rule::field_decl => fields.push(parse_field_decl(class_statement.into_inner())?),
             Rule::constructor_decl => constructor = Some(parse_block(class_statement)?),
             Rule::destructor_decl => destructor = Some(parse_block(class_statement)?),
@@ -1049,7 +1060,8 @@ fn parse_class_decl(mut pairs: Pairs<Rule>, namespace: Qualifier, ty: ClassType)
 }
 
 fn parse_program<T: AsRef<Path>>(file_path: T, pair: Pair<Rule>) -> Result<KeidFile> {
-    let file_path = std::path::absolute(&file_path).unwrap_or_else(|_| file_path.as_ref().to_path_buf());
+    let file_path =
+        std::path::absolute(&file_path).unwrap_or_else(|_| file_path.as_ref().to_path_buf());
     let mut pairs = pair.into_inner();
 
     let mut namespace_statement = pairs.next().unwrap().into_inner();
@@ -1073,29 +1085,43 @@ fn parse_program<T: AsRef<Path>>(file_path: T, pair: Pair<Rule>) -> Result<KeidF
         match pair.as_rule() {
             Rule::EOI => return Ok(program),
             Rule::import_statement => program.imports.extend(parse_import(pair.into_inner())?),
-            Rule::function_decl => {
-                program.functions.push(parse_function_decl(pair.into_inner(), Some(program.namespace.clone()))?)
-            }
-            Rule::class_decl => {
-                program.classes.push(parse_class_decl(pair.into_inner(), program.namespace.clone(), ClassType::Class)?)
-            }
+            Rule::function_decl => program.functions.push(parse_function_decl(
+                pair.into_inner(),
+                Some(program.namespace.clone()),
+            )?),
+            Rule::class_decl => program.classes.push(parse_class_decl(
+                pair.into_inner(),
+                program.namespace.clone(),
+                ClassType::Class,
+            )?),
             Rule::type_decl => {
-                program.typedefs.push(parse_type_decl(pair.into_inner(), program.namespace.clone())?);
+                program.typedefs.push(parse_type_decl(
+                    pair.into_inner(),
+                    program.namespace.clone(),
+                )?);
             }
             Rule::interface_decl => program.classes.push(parse_class_decl(
                 pair.into_inner(),
                 program.namespace.clone(),
                 ClassType::Interface,
             )?),
-            Rule::interface_impl => program.interface_impls.push(parse_interface_impl(pair.into_inner())?),
+            Rule::interface_impl => program
+                .interface_impls
+                .push(parse_interface_impl(pair.into_inner())?),
             Rule::let_statement => program.fields.push(parse_let(pair.into_inner())?),
-            Rule::struct_decl => {
-                program.classes.push(parse_class_decl(pair.into_inner(), program.namespace.clone(), ClassType::Struct)?)
-            }
-            Rule::attribute_decl => {
-                program.attributes.push(parse_attribute_decl(pair.into_inner(), program.namespace.clone())?)
-            }
-            Rule::enum_decl => program.enums.push(parse_enum_decl(pair.into_inner(), program.namespace.clone())?),
+            Rule::struct_decl => program.classes.push(parse_class_decl(
+                pair.into_inner(),
+                program.namespace.clone(),
+                ClassType::Struct,
+            )?),
+            Rule::attribute_decl => program.attributes.push(parse_attribute_decl(
+                pair.into_inner(),
+                program.namespace.clone(),
+            )?),
+            Rule::enum_decl => program.enums.push(parse_enum_decl(
+                pair.into_inner(),
+                program.namespace.clone(),
+            )?),
             x => unimplemented!("{:#?}", x),
         }
     }
@@ -1115,12 +1141,7 @@ pub fn parse_qualified_type(code: &str) -> Result<QualifiedType> {
 }
 
 pub fn parse(file_name: &str, code: &str) -> Result<KeidFile> {
-    let code = preprocessor::preprocess(
-        code,
-        &PreprocessorContext {
-            use_rtdbg: false,
-        },
-    )?;
+    let code = preprocessor::preprocess(code, &PreprocessorContext { use_rtdbg: false })?;
     let result = SyntaxParser::parse(Rule::program, &code);
     match result {
         Ok(mut pairs) => match pairs.next() {

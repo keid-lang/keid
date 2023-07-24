@@ -481,12 +481,10 @@ impl<'a> FunctionCompiler<'a> {
             }
 
             let source_type = self.cpl.type_provider.get_source_class(&type_root);
-            let resolved_interface_impls = self.cpl.type_provider.get_resolved_interface_impls(
-                &GenericIdentifier::from_name_with_args(
-                    &source_type.base_name,
-                    &type_root.generic_impls,
-                ),
-            );
+            let resolved_interface_impls = self
+                .cpl
+                .type_provider
+                .get_resolved_interface_impls(&GenericIdentifier::from_name_with_args(&source_type.base_name, &type_root.generic_impls));
             for resolved_interface_impl in resolved_interface_impls {
                 let interface_impl = self
                     .cpl

@@ -18,7 +18,7 @@ public class String {
         if len == 0 {
             return ""
         }
-        return String::fromUtf8Slice(array::copyFromPtr<char>(cstr, len))
+        return String.fromUtf8Slice(array.copyFromPtr<char>(cstr, len))
     }
 
     /// Note that any changes to the new underlying array will be reflected in the string's value.
@@ -32,7 +32,7 @@ public class String {
 
         // the last char stays zero, making it null terminated
         let terminated = new char[0; this.chars.length + 1]
-        array::copy<char>(this.chars, 0, terminated, 0, this.chars.length)
+        array.copy<char>(this.chars, 0, terminated, 0, this.chars.length)
         return terminated
     }
 }
@@ -47,7 +47,7 @@ implement Equals<String> for String {
             return false
         }
 
-        for i in range::create(0, this.length) {
+        for i in range.create(0, this.length) {
             if this.chars[i] != other.chars[i] {
                 return false
             }
@@ -61,7 +61,7 @@ implement Add<String> for String {
     type Output = string
 
     add(other: string): Output {
-        let sb = StringBuilder::withCapacity(this.length + other.length)
+        let sb = StringBuilder.withCapacity(this.length + other.length)
         sb.append(this)
         sb.append(other)
         return sb.toString()
