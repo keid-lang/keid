@@ -413,14 +413,13 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
             nullable_element_type.as_llvm_type(&self.cpl),
             0,
         )); // nullable type value
-        let value = self.emit(Insn::Load(value_ptr, element_type.as_llvm_type(&self.cpl)));
 
         self.state.get_current_block_mut().locals.push(LocalVar {
             name: for_loop.variable.token.0.clone(),
-            source: LocalVarSource::Scalar,
+            source: LocalVarSource::Pointer,
             value: TypedValue {
                 ty: element_type.clone(),
-                val: value,
+                val: value_ptr,
             },
         });
 

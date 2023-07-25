@@ -100,10 +100,11 @@ impl<'a> FunctionCompiler<'a> {
             for i in 0..params.len() {
                 let var_ref = self.llvm_func.get_param(i as u32);
                 let var_type = self.func.params[i].clone();
-                let value = TypedValue {
-                    ty: var_type,
-                    val: var_ref,
-                };
+
+                let local_copy = self.emit(Insn::Alloca(var_type.as_llvm_type(&self.cpl)));
+                let value = TypedValue::new(var_type.clone(), local_copy);
+                self.copy(&TypedValue::new(var_type, var_ref), &value)?;
+
                 // destructors cannot scope the `this` parameter since it's already equal to zero at the point it's passed to the destructor
                 if !self
                     .get_source_function()
@@ -112,9 +113,11 @@ impl<'a> FunctionCompiler<'a> {
                 {
                     self.try_scope(&value)?;
                 }
+
+                // TODO: copy param to local stack
                 local_vars.push(LocalVar {
                     name: params[i].name.clone(),
-                    source: LocalVarSource::Scalar,
+                    source: LocalVarSource::Pointer,
                     value,
                 });
             }

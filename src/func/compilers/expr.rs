@@ -118,7 +118,6 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                                     for imported_name in imported_names {
                                         let full_name =
                                             format!("{}::{}", imported_name, call.name.token.0);
-                                        // println!("Testing new full name: {}", full_name);
                                         if self
                                             .cpl
                                             .type_provider

@@ -104,7 +104,6 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                             todo!("static field assignment: {:#?}", member_expr);
                         }
                     } else {
-                        println!("{:#?}", member_expr);
                         // x = y
                         // no namespace
                         // x = active member

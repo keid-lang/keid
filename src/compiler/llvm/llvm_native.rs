@@ -39,7 +39,11 @@ pub struct Target {
 
 impl Target {
     pub fn get_host_target_triple() -> &'static str {
-        unsafe { CStr::from_ptr(LLVMGetDefaultTargetTriple()).to_str().expect("invalid target triple") }
+        unsafe {
+            CStr::from_ptr(LLVMGetDefaultTargetTriple())
+                .to_str()
+                .expect("invalid target triple")
+        }
     }
 
     pub fn get_available_targets() -> Vec<Target> {
@@ -50,7 +54,9 @@ impl Target {
                 if current.is_null() {
                     break;
                 }
-                let str = CStr::from_ptr(LLVMGetTargetName(current)).to_str().expect("invalid str");
+                let str = CStr::from_ptr(LLVMGetTargetName(current))
+                    .to_str()
+                    .expect("invalid str");
                 if LLVMTargetHasTargetMachine(current) != 0 {
                     targets.push(Target {
                         name: str.to_owned(),
@@ -150,7 +156,8 @@ impl Context {
     }
 
     fn get_debug_file(&self, di: LLVMDIBuilderRef, path: &str) -> LLVMMetadataRef {
-        let source_path = std::fs::canonicalize(path).unwrap_or_else(|_| PathBuf::from_str(path).unwrap());
+        let source_path =
+            std::fs::canonicalize(path).unwrap_or_else(|_| PathBuf::from_str(path).unwrap());
         let name = source_path.file_name().unwrap().to_str().unwrap();
         let name_cstr = CString::new(name).expect("invalid source path");
         let dir = source_path.parent().unwrap().to_str().unwrap();
@@ -210,20 +217,36 @@ impl Context {
         }
     }
 
-    pub fn create_const_array(&self, element_type: OpaqueType, values: &[OpaqueValue]) -> OpaqueValue {
+    pub fn create_const_array(
+        &self,
+        element_type: OpaqueType,
+        values: &[OpaqueValue],
+    ) -> OpaqueValue {
         unsafe {
             let mut inner_values: Vec<LLVMValueRef> = values.iter().map(|par| par.0).collect();
             let inner_values = inner_values.as_mut_ptr();
-            OpaqueValue(LLVMConstArray(element_type.0, inner_values, values.len() as _))
+            OpaqueValue(LLVMConstArray(
+                element_type.0,
+                inner_values,
+                values.len() as _,
+            ))
         }
     }
 
-    pub fn create_const_struct(&self, struct_type: OpaqueType, elements: &mut [OpaqueValue]) -> OpaqueValue {
+    pub fn create_const_struct(
+        &self,
+        struct_type: OpaqueType,
+        elements: &mut [OpaqueValue],
+    ) -> OpaqueValue {
         unsafe {
             let elements_len = elements.len() as u32;
             let elements_ptr = elements.as_mut_ptr();
 
-            OpaqueValue(LLVMConstNamedStruct(struct_type.0, elements_ptr as *mut LLVMValueRef, elements_len))
+            OpaqueValue(LLVMConstNamedStruct(
+                struct_type.0,
+                elements_ptr as *mut LLVMValueRef,
+                elements_len,
+            ))
         }
     }
 
@@ -237,7 +260,12 @@ impl Context {
             let mut index_values: Vec<LLVMValueRef> = Vec::new();
             index_values.push(LLVMConstInt(self.get_i64_type().0, index as _, 0));
 
-            OpaqueValue(LLVMConstGEP2(element_type.0, val.0, index_values.as_mut_ptr(), index_values.len() as _))
+            OpaqueValue(LLVMConstGEP2(
+                element_type.0,
+                val.0,
+                index_values.as_mut_ptr(),
+                index_values.len() as _,
+            ))
         }
     }
 
@@ -250,7 +278,10 @@ impl Context {
     }
 
     pub fn const_unknown(&self) -> TypedValue {
-        TypedValue::new(BasicType::Unknown.to_complex(), self.const_null_ptr(self.get_void_type()))
+        TypedValue::new(
+            BasicType::Unknown.to_complex(),
+            self.const_null_ptr(self.get_void_type()),
+        )
     }
 
     pub fn const_null_ptr(&self, ty: OpaqueType) -> OpaqueValue {
@@ -258,7 +289,12 @@ impl Context {
     }
 
     pub fn const_func_ptr(&self, func: OpaqueFunctionValue) -> OpaqueValue {
-        unsafe { OpaqueValue(LLVMConstBitCast(func.0, self.get_pointer_type(self.get_i8_type()).0)) }
+        unsafe {
+            OpaqueValue(LLVMConstBitCast(
+                func.0,
+                self.get_pointer_type(self.get_i8_type()).0,
+            ))
+        }
     }
 
     pub fn const_bitcast(&self, val: OpaqueValue, ty: OpaqueType) -> OpaqueValue {
@@ -269,7 +305,12 @@ impl Context {
         unsafe {
             let null_str = format!("{}\0", val);
             let bytes = null_str.as_bytes();
-            OpaqueValue(LLVMConstStringInContext(self.ctx, bytes.as_ptr() as _, val.len() as u32, 0))
+            OpaqueValue(LLVMConstStringInContext(
+                self.ctx,
+                bytes.as_ptr() as _,
+                val.len() as u32,
+                0,
+            ))
         }
     }
 
@@ -339,14 +380,21 @@ impl Context {
     pub fn get_abi_class_metadata_type(&self) -> OpaqueType {
         self.get_struct_type(
             "KeidAbiClass",
-            &[self.get_isize_type(), self.get_pointer_type(self.get_abi_class_info_type())],
+            &[
+                self.get_isize_type(),
+                self.get_pointer_type(self.get_abi_class_info_type()),
+            ],
         )
     }
 
     /// Returns a type that contains the 2-byte enum variant ID, followed by `n` bytes of padding,
     /// where `n` equals the size of the largest possible variant data.
     /// This ensures that any variant of the given type will fit into the returned type.
-    pub fn get_abi_enum_type_any_element(&self, cpl: &Compiler, enum_impl: &ResolvedEnumNode) -> OpaqueType {
+    pub fn get_abi_enum_type_any_element(
+        &self,
+        cpl: &Compiler,
+        enum_impl: &ResolvedEnumNode,
+    ) -> OpaqueType {
         let abi_name = format!("KeidAbiEnum#{}", enum_impl.full_name);
         if let Some(existing_type) = self.get_cached_struct_type(&abi_name) {
             return existing_type;
@@ -360,8 +408,10 @@ impl Context {
         let mut biggest_struct_size = 0;
         for element in &enum_impl.elements {
             if let Some(data) = &element.data {
-                let current_struct_size =
-                    data.iter().map(|field| self.target.get_type_size(field.ty.as_llvm_type(cpl))).sum();
+                let current_struct_size = data
+                    .iter()
+                    .map(|field| self.target.get_type_size(field.ty.as_llvm_type(cpl)))
+                    .sum();
                 if current_struct_size > biggest_struct_size {
                     biggest_struct_size = current_struct_size;
                 }
@@ -398,14 +448,22 @@ impl Context {
         enum_impl: &ResolvedEnumNode,
         id: usize,
     ) -> OpaqueType {
-        let abi_name = format!("KeidAbiEnum#{}#{}", enum_impl.full_name, enum_impl.elements[id].name);
+        let abi_name = format!(
+            "KeidAbiEnum#{}#{}",
+            enum_impl.full_name, enum_impl.elements[id].name
+        );
         if let Some(existing_type) = self.get_cached_struct_type(&abi_name) {
             return existing_type;
         }
 
         let struct_type = self.get_struct_type(&abi_name, &[]);
-        let mut field_types =
-            Vec::with_capacity(2 + enum_impl.elements[id].data.as_ref().map(|data| data.len()).unwrap_or(0));
+        let mut field_types = Vec::with_capacity(
+            2 + enum_impl.elements[id]
+                .data
+                .as_ref()
+                .map(|data| data.len())
+                .unwrap_or(0),
+        );
         field_types.push(self.get_i32_type()); // variant ID
 
         let this_element = &enum_impl.elements[id];
@@ -418,7 +476,9 @@ impl Context {
         self.set_struct_type_body(struct_type, &field_types);
         let unpadded_size = self.target.get_type_size(struct_type);
 
-        let pad_length = self.target.get_type_size(self.get_abi_enum_type_any_element(cpl, enum_impl));
+        let pad_length = self
+            .target
+            .get_type_size(self.get_abi_enum_type_any_element(cpl, enum_impl));
         if pad_length > unpadded_size {
             let mut padding_size = pad_length - unpadded_size;
             while padding_size >= 8 {
@@ -441,7 +501,11 @@ impl Context {
         struct_type
     }
 
-    pub fn get_abi_class_data_type(&self, cpl: &Compiler, class_impl: &ResolvedClassNode) -> OpaqueType {
+    pub fn get_abi_class_data_type(
+        &self,
+        cpl: &Compiler,
+        class_impl: &ResolvedClassNode,
+    ) -> OpaqueType {
         match class_impl.class_type {
             ClassType::Class | ClassType::Interface => {
                 let abi_name = format!("KeidAbiClass#{}", class_impl.full_name);
@@ -491,12 +555,12 @@ impl Context {
         let info_type = self.get_struct_type(
             "KeidAbiClassInfo",
             &[
-                self.get_pointer_type(self.get_i8_type()),                 // destructor
-                self.get_pointer_type(self.get_i8_type()),                 // vtable
-                self.get_i32_type(),                                       // interfaces length
+                self.get_pointer_type(self.get_i8_type()), // destructor
+                self.get_pointer_type(self.get_i8_type()), // vtable
+                self.get_i32_type(),                       // interfaces length
                 self.get_pointer_type(self.get_abi_interface_impl_type()), // interfaces
-                self.get_pointer_type(self.get_i8_type()),                 // class name
-                self.get_i32_type(),                                       // class bitflags
+                self.get_pointer_type(self.get_i8_type()), // class name
+                self.get_i32_type(),                       // class bitflags
             ],
         );
 
@@ -509,13 +573,18 @@ impl Context {
             &[
                 self.get_i32_type(),                       // interface ID
                 self.get_pointer_type(self.get_i8_type()), // interface name
-                self.get_pointer_type(self.get_array_type(self.get_pointer_type(self.get_void_type()), 0)), // &[&void]; pointer to array of void pointers
+                self.get_pointer_type(
+                    self.get_array_type(self.get_pointer_type(self.get_void_type()), 0),
+                ), // &[&void]; pointer to array of void pointers
             ],
         )
     }
 
     pub fn get_abi_nullable_type(&self, item_type: OpaqueType, item_type_name: &str) -> OpaqueType {
-        self.get_struct_type(&format!("Nullable#{}", item_type_name), &[item_type, self.get_i8_type()])
+        self.get_struct_type(
+            &format!("Nullable#{}", item_type_name),
+            &[item_type, self.get_i8_type()],
+        )
     }
 
     pub fn get_pointer_type(&self, pointee_type: OpaqueType) -> OpaqueType {
@@ -526,7 +595,11 @@ impl Context {
         unsafe { OpaqueType(LLVMPointerType(pointee_type.0, 0)) }
     }
 
-    pub fn get_abi_array_data_type(&self, element_type: OpaqueType, element_type_name: &str) -> OpaqueType {
+    pub fn get_abi_array_data_type(
+        &self,
+        element_type: OpaqueType,
+        element_type_name: &str,
+    ) -> OpaqueType {
         // TODO: include class info pointer here
         // arrays of primitive types should be able to identify that as well
         self.get_struct_type(
@@ -538,13 +611,19 @@ impl Context {
         )
     }
 
-    pub fn get_abi_slice_type(&self, element_type: OpaqueType, element_type_name: &str) -> OpaqueType {
+    pub fn get_abi_slice_type(
+        &self,
+        element_type: OpaqueType,
+        element_type_name: &str,
+    ) -> OpaqueType {
         self.get_struct_type(
             &format!("KeidAbiSlice#{}", element_type_name),
             &[
-                self.get_isize_type(),                                                                // data offset
-                self.get_isize_type(),                                                                // data length
-                self.get_pointer_type(self.get_abi_array_data_type(element_type, element_type_name)), // array data
+                self.get_isize_type(), // data offset
+                self.get_isize_type(), // data length
+                self.get_pointer_type(
+                    self.get_abi_array_data_type(element_type, element_type_name),
+                ), // array data
             ],
         )
     }
@@ -567,7 +646,12 @@ impl Context {
             let element_count = element_types.len() as u32;
             let element_types = element_types.as_ptr();
 
-            LLVMStructSetBody(struct_type, element_types as *mut LLVMTypeRef, element_count, 0);
+            LLVMStructSetBody(
+                struct_type,
+                element_types as *mut LLVMTypeRef,
+                element_count,
+                0,
+            );
 
             let ty = OpaqueType(struct_type);
             cached_struct_types.insert(name.to_owned(), ty);
@@ -580,7 +664,12 @@ impl Context {
             let element_count = element_types.len() as u32;
             let element_types = element_types.as_ptr();
 
-            LLVMStructSetBody(struct_type.0, element_types as *mut LLVMTypeRef, element_count, 0);
+            LLVMStructSetBody(
+                struct_type.0,
+                element_types as *mut LLVMTypeRef,
+                element_count,
+                0,
+            );
         }
     }
 
@@ -703,7 +792,11 @@ impl Clone for Module {
 }
 
 impl Module {
-    pub fn lookup_intrinsic(&self, name: &str, params: &[OpaqueType]) -> Option<OpaqueFunctionValue> {
+    pub fn lookup_intrinsic(
+        &self,
+        name: &str,
+        params: &[OpaqueType],
+    ) -> Option<OpaqueFunctionValue> {
         unsafe {
             let name_len = name.len();
             let name = CString::new(name).unwrap();
@@ -711,11 +804,21 @@ impl Module {
 
             let mut params: Vec<LLVMTypeRef> = params.iter().map(|par| par.0).collect();
             let params = params.as_mut_slice();
-            Some(OpaqueFunctionValue(LLVMGetIntrinsicDeclaration(self.mdl, id, params.as_mut_ptr(), params.len())))
+            Some(OpaqueFunctionValue(LLVMGetIntrinsicDeclaration(
+                self.mdl,
+                id,
+                params.as_mut_ptr(),
+                params.len(),
+            )))
         }
     }
 
-    pub fn add_function(&self, name: &str, func_type: OpaqueFunctionType, _line_no: u32) -> Function {
+    pub fn add_function(
+        &self,
+        name: &str,
+        func_type: OpaqueFunctionType,
+        _line_no: u32,
+    ) -> Function {
         unsafe {
             let name_cstr = CString::new(name).expect("invalid name");
 
@@ -757,7 +860,11 @@ impl Module {
     pub fn create_global(&mut self, ctx: &mut Context, name: &str, ty: OpaqueType) -> OpaqueValue {
         unsafe {
             let cstr_name = CString::new(name).expect("invalid name");
-            let global = OpaqueValue(LLVMAddGlobal(self.mdl, ty.0, cstr_name.as_ptr() as *const _));
+            let global = OpaqueValue(LLVMAddGlobal(
+                self.mdl,
+                ty.0,
+                cstr_name.as_ptr() as *const _,
+            ));
 
             // LLVMSetGlobalConstant(global.0, i32::from(true));
 
@@ -785,9 +892,14 @@ impl Module {
     pub fn extern_global(&mut self, global_var: &GlobalVariable) -> OpaqueValue {
         unsafe {
             let cstr_name = CString::new(global_var.name.clone()).expect("invalid name");
-            let global = OpaqueValue(LLVMAddGlobal(self.mdl, global_var.ty.0, cstr_name.as_ptr() as *const _));
+            let global = OpaqueValue(LLVMAddGlobal(
+                self.mdl,
+                global_var.ty.0,
+                cstr_name.as_ptr() as *const _,
+            ));
 
-            self.global_variables.insert(global_var.name.clone(), global);
+            self.global_variables
+                .insert(global_var.name.clone(), global);
 
             global
         }
@@ -810,10 +922,18 @@ impl Module {
     pub fn to_object_code(&self, module_name: &str, target: &LLVMTargetData) -> Result<LLVMArray> {
         unsafe {
             let mut error_message: *mut _ = std::ptr::null_mut();
-            if LLVMVerifyModule(self.mdl, LLVMVerifierFailureAction::LLVMReturnStatusAction, &mut error_message) != 0 {
+            if LLVMVerifyModule(
+                self.mdl,
+                LLVMVerifierFailureAction::LLVMReturnStatusAction,
+                &mut error_message,
+            ) != 0
+            {
                 let cstr = CStr::from_ptr(error_message);
                 let error = String::from_utf8_lossy(cstr.to_bytes()).to_string();
-                eprintln!("[Module `{}`] Error during module verification: {}", module_name, error);
+                eprintln!(
+                    "[Module `{}`] Error during module verification: {}",
+                    module_name, error
+                );
                 LLVMDisposeMessage(error_message);
             }
 
@@ -887,7 +1007,8 @@ impl Function {
                 LLVMAddAttributeAtIndex(self.func, param_idx as _, func_attr);
             }
 
-            let func_attr = LLVMCreateTypeAttribute(self.ctx, get_attribute_by_name(attr), param_ty.0);
+            let func_attr =
+                LLVMCreateTypeAttribute(self.ctx, get_attribute_by_name(attr), param_ty.0);
             LLVMAddAttributeAtIndex(self.func, param_idx as _, func_attr);
         }
     }
@@ -990,23 +1111,48 @@ impl InsnBuilder {
                         nul_terminated[i] = bytes[i];
                     }
 
-                    LLVMBuildGlobalStringPtr(self.bdl, nul_terminated.as_slice().as_ptr() as *const _, insn_name)
+                    LLVMBuildGlobalStringPtr(
+                        self.bdl,
+                        nul_terminated.as_slice().as_ptr() as *const _,
+                        insn_name,
+                    )
                 }
                 Insn::Store(src, dest) => LLVMBuildStore(self.bdl, src.0, dest.0),
-                Insn::Load(src, ty) => LLVMBuildLoad2(self.bdl, ty.0, src.0, insn_name),
+                Insn::Load(src, ty) => {
+                    if LLVMTypeOf(src.0) == LLVMInt64TypeInContext(self.ctx) {
+                        panic!();
+                    }
+                    LLVMBuildLoad2(self.bdl, ty.0, src.0, insn_name)
+                }
                 Insn::Call(func, ty, args) => {
                     let mut args: Vec<LLVMValueRef> = args.iter().map(|arg| arg.0).collect();
                     let args = args.as_mut_slice();
-                    LLVMBuildCall2(self.bdl, ty.0, func.0, args.as_mut_ptr(), args.len() as u32, insn_name)
+                    LLVMBuildCall2(
+                        self.bdl,
+                        ty.0,
+                        func.0,
+                        args.as_mut_ptr(),
+                        args.len() as u32,
+                        insn_name,
+                    )
                 }
                 Insn::GetElementPtr(struct_ref, value_type, value_idx) => {
                     LLVMBuildStructGEP2(self.bdl, value_type.0, struct_ref.0, value_idx, insn_name)
                 }
                 Insn::GetElementPtrDynamic(struct_ref, value_type, value_idx) => {
                     let indices = &mut [value_idx.0];
-                    LLVMBuildInBoundsGEP2(self.bdl, value_type.0, struct_ref.0, indices.as_mut_ptr(), 1, insn_name)
+                    LLVMBuildInBoundsGEP2(
+                        self.bdl,
+                        value_type.0,
+                        struct_ref.0,
+                        indices.as_mut_ptr(),
+                        1,
+                        insn_name,
+                    )
                 }
-                Insn::CondBr(test, then, otherwise) => LLVMBuildCondBr(self.bdl, test.0, then.0, otherwise.0),
+                Insn::CondBr(test, then, otherwise) => {
+                    LLVMBuildCondBr(self.bdl, test.0, then.0, otherwise.0)
+                }
                 Insn::Br(target) => LLVMBuildBr(self.bdl, target.0),
                 Insn::ICmp(op, lhs, rhs) => LLVMBuildICmp(self.bdl, op, lhs.0, rhs.0, insn_name),
                 Insn::Xor(lhs, rhs) => LLVMBuildXor(self.bdl, lhs.0, rhs.0, insn_name),
@@ -1022,13 +1168,21 @@ impl InsnBuilder {
                 Insn::FSub(lhs, rhs) => LLVMBuildFSub(self.bdl, lhs.0, rhs.0, insn_name),
                 Insn::FMul(lhs, rhs) => LLVMBuildFMul(self.bdl, lhs.0, rhs.0, insn_name),
                 Insn::FDiv(lhs, rhs) => LLVMBuildFDiv(self.bdl, lhs.0, rhs.0, insn_name),
-                Insn::PointerCast(value, ty) => LLVMBuildPointerCast(self.bdl, value.0, ty.0, insn_name),
-                Insn::Malloc(ty) => LLVMBuildMalloc(self.bdl, ty.0, insn_name),
-                Insn::MallocArray(ty, len) => LLVMBuildArrayMalloc(self.bdl, ty.0, len.0, insn_name),
-                Insn::Free(ptr) => LLVMBuildFree(self.bdl, ptr.0),
-                Insn::Memset(ptr, val, len) => {
-                    LLVMBuildMemSet(self.bdl, ptr.0, val.0, len.0, self.target.get_pointer_size() as _)
+                Insn::PointerCast(value, ty) => {
+                    LLVMBuildPointerCast(self.bdl, value.0, ty.0, insn_name)
                 }
+                Insn::Malloc(ty) => LLVMBuildMalloc(self.bdl, ty.0, insn_name),
+                Insn::MallocArray(ty, len) => {
+                    LLVMBuildArrayMalloc(self.bdl, ty.0, len.0, insn_name)
+                }
+                Insn::Free(ptr) => LLVMBuildFree(self.bdl, ptr.0),
+                Insn::Memset(ptr, val, len) => LLVMBuildMemSet(
+                    self.bdl,
+                    ptr.0,
+                    val.0,
+                    len.0,
+                    self.target.get_pointer_size() as _,
+                ),
                 Insn::Memmove(src, dst, count) => LLVMBuildMemMove(
                     self.bdl,
                     dst.0,
@@ -1073,7 +1227,13 @@ impl InsnBuilder {
     /// Adds a type attribute to the given parameter index.
     /// Parameter Index 0 is for the return type.
     /// Parmeters 1..Inf are for parameters.
-    pub fn add_call_site_attribute(&self, call_site: OpaqueValue, param_idx: usize, param_ty: OpaqueType, attr: &str) {
+    pub fn add_call_site_attribute(
+        &self,
+        call_site: OpaqueValue,
+        param_idx: usize,
+        param_ty: OpaqueType,
+        attr: &str,
+    ) {
         if get_eval_only() {
             return;
         }
@@ -1087,7 +1247,8 @@ impl InsnBuilder {
                 LLVMAddCallSiteAttribute(call_site.0, param_idx as _, func_attr);
             }
 
-            let func_attr = LLVMCreateTypeAttribute(self.ctx, get_attribute_by_name(attr), param_ty.0);
+            let func_attr =
+                LLVMCreateTypeAttribute(self.ctx, get_attribute_by_name(attr), param_ty.0);
             LLVMAddCallSiteAttribute(call_site.0, param_idx as _, func_attr);
         }
     }
@@ -1162,7 +1323,10 @@ impl LLVMTargetData {
                 error_message.as_mut_ptr() as *mut _,
             ) != 0
             {
-                return Err(anyhow!("error from LLVM: {}", std::str::from_utf8_unchecked(&error_message)));
+                return Err(anyhow!(
+                    "error from LLVM: {}",
+                    std::str::from_utf8_unchecked(&error_message)
+                ));
             }
 
             let target_machine = LLVMCreateTargetMachine(
@@ -1238,9 +1402,7 @@ impl PassManager {
         // LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm);
         // LLVMPassManagerBuilderDispose(pmb);
 
-        PassManager {
-            pm,
-        }
+        PassManager { pm }
         // }
     }
 
