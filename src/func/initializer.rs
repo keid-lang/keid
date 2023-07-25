@@ -14,7 +14,16 @@ impl<'a> GlobalInitializerCompiler for FunctionCompiler<'a> {
                 let module = self.cpl.type_provider.get_module(module_id);
                 (module.fields.clone(), module.imports.clone())
             };
-            self.import_map = utils::get_import_map(&imports, &self.cpl.type_provider);
+            self.import_map = utils::get_import_map(
+                &imports,
+                &self.cpl.type_provider,
+                Some(
+                    &self
+                        .cpl
+                        .type_provider
+                        .get_module_namespace(self.unit.module_id),
+                ),
+            );
             for field in fields {
                 let field_type = self.resolve_type(&field.ty)?;
                 let llvm_type = field_type.as_llvm_type(&self.cpl);
@@ -34,7 +43,11 @@ impl<'a> GlobalInitializerCompiler for FunctionCompiler<'a> {
                             name: field.name.clone(),
                             ty: llvm_type,
                         });
-                        self.store(Operator::Equals, compiled, &TypedValue::new(field_type.clone(), global_ref))?;
+                        self.store(
+                            Operator::Equals,
+                            compiled,
+                            &TypedValue::new(field_type.clone(), global_ref),
+                        )?;
                     }
                     None => panic!("all global fields must have an initial value"),
                 }

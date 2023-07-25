@@ -102,30 +102,18 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                 let mut members = member_expr.members.clone();
 
                 let (mut current, skip) = if let Some(namespace) = &member_expr.namespace {
-                    let result = 'result: {
-                        match &members[0].value.token {
-                            Expr::FuncCall(call) => {
-                                let full_name =
-                                    format!("{}::{}", namespace.to_string(), call.name.token.0);
-                                if self.cpl.type_provider.has_any_function_by_name(&full_name) {
-                                    break 'result Some(self.compile_static_func_call(
-                                        &StaticFuncCall {
-                                            owner: namespace.clone(),
-                                            call: call.clone(),
-                                        },
-                                    )?);
-                                } else {
-                                    let imported_names = utils::lookup_import_map(
-                                        &self.import_map,
-                                        &namespace.to_string(),
-                                    );
-                                    if namespace.to_string() == "string" {
-                                        println!("Import map: {:#?}", self.import_map);
-                                        println!("String imports: {:#?}", imported_names);
-                                    }
+                    let (current, skip) = if namespace.0.len() == 1 && let Ok(local_ident) = self.resolve_ident(&namespace.0[0]) {
+                        (self.load_local_var(local_ident)?, 0)
+                    } else {
+                        let result = 'result: {
+                            let imported_names =
+                                utils::lookup_import_map(&self.import_map, &namespace.to_string());
+                            match &members[0].value.token {
+                                Expr::FuncCall(call) => {
                                     for imported_name in imported_names {
                                         let full_name =
                                             format!("{}::{}", imported_name, call.name.token.0);
+                                        // println!("Testing new full name: {}", full_name);
                                         if self
                                             .cpl
                                             .type_provider
@@ -139,27 +127,42 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                                             )?);
                                         }
                                     }
+                                    break 'result None;
                                 }
-                                break 'result None;
+                                Expr::Ident(ident) => {
+                                    for imported_name in imported_names {
+                                        let mut parts = Vec::new();
+                                        for part in imported_name.split("::") {
+                                            parts.push(Token {
+                                                token: Identifier(part.to_owned()),
+                                                loc: namespace.get_location(),
+                                            })
+                                        }
+                                        parts.push(ident.clone());
+
+                                        if let Ok(sfr) =
+                                            self.resolve_static_field_reference(&Qualifier(parts))
+                                        {
+                                            break 'result Some(sfr);
+                                        }
+                                    }
+                                    break 'result None;
+                                }
+                                x => unreachable!("{:#?}", x),
                             }
-                            Expr::Ident(ident) => {
-                                let mut full_name = Vec::new();
-                                full_name.extend(namespace.0.clone());
-                                full_name.push(ident.clone());
-                                self.resolve_static_field_reference(&Qualifier(full_name))
-                                    .ok()
+                        };
+                        match result {
+                            Some(result) => (result, 1),
+                            None => {
+                                let identifier = self.resolve_static_field_reference(&namespace)?;
+                                (identifier, 0)
                             }
-                            x => unreachable!("{:#?}", x),
                         }
                     };
-                    match result {
-                        Some(result) => (result, 1),
-                        None => {
-                            let identifier = self.resolve_static_field_reference(&namespace)?;
-                            members[0].ty = MemberType::Class;
-                            (identifier, 0)
-                        }
+                    if skip == 0 {
+                        members[0].ty = MemberType::Class;
                     }
+                    (current, skip)
                 } else {
                     (self.compile_expr(&members[0].value, None)?, 1)
                 };
@@ -365,26 +368,6 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                     .const_null_ptr(self.cpl.context.get_void_type()),
             ),
             Expr::Psuedo(typed_value) => typed_value.clone(),
-            // Expr::StaticFieldReference(sfr) => match self.resolve_static_field_reference(sfr) {
-            //     Ok(field) => {
-            //         return Ok(TypedValue::new(
-            //             field.ty.clone(),
-            //             TypedValueContainer(field).load(self)?,
-            //         ))
-            //     }
-            //     Err(e) => {
-            //         if sfr.0.len() == 1 {
-            //             return Ok(self.compile_expr(
-            //                 &Token {
-            //                     token: Expr::Ident(sfr.0[0].clone()),
-            //                     loc: sfr.get_location(),
-            //                 },
-            //                 type_hint,
-            //             )?);
-            //         }
-            //         return Err(e);
-            //     }
-            // },
             Expr::New(new) => self.compile_new_call(new)?,
             Expr::NewArray(arr) => {
                 let element_type = self.resolve_type(&arr.element_type.complex)?;
@@ -763,6 +746,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                                     }
                                 };
                             }
+
                             return Err(compiler_error!(
                                 &self,
                                 "No such enum member, static field, or local identifier `{}`",

@@ -744,6 +744,7 @@ impl<'a> AstConverter<'a> {
             interface_impls: Vec::new(),
             fields: Vec::new(),
             enums: Vec::new(),
+            namespace: program.namespace.to_string(),
         };
 
         // get all imports first

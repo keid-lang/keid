@@ -102,6 +102,10 @@ impl TypeProvider {
         }
     }
 
+    pub fn get_module_namespace(&self, module_id: usize) -> String {
+        self.roots[module_id].namespace.clone()
+    }
+
     pub fn get_resolved_interface_id(&self, name: &GenericIdentifier) -> usize {
         if let Some(id) = self
             .resolved_interfaces
@@ -241,6 +245,14 @@ impl TypeProvider {
                     });
                 }
             }
+            for enm in &root.enums {
+                if utils::get_type_namespace(&enm.base_name) == namespace {
+                    members.push(NamespaceMember {
+                        name: utils::get_type_leaf(&enm.base_name).to_owned(),
+                        member_type: NamespaceMemberType::Type,
+                    });
+                }
+            }
         }
         members
     }
@@ -361,7 +373,6 @@ impl TypeProvider {
     }
 
     pub fn has_any_function_by_name(&self, name: &str) -> bool {
-        println!("has_any_function_by_name({})", name);
         for functions in self.roots.iter().map(|root| &root.functions) {
             for function in functions {
                 if function.base_name == name {

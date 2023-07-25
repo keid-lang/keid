@@ -75,21 +75,45 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
         match &lhs.token {
             Expr::Member(member_expr) => {
                 let previous_members = &member_expr.members[0..member_expr.members.len() - 1];
-                let previous_result = if previous_members.len() == 1 {
-                    self.compile_expr(&member_expr.members[0].value, None)?
-                } else if previous_members.len() > 0 {
+                let previous_result = if previous_members.len() > 0
+                    && member_expr.namespace.is_some()
+                {
                     self.compile_expr(
                         &Token {
                             loc: lhs.loc.clone(),
                             token: Expr::Member(MemberExpr {
-                                namespace: None,
+                                namespace: member_expr.namespace.clone(),
                                 members: previous_members.to_vec(),
                             }),
                         },
                         None,
                     )?
                 } else {
-                    return self.compile_assign(&member_expr.members[0].value, op, rhs, deref);
+                    if previous_members.len() == 1 && member_expr.namespace.is_none() {
+                        self.compile_expr(&member_expr.members[0].value, None)?
+                    } else if previous_members.len() == 0 && let Some(namespace) = &member_expr.namespace {
+                        // x.y = z
+                        // x = namespace
+                        // y = active member
+                        // no previous members
+                        if namespace.0.len() == 1 && let Ok(local_ident) = self.resolve_ident(&namespace.0[0]) {
+                            // if x is a local variable then just use that
+                            self.load_local_var(local_ident)?
+                        } else {
+                            todo!("static field assignment: {:#?}", member_expr);
+                        }
+                    } else {
+                        // x = y
+                        // no namespace
+                        // x = active member
+                        // no previous members
+                        return Ok(self.compile_assign(
+                            &member_expr.members[0].value,
+                            op,
+                            rhs,
+                            deref,
+                        )?);
+                    }
                 };
 
                 let last_member = member_expr.members.last().unwrap();

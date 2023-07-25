@@ -357,8 +357,6 @@ impl<'a> FunctionCompiler<'a> {
 
         match ty {
             ComplexType::Basic(BasicType::Object(ident)) => {
-                let declaring_namespace = self.get_source_function().namespace_name.clone();
-
                 for absolute_name in utils::lookup_import_map(import_map, &ident.name) {
                     let generic_args = ident
                         .generic_args
@@ -368,38 +366,17 @@ impl<'a> FunctionCompiler<'a> {
 
                     let abs_obj_type =
                         GenericIdentifier::from_name_with_args(&absolute_name, &generic_args);
-                    let namespaced_name = format!("{}::{}", declaring_namespace, &ident.name);
-                    let ns_obj_type =
-                        GenericIdentifier::from_name_with_args(&namespaced_name, &generic_args);
-
-                    match self
-                        .cpl
-                        .type_provider
-                        .get_class_by_name(&abs_obj_type)
-                        .or_else(|| self.cpl.type_provider.get_class_by_name(&ns_obj_type))
-                    {
+                    match self.cpl.type_provider.get_class_by_name(&abs_obj_type) {
                         Some(class_type) => {
                             return Ok(class_type.as_complex_type(
                                 self.cpl.type_provider.get_source_class(&class_type),
                             ))
                         }
                         None => {
-                            match self
-                                .cpl
-                                .type_provider
-                                .get_typedef_by_name(&abs_obj_type)
-                                .or_else(|| {
-                                    self.cpl.type_provider.get_typedef_by_name(&ns_obj_type)
-                                }) {
+                            match self.cpl.type_provider.get_typedef_by_name(&abs_obj_type) {
                                 Some(typedef) => return Ok(typedef.target_type),
                                 None => {
-                                    match self
-                                        .cpl
-                                        .type_provider
-                                        .get_enum_by_name(&abs_obj_type)
-                                        .or_else(|| {
-                                            self.cpl.type_provider.get_enum_by_name(&ns_obj_type)
-                                        }) {
+                                    match self.cpl.type_provider.get_enum_by_name(&abs_obj_type) {
                                         Some(enum_type) => {
                                             return Ok(enum_type.as_complex_type(
                                                 self.cpl.type_provider.get_source_enum(&enum_type),
@@ -481,10 +458,12 @@ impl<'a> FunctionCompiler<'a> {
             }
 
             let source_type = self.cpl.type_provider.get_source_class(&type_root);
-            let resolved_interface_impls = self
-                .cpl
-                .type_provider
-                .get_resolved_interface_impls(&GenericIdentifier::from_name_with_args(&source_type.base_name, &type_root.generic_impls));
+            let resolved_interface_impls = self.cpl.type_provider.get_resolved_interface_impls(
+                &GenericIdentifier::from_name_with_args(
+                    &source_type.base_name,
+                    &type_root.generic_impls,
+                ),
+            );
             for resolved_interface_impl in resolved_interface_impls {
                 let interface_impl = self
                     .cpl
@@ -547,23 +526,21 @@ impl<'a> FunctionCompiler<'a> {
                 let ident = GenericIdentifier::from_name_with_args(&full_name, &generic_args);
                 match self.find_function(&ident, args, None)? {
                     Some(sig) => return Ok(sig),
-                    None => {
-                        match self.find_function(
-                            &GenericIdentifier::from_name_with_args(
-                                &format!(
-                                    "{}::{}",
-                                    self.get_source_function().namespace_name,
-                                    sfc.get_full_name()
-                                ),
-                                &generic_args,
+                    None => match self.find_function(
+                        &GenericIdentifier::from_name_with_args(
+                            &format!(
+                                "{}::{}",
+                                self.get_source_function().namespace_name,
+                                sfc.get_full_name()
                             ),
-                            args,
-                            None,
-                        )? {
-                            Some(sig) => return Ok(sig),
-                            None => (),
-                        }
-                    }
+                            &generic_args,
+                        ),
+                        args,
+                        None,
+                    )? {
+                        Some(sig) => return Ok(sig),
+                        None => (),
+                    },
                 }
             }
         }

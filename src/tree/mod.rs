@@ -103,6 +103,9 @@ pub struct KeidModuleNode {
 
     /// All enums in the program.
     pub enums: Vec<EnumNode>,
+
+    /// The namespace declared in the module.
+    pub namespace: String,
 }
 
 #[derive(Debug, Clone)]

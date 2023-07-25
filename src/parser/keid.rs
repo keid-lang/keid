@@ -98,7 +98,11 @@ fn parse_member(pairs: Pairs<Rule>) -> Result<MemberExpr> {
                     }
                     _ => (),
                 }
-                (MemberType::Root, parse_expr(inner.next().unwrap())?)
+                let mut root = parse_expr(inner.next().unwrap())?;
+                while let Some(postfix_pair) = inner.next() {
+                    root = parse_postfix_expr(root, postfix_pair)?;
+                }
+                (MemberType::Root, root)
             }
             Rule::class_member => (
                 MemberType::Class,
@@ -166,6 +170,22 @@ fn parse_unary_type_expr(mut pairs: Pairs<Rule>) -> QualifiedType {
     QualifiedType::from_idents(pairs.next().unwrap())
 }
 
+fn parse_postfix_expr(operand: Token<Expr>, operator: Pair<Rule>) -> Result<Token<Expr>> {
+    Ok(Token {
+        loc: TokenLocation {
+            start: operator.as_span().start(),
+            end: operand.loc.end,
+        },
+        token: Expr::Unary(UnaryExpr {
+            value: Box::new(operand),
+            op: match operator.as_rule() {
+                Rule::op_null_assert => Operator::NonNullAssertion,
+                x => unimplemented!("{:#?}", x),
+            },
+        }),
+    })
+}
+
 fn parse_logic_expr(pairs: Pairs<Rule>) -> Result<Token<Expr>> {
     PRATT
         .map_primary(parse_expr)
@@ -188,19 +208,8 @@ fn parse_logic_expr(pairs: Pairs<Rule>) -> Result<Token<Expr>> {
         })
         .map_postfix(|operand, operator| {
             let operand = operand?;
-            Ok(Token {
-                loc: TokenLocation {
-                    start: operator.as_span().start(),
-                    end: operand.loc.end,
-                },
-                token: Expr::Unary(UnaryExpr {
-                    value: Box::new(operand),
-                    op: match operator.as_rule() {
-                        Rule::op_null_assert => Operator::NonNullAssertion,
-                        x => unimplemented!("{:#?}", x),
-                    },
-                }),
-            })
+            Ok(parse_postfix_expr(operand, operator)?)
+
         })
         .map_infix(|lhs, op, rhs| {
             let lhs = lhs?;
@@ -239,6 +248,7 @@ fn parse_logic_expr(pairs: Pairs<Rule>) -> Result<Token<Expr>> {
 }
 
 fn parse_enum_with_data(mut pairs: Pairs<Rule>) -> Result<EnumWithDataExpr> {
+    pairs.next(); // skip "new" keyword
     let declaring_type = Qualifier::from_idents(pairs.next().unwrap());
     let member = Identifier::from_ident(&pairs.next().unwrap());
     let data = parse_anonymous_struct(pairs.next().unwrap().into_inner())?;
