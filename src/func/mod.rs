@@ -284,6 +284,7 @@ impl<'a> FunctionCompiler<'a> {
         Ok(())
     }
 
+    /// Returns a LocalVar as a pointer to the given identifier.
     fn resolve_ident(&mut self, ident: &Token<Identifier>) -> Result<LocalVar> {
         self.loc(&ident.loc);
 

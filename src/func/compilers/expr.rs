@@ -74,6 +74,8 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
         })
     }
 
+    /// Returns a single scalar value loaded, denoted by the given AST expression node.
+    /// For identifiers, field references, etc. the deferenced value is returned, not the pointer to the value.
     fn compile_expr(
         &mut self,
         expr: &Token<Expr>,
@@ -84,7 +86,10 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
             Expr::SignedIntLit(val) => self.compile_integer_literal_expr(*val, type_hint)?,
             Expr::StringLit(str) => self.compile_string_literal_expr(str)?,
             Expr::Ident(ident) => {
-                self.resolve_static_field_reference(&Qualifier(vec![ident.clone()]))?
+                let field_ref =
+                    self.resolve_static_field_reference(&Qualifier(vec![ident.clone()]))?;
+                let container = TypedValueContainer(field_ref);
+                TypedValue::new(container.get_type(), container.load(self)?)
             }
             Expr::Reference(expr) => {
                 let compiled_expr = self.compile_expr(expr, None)?;
@@ -101,13 +106,13 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
             Expr::Member(member_expr) => {
                 let mut members = member_expr.members.clone();
 
-                let (mut current, skip) = if let Some(namespace) = &member_expr.namespace {
-                    let (current, skip) = if namespace.0.len() == 1 && let Ok(local_ident) = self.resolve_ident(&namespace.0[0]) {
-                        (self.load_local_var(local_ident)?, 0)
+                let (mut current, skip) = if let Some(prefix) = &member_expr.prefix {
+                    let (current, skip) = if prefix.0.len() == 1 && let Ok(local_ident) = self.resolve_ident(&prefix.0[0]) {
+                        (local_ident.value, 0)
                     } else {
                         let result = 'result: {
                             let imported_names =
-                                utils::lookup_import_map(&self.import_map, &namespace.to_string());
+                                utils::lookup_import_map(&self.import_map, &prefix.to_string());
                             match &members[0].value.token {
                                 Expr::FuncCall(call) => {
                                     for imported_name in imported_names {
@@ -121,7 +126,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                                         {
                                             break 'result Some(self.compile_static_func_call(
                                                 &StaticFuncCall {
-                                                    owner: namespace.clone(),
+                                                    owner: prefix.clone(),
                                                     call: call.clone(),
                                                 },
                                             )?);
@@ -135,7 +140,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                                         for part in imported_name.split("::") {
                                             parts.push(Token {
                                                 token: Identifier(part.to_owned()),
-                                                loc: namespace.get_location(),
+                                                loc: prefix.get_location(),
                                             })
                                         }
                                         parts.push(ident.clone());
@@ -154,7 +159,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                         match result {
                             Some(result) => (result, 1),
                             None => {
-                                let identifier = self.resolve_static_field_reference(&namespace)?;
+                                let identifier = self.resolve_static_field_reference(&prefix)?;
                                 (identifier, 0)
                             }
                         }
@@ -689,12 +694,13 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
         Ok(TypedValue::new(prealloc_result.ty, loaded_result))
     }
 
+    /// Returns a pointer to the local identifier, static field, or enum resolved by this function.
     fn resolve_static_field_reference(&mut self, sfr: &Qualifier) -> Result<TypedValue> {
         self.loc(&sfr.get_location());
 
         if sfr.0.len() == 1 {
             match self.resolve_ident(&sfr.0[0]) {
-                Ok(var) => return Ok(self.load_local_var(var)?),
+                Ok(var) => return Ok(var.value),
                 Err(_) => (),
             }
         }

@@ -492,7 +492,7 @@ pub struct Member {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MemberExpr {
-    pub namespace: Option<Qualifier>,
+    pub prefix: Option<Qualifier>,
     pub members: Vec<Member>,
 }
 

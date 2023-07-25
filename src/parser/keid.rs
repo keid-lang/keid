@@ -117,7 +117,7 @@ fn parse_member(pairs: Pairs<Rule>) -> Result<MemberExpr> {
         members.push(Member { ty, value: member });
     }
 
-    Ok(MemberExpr { namespace, members })
+    Ok(MemberExpr { prefix: namespace, members })
 }
 
 fn parse_reference(mut pairs: Pairs<Rule>) -> Result<Token<Expr>> {

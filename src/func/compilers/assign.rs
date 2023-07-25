@@ -76,33 +76,35 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
             Expr::Member(member_expr) => {
                 let previous_members = &member_expr.members[0..member_expr.members.len() - 1];
                 let previous_result = if previous_members.len() > 0
-                    && member_expr.namespace.is_some()
+                    && member_expr.prefix.is_some()
                 {
                     self.compile_expr(
                         &Token {
                             loc: lhs.loc.clone(),
                             token: Expr::Member(MemberExpr {
-                                namespace: member_expr.namespace.clone(),
+                                prefix: member_expr.prefix.clone(),
                                 members: previous_members.to_vec(),
                             }),
                         },
                         None,
                     )?
                 } else {
-                    if previous_members.len() == 1 && member_expr.namespace.is_none() {
+                    if previous_members.len() == 1 && member_expr.prefix.is_none() {
                         self.compile_expr(&member_expr.members[0].value, None)?
-                    } else if previous_members.len() == 0 && let Some(namespace) = &member_expr.namespace {
+                    } else if previous_members.len() == 0 && let Some(namespace) = &member_expr.prefix {
                         // x.y = z
                         // x = namespace
                         // y = active member
                         // no previous members
                         if namespace.0.len() == 1 && let Ok(local_ident) = self.resolve_ident(&namespace.0[0]) {
                             // if x is a local variable then just use that
-                            self.load_local_var(local_ident)?
+                            // self.load_local_var(local_ident)?
+                            local_ident.value
                         } else {
                             todo!("static field assignment: {:#?}", member_expr);
                         }
                     } else {
+                        println!("{:#?}", member_expr);
                         // x = y
                         // no namespace
                         // x = active member
