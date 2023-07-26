@@ -1,17 +1,6 @@
 namespace std::io
 
-import (
-    core::mem
-)
-
-public extern function puts(str: Pointer<char>)
-
 public function println(format: string, ...args: [string]) {
     let message = core::string.format(format, ...args)
-    let cstr = message.toNullTerminated()
-    unsafe {
-        fixed let cstrPtr: Pointer<char> = ref cstr {
-            puts(cstrPtr)
-        }
-    }
+    std::io::impl.println(message)
 }

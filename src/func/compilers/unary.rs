@@ -26,10 +26,7 @@ impl<'a> UnaryCompiler for FunctionCompiler<'a> {
             Operator::Not => {
                 self.assert_assignable_to(&expr.ty, &BasicType::Bool.to_complex())?;
 
-                let true_const = self
-                    .cpl
-                    .context
-                    .const_int(BasicType::Bool.as_llvm_type(self.cpl), 1);
+                let true_const = self.cpl.context.const_int(BasicType::Bool.as_llvm_type(self.cpl), 1);
                 let inverted_bool = self.emit(Insn::Xor(expr.val, true_const));
 
                 TypedValue {
@@ -47,26 +44,12 @@ impl<'a> UnaryCompiler for FunctionCompiler<'a> {
                     );
                     let assert_func = self.get_function_ref(&assert_impl)?;
 
-                    let nullability_ptr = self.emit(Insn::GetElementPtr(
-                        expr.val,
-                        expr.ty.as_llvm_type(&self.cpl),
-                        1,
-                    ));
-                    let nullablility =
-                        self.emit(Insn::Load(nullability_ptr, self.cpl.context.get_i8_type()));
-                    self.emit(Insn::Call(
-                        assert_func,
-                        assert_impl.as_llvm_type(&self.cpl),
-                        vec![nullablility],
-                    ));
+                    let nullability_ptr = self.emit(Insn::GetElementPtr(expr.val, expr.ty.as_llvm_type(self.cpl), 1));
+                    let nullablility = self.emit(Insn::Load(nullability_ptr, self.cpl.context.get_i8_type()));
+                    self.emit(Insn::Call(assert_func, assert_impl.as_llvm_type(self.cpl), vec![nullablility]));
 
-                    let value_ptr = self.emit(Insn::GetElementPtr(
-                        expr.val,
-                        expr.ty.as_llvm_type(&self.cpl),
-                        0,
-                    ));
-                    let value = TypedValueContainer(TypedValue::new(*inner.clone(), value_ptr))
-                        .load(self)?;
+                    let value_ptr = self.emit(Insn::GetElementPtr(expr.val, expr.ty.as_llvm_type(self.cpl), 0));
+                    let value = TypedValueContainer(TypedValue::new(*inner.clone(), value_ptr)).load(self)?;
 
                     TypedValue {
                         ty: *inner.clone(),
@@ -75,7 +58,7 @@ impl<'a> UnaryCompiler for FunctionCompiler<'a> {
                 }
                 _ => {
                     return Err(compiler_error!(
-                        &self,
+                        self,
                         "the null assertion operator cannot be used on non-nullable type `{}`",
                         expr.ty.to_string()
                     ))

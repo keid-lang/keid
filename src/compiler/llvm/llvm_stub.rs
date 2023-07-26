@@ -91,21 +91,11 @@ impl Context {
         OpaqueValue {}
     }
 
-    pub fn const_get_element_ptr_dynamic(
-        &self,
-        _: OpaqueType,
-        _: OpaqueValue,
-        _: usize,
-    ) -> OpaqueValue {
+    pub fn const_get_element_ptr_dynamic(&self, _: OpaqueType, _: OpaqueValue, _: usize) -> OpaqueValue {
         OpaqueValue {}
     }
 
-    pub fn const_get_array_element_ptr(
-        &self,
-        _: OpaqueType,
-        _: OpaqueValue,
-        _: usize,
-    ) -> OpaqueValue {
+    pub fn const_get_array_element_ptr(&self, _: OpaqueType, _: OpaqueValue, _: usize) -> OpaqueValue {
         OpaqueValue {}
     }
 
@@ -223,12 +213,7 @@ impl Context {
 
     pub fn set_struct_type_body(&self, _: OpaqueType, _: &[OpaqueType]) {}
 
-    pub fn get_function_type(
-        &self,
-        _: &[OpaqueType],
-        _: Varargs,
-        _: OpaqueType,
-    ) -> OpaqueFunctionType {
+    pub fn get_function_type(&self, _: &[OpaqueType], _: Varargs, _: OpaqueType) -> OpaqueFunctionType {
         OpaqueFunctionType {}
     }
 
@@ -293,8 +278,7 @@ impl Module {
 
     pub fn extern_global(&mut self, global_var: &GlobalVariable) -> OpaqueValue {
         let global = OpaqueValue {};
-        self.global_variables
-            .insert(global_var.name.clone(), global);
+        self.global_variables.insert(global_var.name.clone(), global);
 
         global
     }

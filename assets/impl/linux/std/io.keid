@@ -1,0 +1,16 @@
+namespace std::io::impl
+
+import (
+    core::mem
+)
+
+extern function puts(str: Pointer<char>)
+
+public function println(message: string) {
+    let cstr = message.toNullTerminated()
+    unsafe {
+        fixed let cstrPtr: Pointer<char> = ref cstr {
+            puts(cstrPtr)
+        }
+    }
+}

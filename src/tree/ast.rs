@@ -22,7 +22,10 @@ impl Identifier {
     pub fn from_string(string: &str) -> Token<Identifier> {
         Token {
             token: Identifier(string.to_owned()),
-            loc: TokenLocation { start: 0, end: 0 },
+            loc: TokenLocation {
+                start: 0,
+                end: 0,
+            },
         }
     }
 }
@@ -61,12 +64,7 @@ impl Qualifier {
 
 impl ToString for Qualifier {
     fn to_string(&self) -> String {
-        self.0
-            .iter()
-            .map(|part| &part.token.0)
-            .fold(String::new(), |a, b| a + b + "::")
-            .trim_end_matches(':')
-            .to_owned()
+        self.0.iter().map(|part| &part.token.0).fold(String::new(), |a, b| a + b + "::").trim_end_matches(':').to_owned()
     }
 }
 
@@ -93,9 +91,7 @@ impl QualifiedType {
             }
             Rule::array_type => {
                 pairs.next();
-                ComplexType::Array(Box::new(
-                    Self::from_idents(token.into_inner().next().unwrap()).complex,
-                ))
+                ComplexType::Array(Box::new(Self::from_idents(token.into_inner().next().unwrap()).complex))
             }
             Rule::anonymous_struct_type => {
                 pairs.next();
@@ -115,13 +111,15 @@ impl QualifiedType {
                 let mut path = Vec::new();
                 let mut generic_args = None;
 
-                while let Some(token) = pairs.next() {
+                for token in pairs {
                     match token.as_rule() {
                         Rule::qualifier => path.extend(Qualifier::from_idents(token).0),
                         Rule::ident => path.push(Identifier::from_ident(&token)),
                         Rule::generic_args => {
                             let args = token.into_inner().map(QualifiedType::from_idents).collect();
-                            generic_args = Some(GenericArgs { args })
+                            generic_args = Some(GenericArgs {
+                                args,
+                            })
                         }
                         _ => unreachable!(),
                     }
@@ -361,12 +359,7 @@ impl StaticFuncCall {
     pub fn get_full_name(&self) -> String {
         let mut full_parts = self.owner.clone().into_tokens();
         full_parts.push(self.call.name.clone());
-        full_parts
-            .iter()
-            .map(|part| &part.token.0)
-            .fold(String::new(), |a, b| a + b + "::")
-            .trim_end_matches(':')
-            .to_owned()
+        full_parts.iter().map(|part| &part.token.0).fold(String::new(), |a, b| a + b + "::").trim_end_matches(':').to_owned()
     }
 }
 

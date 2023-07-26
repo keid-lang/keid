@@ -40,8 +40,8 @@ fn parse_macro_decl(mut pairs: Pairs<Rule>) -> Result<MacroDecl> {
     let mut next = pairs.next().unwrap();
     let mut args = Vec::new();
     if next.as_rule() == Rule::macro_args {
-        let mut args_pairs = next.into_inner();
-        while let Some(arg) = args_pairs.next() {
+        let args_pairs = next.into_inner();
+        for arg in args_pairs {
             args.push(arg.as_str().trim().to_owned());
         }
 
@@ -62,7 +62,7 @@ fn parse_macro_call(mut pairs: Pairs<Rule>) -> Result<MacroCall> {
     let name = pairs.next().unwrap().as_str().trim().to_owned();
     let mut args = Vec::new();
 
-    while let Some(arg) = pairs.next() {
+    for arg in pairs {
         let as_str = arg.as_str();
         args.push(match arg.as_rule() {
             Rule::marked_macro_param => as_str["```".len()..as_str.len() - "```".len()].trim().to_owned(),
@@ -86,7 +86,7 @@ fn intrinsic_macro_decl_if(args: &[String], ctx: &PreprocessorContext) -> String
         if ctx.use_rtdbg {
             return args[1].clone();
         }
-        return String::new();
+        String::new()
     } else {
         panic!("not a boolean variable: {}", args[0])
     }
@@ -97,7 +97,7 @@ fn parse_all_macro_decls(code: &str) -> Result<Vec<MacroDecl>> {
     match result {
         Ok(mut pairs) => match pairs.next() {
             Some(pair) => Ok({
-                let mut pairs = pair.into_inner();
+                let pairs = pair.into_inner();
                 let mut macro_decls = Vec::new();
 
                 macro_decls.push(MacroDecl {
@@ -105,7 +105,7 @@ fn parse_all_macro_decls(code: &str) -> Result<Vec<MacroDecl>> {
                     mode: MacroDeclMode::Intrinsic(intrinsic_macro_decl_if),
                 });
 
-                while let Some(next) = pairs.next() {
+                for next in pairs {
                     match next.as_rule() {
                         Rule::macro_decl => macro_decls.push(parse_macro_decl(next.into_inner())?),
                         _ => (),
@@ -119,9 +119,9 @@ fn parse_all_macro_decls(code: &str) -> Result<Vec<MacroDecl>> {
     }
 }
 
-fn parse_program(mut pairs: Pairs<Rule>, macro_decls: &[MacroDecl], ctx: &PreprocessorContext) -> Result<String> {
+fn parse_program(pairs: Pairs<Rule>, macro_decls: &[MacroDecl], ctx: &PreprocessorContext) -> Result<String> {
     let mut processed = String::new();
-    while let Some(next) = pairs.next() {
+    for next in pairs {
         match next.as_rule() {
             Rule::macro_decl => (),
             Rule::macro_call => {
@@ -132,20 +132,13 @@ fn parse_program(mut pairs: Pairs<Rule>, macro_decls: &[MacroDecl], ctx: &Prepro
                 };
 
                 match &decl.mode {
-                    MacroDeclMode::Intrinsic(intrinsic) => {
-                        write!(&mut processed, "{}\n\n", intrinsic(&call.args, ctx))?
-                    }
+                    MacroDeclMode::Intrinsic(intrinsic) => write!(&mut processed, "{}\n\n", intrinsic(&call.args, ctx))?,
                     MacroDeclMode::UserDefined {
                         args,
                         text,
                     } => {
                         if args.len() != call.args.len() {
-                            panic!(
-                                "expecting {} args for macro `{}(....)`, but received {}",
-                                args.len(),
-                                call.name,
-                                call.args.len()
-                            );
+                            panic!("expecting {} args for macro `{}(....)`, but received {}", args.len(), call.name, call.args.len());
                         }
 
                         let mut replaced = text[0..text.len() - "end macro".len()].trim().to_owned();
@@ -190,5 +183,5 @@ pub fn preprocess(code: &str, ctx: &PreprocessorContext) -> Result<String> {
         }
         current_code = next_code;
     }
-    return Err(anyhow!("Preprocessor panic: maximum recursion depth (8) reached"));
+    Err(anyhow!("Preprocessor panic: maximum recursion depth (8) reached"))
 }

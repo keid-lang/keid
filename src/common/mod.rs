@@ -49,8 +49,7 @@ impl CompilerError {
             pest::error::ErrorVariant::<parser::Rule>::CustomError {
                 message: self.message.clone(),
             },
-            pest::Span::new(source, self.loc.start, self.loc.end)
-                .unwrap_or_else(|| panic!("message: {}", self.message)),
+            pest::Span::new(source, self.loc.start, self.loc.end).unwrap_or_else(|| panic!("message: {}", self.message)),
         )
     }
 }
@@ -65,7 +64,10 @@ pub struct TypedValue {
 
 impl TypedValue {
     pub fn new(ty: ComplexType, val: OpaqueValue) -> TypedValue {
-        TypedValue { ty, val }
+        TypedValue {
+            ty,
+            val,
+        }
     }
 }
 
@@ -86,7 +88,7 @@ impl ValueContainer for TypedValueContainer {
         if self.0.ty.is_struct(&fc.cpl.type_provider) {
             Ok(self.0.val)
         } else {
-            Ok(fc.emit(Insn::Load(self.0.val, self.0.ty.as_llvm_type(&fc.cpl))))
+            Ok(fc.emit(Insn::Load(self.0.val, self.0.ty.as_llvm_type(fc.cpl))))
         }
     }
 
@@ -112,11 +114,7 @@ impl AccessorValueContainer {
 impl ValueContainer for AccessorValueContainer {
     fn load(&self, fc: &mut FunctionCompiler) -> Result<OpaqueValue> {
         let func_value = fc.get_function_ref(&self.0)?;
-        Ok(fc.call_function(
-            func_value,
-            &self.0,
-            &[TypedValue::new(self.0.params[0].clone(), self.1)],
-        )?)
+        fc.call_function(func_value, &self.0, &[TypedValue::new(self.0.params[0].clone(), self.1)])
     }
 
     fn store(&self, _: Operator, _: &mut FunctionCompiler, _: TypedValue) -> Result<()> {

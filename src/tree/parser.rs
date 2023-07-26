@@ -50,19 +50,9 @@ enum DeclParent {
 
 impl<'a> AstConverter<'a> {
     fn lookup_classlike(&self, resolved_name: &str, same_namespace: &str) -> Option<String> {
-        if self
-            .lookup_items
-            .iter()
-            .find(|item| item.name == resolved_name && !matches!(item.ty, LookupItemType::Typedef(_)))
-            .is_some()
-        {
+        if self.lookup_items.iter().any(|item| item.name == resolved_name && !matches!(item.ty, LookupItemType::Typedef(_))) {
             Some(resolved_name.to_owned())
-        } else if self
-            .lookup_items
-            .iter()
-            .find(|item| item.name == same_namespace && !matches!(item.ty, LookupItemType::Typedef(_)))
-            .is_some()
-        {
+        } else if self.lookup_items.iter().any(|item| item.name == same_namespace && !matches!(item.ty, LookupItemType::Typedef(_))) {
             Some(same_namespace.to_owned())
         } else {
             None
@@ -131,7 +121,7 @@ impl<'a> AstConverter<'a> {
                     generic_defs,
                     ..
                 } => {
-                    if generic_defs.iter().find(|g| g.name == full_name).is_some() {
+                    if generic_defs.iter().any(|g| g.name == full_name) {
                         return Ok(original_type.complex);
                     }
                 }
@@ -141,7 +131,7 @@ impl<'a> AstConverter<'a> {
                     associated_type_names,
                     ..
                 } => {
-                    if associated_type_names.iter().find(|t| *t == &full_name).is_some() {
+                    if associated_type_names.iter().any(|t| t == &full_name) {
                         return Ok(original_type.complex);
                     }
                 }
@@ -180,16 +170,11 @@ impl<'a> AstConverter<'a> {
                         .collect::<Result<Vec<ComplexType>>>()?;
 
                     if let Some(class_name) = self.lookup_classlike(&resolved_name, &same_namespace) {
-                        BasicType::Object(GenericIdentifier::from_name_with_args(&class_name, &generic_args))
-                            .to_complex()
+                        BasicType::Object(GenericIdentifier::from_name_with_args(&class_name, &generic_args)).to_complex()
                     } else if let Some(typedef) = self.lookup_typedef(&resolved_name, &same_namespace) {
                         typedef
                     } else {
-                        return Err(compiler_error_loc!(
-                            &original_type.loc,
-                            "[ER6] Could not resolve type `{}`",
-                            resolved_name
-                        ));
+                        return Err(compiler_error_loc!(&original_type.loc, "[ER6] Could not resolve type `{}`", resolved_name));
                     }
                 };
 
@@ -253,13 +238,7 @@ impl<'a> AstConverter<'a> {
         })
     }
 
-    fn parse_func_decl(
-        &self,
-        ns: &str,
-        func: FunctionDecl,
-        class: Option<&DeclParent>,
-        dst: &mut KeidModuleNode,
-    ) -> Result<usize> {
+    fn parse_func_decl(&self, ns: &str, func: FunctionDecl, class: Option<&DeclParent>, dst: &mut KeidModuleNode) -> Result<usize> {
         let function_type = if class.is_some() && !func.modifiers.contains(&FunctionModifier::Static) {
             FunctionType::Instance
         } else {
@@ -389,10 +368,8 @@ impl<'a> AstConverter<'a> {
             );
         }
 
-        let return_type = func
-            .return_type
-            .map(|ty| self.get_type(ty, Some(&parent), dst, ns.to_owned()))
-            .unwrap_or(Ok(BasicType::Void.to_complex()))?;
+        let return_type =
+            func.return_type.map(|ty| self.get_type(ty, Some(&parent), dst, ns.to_owned())).unwrap_or(Ok(BasicType::Void.to_complex()))?;
 
         let id = dst.functions.len();
         dst.functions.push(FunctionNode {
@@ -413,13 +390,7 @@ impl<'a> AstConverter<'a> {
         Ok(id)
     }
 
-    fn parse_field_decl(
-        &self,
-        field: Let,
-        parent: Option<&DeclParent>,
-        dst: &KeidModuleNode,
-        ns: String,
-    ) -> Result<FieldNode> {
+    fn parse_field_decl(&self, field: Let, parent: Option<&DeclParent>, dst: &KeidModuleNode, ns: String) -> Result<FieldNode> {
         Ok(FieldNode {
             name: match parent {
                 Some(_) => field.name.token.0,
@@ -454,29 +425,19 @@ impl<'a> AstConverter<'a> {
         let decl_parent = DeclParent::Class {
             name: String::new(),
             generic_defs: generic_defs.clone(),
-            associated_type_names: interface_impl
-                .associated_types
-                .iter()
-                .map(|assoc| assoc.name.token.0.clone())
-                .collect(),
+            associated_type_names: interface_impl.associated_types.iter().map(|assoc| assoc.name.token.0.clone()).collect(),
         };
 
         let interface_generics = interface_impl
             .interface_generic_args
             .map(|decl| {
-                decl.args
-                    .into_iter()
-                    .map(|part| self.get_type(part, Some(&decl_parent), dst, ns.to_owned()))
-                    .collect::<Result<Vec<_>>>()
+                decl.args.into_iter().map(|part| self.get_type(part, Some(&decl_parent), dst, ns.to_owned())).collect::<Result<Vec<_>>>()
             })
             .unwrap_or_else(|| Ok(Vec::new()))?;
         let target_generics = interface_impl
             .target_generic_args
             .map(|decl| {
-                decl.args
-                    .into_iter()
-                    .map(|part| self.get_type(part, Some(&decl_parent), dst, ns.to_owned()))
-                    .collect::<Result<Vec<_>>>()
+                decl.args.into_iter().map(|part| self.get_type(part, Some(&decl_parent), dst, ns.to_owned())).collect::<Result<Vec<_>>>()
             })
             .unwrap_or_else(|| Ok(Vec::new()))?;
 
@@ -493,10 +454,7 @@ impl<'a> AstConverter<'a> {
 
         let decl_parent = DeclParent::InterfaceImpl {
             generic_defs: generic_defs.clone(),
-            class: GenericIdentifier::from_name_with_args(
-                &self.resolve_type(ns, &interface_impl.target_name, dst)?,
-                &target_generics,
-            ),
+            class: GenericIdentifier::from_name_with_args(&self.resolve_type(ns, &interface_impl.target_name, dst)?, &target_generics),
             interface: GenericIdentifier::from_name_with_args(
                 &self.resolve_type(ns, &interface_impl.interface_name, dst)?,
                 &interface_generics,
@@ -517,12 +475,7 @@ impl<'a> AstConverter<'a> {
             .collect::<Result<Vec<_>>>()?;
 
         let interface_name = match self
-            .get_type(
-                QualifiedType::from_qualifier(&interface_impl.interface_name),
-                Some(&decl_parent),
-                dst,
-                ns.to_owned(),
-            )?
+            .get_type(QualifiedType::from_qualifier(&interface_impl.interface_name), Some(&decl_parent), dst, ns.to_owned())?
             .get_root_type()
         {
             BasicType::Object(ident) => ident.name,
@@ -530,12 +483,7 @@ impl<'a> AstConverter<'a> {
         };
 
         let target_name = match self
-            .get_type(
-                QualifiedType::from_qualifier(&interface_impl.target_name),
-                Some(&decl_parent),
-                dst,
-                ns.to_owned(),
-            )?
+            .get_type(QualifiedType::from_qualifier(&interface_impl.target_name), Some(&decl_parent), dst, ns.to_owned())?
             .get_root_type()
         {
             BasicType::Object(ident) => ident.name,
@@ -571,10 +519,8 @@ impl<'a> AstConverter<'a> {
 
     fn parse_enum_decl(&self, ns: &str, enm: EnumDecl, dst: &mut KeidModuleNode) -> Result<()> {
         let base_name = Qualifier(enm.name).to_string();
-        let generic_defs: Vec<GenericDefNode> = enm
-            .generics
-            .map(|decls| decls.into_iter().map(|decl| GenericDefNode::from_ast(&decl)).collect())
-            .unwrap_or_default();
+        let generic_defs: Vec<GenericDefNode> =
+            enm.generics.map(|decls| decls.into_iter().map(|decl| GenericDefNode::from_ast(&decl)).collect()).unwrap_or_default();
         let decl_parent = DeclParent::Class {
             name: base_name.clone(),
             generic_defs: generic_defs.clone(),
@@ -592,10 +538,7 @@ impl<'a> AstConverter<'a> {
                             Ok(AnonymousStructField {
                                 name: field.name.token.0,
                                 ty: self.get_type(
-                                    field.ty.ok_or(compiler_error_loc!(
-                                        &field.name.loc,
-                                        "Enum associated data member must have a type"
-                                    ))?,
+                                    field.ty.ok_or(compiler_error_loc!(&field.name.loc, "Enum associated data member must have a type"))?,
                                     Some(&decl_parent),
                                     dst,
                                     ns.to_owned(),
@@ -631,10 +574,8 @@ impl<'a> AstConverter<'a> {
 
     fn parse_class_decl(&self, ns: &str, class: ClassDecl, dst: &mut KeidModuleNode) -> Result<()> {
         let base_name = Qualifier(class.name).to_string();
-        let generic_defs: Vec<GenericDefNode> = class
-            .generics
-            .map(|decls| decls.into_iter().map(|decl| GenericDefNode::from_ast(&decl)).collect())
-            .unwrap_or_default();
+        let generic_defs: Vec<GenericDefNode> =
+            class.generics.map(|decls| decls.into_iter().map(|decl| GenericDefNode::from_ast(&decl)).collect()).unwrap_or_default();
         let decl_parent = DeclParent::Class {
             name: base_name.clone(),
             generic_defs: generic_defs.clone(),
@@ -654,9 +595,7 @@ impl<'a> AstConverter<'a> {
                 })
                 .unwrap_or_else(|| Ok(Vec::new()))?;
             Some(match class.superclass_name {
-                Some(superclass_name) => {
-                    GenericIdentifier::from_name_with_args(&superclass_name.to_string(), &interface_generics)
-                }
+                Some(superclass_name) => GenericIdentifier::from_name_with_args(&superclass_name.to_string(), &interface_generics),
                 None => GenericIdentifier::from_name("core::object::Object"), // if no superclass was specified, the default is the Object class
             })
         };
@@ -673,10 +612,7 @@ impl<'a> AstConverter<'a> {
         if class.ty == ClassType::Class {
             let this_ty = BasicType::Object(GenericIdentifier::from_name_with_args(
                 &base_name,
-                &generic_defs
-                    .iter()
-                    .map(|def| BasicType::Object(GenericIdentifier::from_name(&def.name)).to_complex())
-                    .collect::<Vec<_>>(),
+                &generic_defs.iter().map(|def| BasicType::Object(GenericIdentifier::from_name(&def.name)).to_complex()).collect::<Vec<_>>(),
             ))
             .to_complex();
 
@@ -703,11 +639,8 @@ impl<'a> AstConverter<'a> {
         for method in class.methods {
             self.parse_func_decl(ns, method, Some(&decl_parent), dst)?;
         }
-        let accessors = class
-            .accessors
-            .into_iter()
-            .map(|acc| self.parse_accessor_decl(ns, acc, Some(&decl_parent), dst))
-            .collect::<Result<_>>()?;
+        let accessors =
+            class.accessors.into_iter().map(|acc| self.parse_accessor_decl(ns, acc, Some(&decl_parent), dst)).collect::<Result<_>>()?;
         dst.classes.push(ClassNode {
             superclass,
             class_type: class.ty,
@@ -862,11 +795,7 @@ pub fn ast_to_type_list(program: &KeidFile) -> Vec<LookupItem> {
     }
 
     for attribute in &program.attributes {
-        items.push(LookupItem::new(
-            &Qualifier(attribute.name.clone()).to_string(),
-            LookupItemType::Class,
-            get_next_id(),
-        ));
+        items.push(LookupItem::new(&Qualifier(attribute.name.clone()).to_string(), LookupItemType::Class, get_next_id()));
     }
 
     for en in &program.enums {

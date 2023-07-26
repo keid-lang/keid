@@ -14,11 +14,7 @@ pub trait BlockCompiler {
     fn compile_for_loop(&mut self, for_loop: &ForLoop) -> Result<()>;
     fn compile_while_loop(&mut self, while_loop: &WhileLoop) -> Result<()>;
     fn compile_indefinite_loop(&mut self, indef_loop: &Vec<Token<Statement>>) -> Result<()>;
-    fn compile_block_statement(
-        &mut self,
-        block: &[Token<Statement>],
-        block_type: BlockType,
-    ) -> bool;
+    fn compile_block_statement(&mut self, block: &[Token<Statement>], block_type: BlockType) -> bool;
     fn compile_fixed_block(&mut self, fixed: &FixedBlock) -> Result<bool>;
     fn compile_throw(&mut self, expr: &Token<Expr>) -> Result<()>;
     fn compile_try_catch(&mut self, try_catch: &TryCatch) -> Result<()>;
@@ -31,10 +27,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         for tkn in block {
             self.loc(&tkn.loc);
             if returns && tkn.token != Statement::Unreachable {
-                self.state.errors.push(compiler_error!(
-                    self,
-                    "Illegal statement: after a return statement in the same block"
-                ));
+                self.state.errors.push(compiler_error!(self, "Illegal statement: after a return statement in the same block"));
                 return true;
             }
             let result = match &tkn.token {
@@ -52,12 +45,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                     let cloned_locals = self.state.get_current_block().locals.clone();
 
                     // then we generate all the keid.unscope() calls
-                    let block_vars: Vec<Vec<LocalVar>> = self
-                        .state
-                        .block_stack
-                        .iter()
-                        .map(|block| block.locals.clone())
-                        .collect();
+                    let block_vars: Vec<Vec<LocalVar>> = self.state.block_stack.iter().map(|block| block.locals.clone()).collect();
                     for vars in block_vars {
                         for var in vars {
                             match self.try_unscope(&var.value) {
@@ -88,9 +76,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                     res
                 }
                 Statement::Let(lt) => self.compile_let(lt),
-                Statement::Assign(assign) => {
-                    self.compile_assign(&assign.lhs, assign.op, &assign.rhs, assign.deref)
-                }
+                Statement::Assign(assign) => self.compile_assign(&assign.lhs, assign.op, &assign.rhs, assign.deref),
                 Statement::IfChain(if_chain) => self.compile_if_chain(if_chain),
                 Statement::Expr(expr) => self.compile_expr(expr, None).map(|_| ()),
                 Statement::ForLoop(for_loop) => self.compile_for_loop(for_loop),
@@ -135,11 +121,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         Ok(res)
     }
 
-    fn compile_block_statement(
-        &mut self,
-        block: &[Token<Statement>],
-        block_type: BlockType,
-    ) -> bool {
+    fn compile_block_statement(&mut self, block: &[Token<Statement>], block_type: BlockType) -> bool {
         // for this we make a "virtual" block that has its own scope
         // but a new block is not added to the LLVM IR
 
@@ -148,20 +130,20 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
 
         self.emit(Insn::Br(new_block.as_val())); // unconditionally break to the new block
 
+        self.builder.append_block(&new_block);
         self.builder.use_block(&new_block);
-        new_block.append();
 
         self.state.block_stack.push(ScopeBlock {
             locals: Vec::new(),
             llvm_block: new_block,
             block_type,
         });
-        let result = self.compile_block(&block);
+        let result = self.compile_block(block);
         if !result {
             self.pop_block().unwrap();
             self.emit(Insn::Br(rotated_parent_block.as_val())); // unconditionally break to the rotated parent block
+            self.builder.append_block(&rotated_parent_block);
             self.builder.use_block(&rotated_parent_block);
-            rotated_parent_block.append();
         }
 
         result
@@ -173,8 +155,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         // TODO: support else blocks
 
         for conditional in &if_chain.conditionals {
-            let compiled_test =
-                self.compile_expr(&conditional.test, Some(&BasicType::Bool.to_complex()))?;
+            let compiled_test = self.compile_expr(&conditional.test, Some(&BasicType::Bool.to_complex()))?;
             self.loc(&conditional.test.loc);
             self.assert_assignable_to(&compiled_test.ty, &BasicType::Bool.to_complex())?;
 
@@ -196,14 +177,10 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                 blocks[i + 1].1.clone()
             };
 
-            self.emit(Insn::CondBr(
-                test.val,
-                then_block.llvm_block.as_val(),
-                else_block.llvm_block.as_val(),
-            ));
+            self.emit(Insn::CondBr(test.val, then_block.llvm_block.as_val(), else_block.llvm_block.as_val()));
 
+            self.builder.append_block(&then_block.llvm_block); // append the rotated parent block
             self.state.push_block(&self.builder, then_block);
-            self.state.get_current_block().llvm_block.append(); // append the rotated parent block
 
             if !self.compile_block(body) {
                 self.emit(Insn::Br(else_block.llvm_block.as_val()));
@@ -212,8 +189,9 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
 
             self.state.block_stack.pop(); // pop the parent block off the stack
 
+            // append the rotated parent block
+            self.builder.append_block(&else_block.llvm_block);
             self.state.push_block(&self.builder, else_block);
-            self.state.get_current_block().llvm_block.append(); // append the rotated parent block
         }
 
         Ok(())
@@ -226,45 +204,35 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
 
         self.emit(Insn::Br(test_block.llvm_block.as_val()));
 
+        self.builder.append_block(&test_block.llvm_block);
         self.builder.use_block(&test_block.llvm_block);
-        test_block.llvm_block.append();
 
-        let test_expr =
-            self.compile_expr(&while_loop.condition, Some(&BasicType::Bool.to_complex()))?;
+        let test_expr = self.compile_expr(&while_loop.condition, Some(&BasicType::Bool.to_complex()))?;
         self.assert_assignable_to(&test_expr.ty, &BasicType::Bool.to_complex())?;
 
-        self.emit(Insn::CondBr(
-            test_expr.val,
-            loop_block.llvm_block.as_val(),
-            rotated_parent.llvm_block.as_val(),
-        ));
+        self.emit(Insn::CondBr(test_expr.val, loop_block.llvm_block.as_val(), rotated_parent.llvm_block.as_val()));
 
+        self.builder.append_block(&loop_block.llvm_block);
         self.builder.use_block(&loop_block.llvm_block);
-        loop_block.llvm_block.append();
 
         self.compile_block(&while_loop.block);
         self.pop_block()?; // pop `loop_block` and all of its variables
 
         self.emit(Insn::Br(test_block.llvm_block.as_val())); // after the main body and unscope calls, go back to the top of the loop
 
+        self.builder.append_block(&rotated_parent.llvm_block); // append the rotated parent block
         self.state.push_block(&self.builder, rotated_parent);
-        self.state.get_current_block().llvm_block.append(); // append the rotated parent block
 
         Ok(())
     }
 
     fn compile_throw(&mut self, expr: &Token<Expr>) -> Result<()> {
-        let error_type =
-            BasicType::Object(GenericIdentifier::from_name("core::error::Error")).to_complex();
+        let error_type = BasicType::Object(GenericIdentifier::from_name("core::error::Error")).to_complex();
         let error = self.compile_expr(expr, Some(&error_type))?;
         self.assert_assignable_to(&error.ty, &error_type)?;
 
-        let throw_error_callable = ResolvedFunctionNode::externed(
-            "keid.throw_error",
-            &[error_type],
-            Varargs::None,
-            BasicType::Void.to_complex(),
-        );
+        let throw_error_callable =
+            ResolvedFunctionNode::externed("keid.throw_error", &[error_type], Varargs::None, BasicType::Void.to_complex());
         let throw_error_callable_ref = self.get_function_ref(&throw_error_callable)?;
         self.call_function(throw_error_callable_ref, &throw_error_callable, &[error])?;
         self.handle_unhandled_error(false)?;
@@ -286,38 +254,25 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                     ))
                     .unwrap();
                 // retrieving the classinfo pointer ensures that it gets included in the runtime metadata
-                self.cpl.class_info.get_abi_class_info_ptr(
-                    &self.cpl.context,
-                    &self.unit.mdl,
-                    &iterator_type,
-                );
+                self.cpl.class_info.get_abi_class_info_ptr(&self.cpl.context, &self.unit.mdl, &iterator_type);
 
                 let create_impl = self
                     .cpl
                     .type_provider
                     .get_function_by_name(
-                        &GenericIdentifier::from_name_with_args(
-                            "core::collections::ArrayIterator::create",
-                            &[*element_type.clone()],
-                        ),
+                        &GenericIdentifier::from_name_with_args("core::collections::ArrayIterator::create", &[*element_type.clone()]),
                         &[(*element_type.clone()).to_array()],
                     )
                     .unwrap();
 
                 let create_ref = self.get_function_ref(&create_impl)?;
-                source_iterator_ptr = TypedValue::new(
-                    create_impl.return_type.clone(),
-                    self.call_function(create_ref, &create_impl, &[source_iterator_ptr])?,
-                );
+                source_iterator_ptr =
+                    TypedValue::new(create_impl.return_type.clone(), self.call_function(create_ref, &create_impl, &[source_iterator_ptr])?);
             }
             _ => (),
         }
 
-        let iterator_ptr = match self.upcast(
-            source_iterator_ptr.clone(),
-            "core::collections::Iterator",
-            None,
-        )? {
+        let iterator_ptr = match self.upcast(source_iterator_ptr.clone(), "core::collections::Iterator", None)? {
             Some(iterator_ptr) => iterator_ptr,
             None => {
                 return Err(compiler_error!(
@@ -328,29 +283,18 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
             }
         };
 
-        let iterator_interface_impl = self
-            .cpl
-            .type_provider
-            .get_class_by_name(&GenericIdentifier::from_complex_type(&iterator_ptr.ty))
-            .unwrap();
-        let iterator_interface = self
-            .cpl
-            .type_provider
-            .get_source_class(&iterator_interface_impl);
+        let iterator_interface_impl =
+            self.cpl.type_provider.get_class_by_name(&GenericIdentifier::from_complex_type(&iterator_ptr.ty)).unwrap();
+        let iterator_interface = self.cpl.type_provider.get_source_class(&iterator_interface_impl);
 
-        let interface_id = self.cpl.type_provider.get_resolved_interface_id(
-            &GenericIdentifier::from_name_with_args(
-                &iterator_interface.base_name,
-                &iterator_interface_impl.generic_impls,
-            ),
-        );
+        let interface_id = self.cpl.type_provider.get_resolved_interface_id(&GenericIdentifier::from_name_with_args(
+            &iterator_interface.base_name,
+            &iterator_interface_impl.generic_impls,
+        ));
         let get_next_id = 0; // there's only one function (__get_next) in core::collections::Iterator<T>
 
-        let get_next_method_ptr = self.get_interface_method_ptr(
-            &InterfaceInvocation::Instance(iterator_ptr.clone()),
-            interface_id,
-            get_next_id,
-        )?;
+        let get_next_method_ptr =
+            self.get_interface_method_ptr(&InterfaceInvocation::Instance(iterator_ptr.clone()), interface_id, get_next_id)?;
 
         let element_type = match &iterator_ptr.ty {
             ComplexType::Basic(BasicType::Object(ident)) => ident.generic_args[0].clone(),
@@ -368,57 +312,37 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
 
         self.emit(Insn::Br(get_next_block.llvm_block.as_val()));
 
+        self.builder.append_block(&get_next_block.llvm_block);
         self.builder.use_block(&get_next_block.llvm_block);
-        get_next_block.llvm_block.append();
 
         let get_next_method_impl = self
             .cpl
             .type_provider
             .get_function_by_name(
-                &GenericIdentifier::from_name_with_args(
-                    "core::collections::Iterator::__get_next",
-                    &[element_type.clone()],
-                ),
+                &GenericIdentifier::from_name_with_args("core::collections::Iterator::__get_next", &[element_type.clone()]),
                 &[iterator_ptr.ty.clone()],
             )
             .unwrap();
 
-        let next_element =
-            self.call_function(get_next_method_ptr, &get_next_method_impl, &[iterator_ptr])?; // calls __get_next
+        let next_element = self.call_function(get_next_method_ptr, &get_next_method_impl, &[iterator_ptr])?; // calls __get_next
 
-        let nullability_ptr = self.emit(Insn::GetElementPtr(
-            next_element,
-            nullable_element_type.as_llvm_type(&self.cpl),
-            1,
-        )); // nullable type nullability
+        let nullability_ptr = self.emit(Insn::GetElementPtr(next_element, nullable_element_type.as_llvm_type(self.cpl), 1)); // nullable type nullability
         let nullability = self.emit(Insn::Load(nullability_ptr, self.cpl.context.get_i8_type()));
-        let const_zero = self
-            .cpl
-            .context
-            .const_int(self.cpl.context.get_i8_type(), 0);
+        let const_zero = self.cpl.context.const_int(self.cpl.context.get_i8_type(), 0);
         let is_null = self.emit(Insn::ICmp(IntPredicate::LLVMIntEQ, nullability, const_zero));
 
-        self.emit(Insn::CondBr(
-            is_null,
-            rotated_parent.llvm_block.as_val(),
-            loop_block.llvm_block.as_val(),
-        ));
+        self.emit(Insn::CondBr(is_null, rotated_parent.llvm_block.as_val(), loop_block.llvm_block.as_val()));
 
         // "loop_block" is a psuedo-block that just jumps back to the `get_next_block`
+        self.builder.append_block(&loop_block.llvm_block);
         self.state.push_block(&self.builder, loop_block);
-        self.state.get_current_block().llvm_block.append();
 
-        let value_ptr = self.emit(Insn::GetElementPtr(
-            next_element,
-            nullable_element_type.as_llvm_type(&self.cpl),
-            0,
-        )); // nullable type value
+        let value_ptr = self.emit(Insn::GetElementPtr(next_element, nullable_element_type.as_llvm_type(self.cpl), 0)); // nullable type value
 
         self.state.get_current_block_mut().locals.push(LocalVar {
             name: for_loop.variable.token.0.clone(),
-            source: LocalVarSource::Pointer,
             value: TypedValue {
-                ty: element_type.clone(),
+                ty: element_type,
                 val: value_ptr,
             },
         });
@@ -432,13 +356,13 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         self.try_unscope(&source_iterator_ptr)?;
         self.emit(Insn::Br(footer_block.as_val())); // after the main body and unscope calls, break to the `footer_block`
 
-        footer_block.append();
+        self.builder.append_block(&footer_block);
         self.builder.use_block(&footer_block); // switch to the `footer_block` so we can loop it back up to the `get_next_block`
         self.emit(Insn::Br(get_next_block.llvm_block.as_val()));
 
         self.state.block_stack.pop(); // pop the parent block
+        self.builder.append_block(&rotated_parent.llvm_block); // append the rotated parent block
         self.state.push_block(&self.builder, rotated_parent);
-        self.state.get_current_block().llvm_block.append(); // append the rotated parent block
 
         Ok(())
     }
@@ -451,8 +375,8 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
 
         self.emit(Insn::Br(loop_block_llvm)); // jump to the loop block
 
+        self.builder.append_block(&loop_block.llvm_block);
         self.state.push_block(&self.builder, loop_block);
-        self.state.get_current_block().llvm_block.append();
 
         self.compile_block(indef_loop); // compile the contents of the loop
         self.pop_block()?; // pop the loop block
@@ -460,8 +384,8 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         self.emit(Insn::Br(loop_block_llvm)); // jump to the top of the loop block
 
         self.state.block_stack.pop(); // pop the parent block
+        self.builder.append_block(&rotated_parent.llvm_block); // append the rotated parent block
         self.state.push_block(&self.builder, rotated_parent);
-        self.state.get_current_block().llvm_block.append(); // append the rotated parent block
 
         Ok(())
     }
@@ -484,8 +408,8 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                 }),
             };
 
+            self.builder.append_block(&try_scope_block.llvm_block);
             self.state.push_block(&self.builder, try_scope_block);
-            self.state.get_current_block().llvm_block.append();
 
             // compile the contents of the try block
             self.compile_block(&try_catch.try_block);
@@ -500,40 +424,24 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                 locals: Vec::new(),
                 block_type: BlockType::Generic,
             };
+            self.builder.append_block(&catch_scope_block.llvm_block);
             self.state.push_block(&self.builder, catch_scope_block);
-            self.state.get_current_block().llvm_block.append();
 
-            let error_type =
-                BasicType::Object(GenericIdentifier::from_name("core::error::Error")).to_complex();
-            let get_unhandled_error_callable = ResolvedFunctionNode::externed(
-                "keid.get_unhandled_error",
-                &[],
-                Varargs::None,
-                error_type.clone(),
-            );
+            let error_type = BasicType::Object(GenericIdentifier::from_name("core::error::Error")).to_complex();
+            let get_unhandled_error_callable =
+                ResolvedFunctionNode::externed("keid.get_unhandled_error", &[], Varargs::None, error_type.clone());
             let get_unhandled_error_ref = self.get_function_ref(&get_unhandled_error_callable)?;
-            let unhandled_error =
-                self.call_function(get_unhandled_error_ref, &get_unhandled_error_callable, &[])?;
+            let unhandled_error = self.call_function(get_unhandled_error_ref, &get_unhandled_error_callable, &[])?;
 
-            let clear_unhandled_error_callable = ResolvedFunctionNode::externed(
-                "keid.clear_unhandled_error",
-                &[],
-                Varargs::None,
-                BasicType::Void.to_complex(),
-            );
-            let clear_unhandled_error_ref =
-                self.get_function_ref(&clear_unhandled_error_callable)?;
-            self.call_function(
-                clear_unhandled_error_ref,
-                &clear_unhandled_error_callable,
-                &[],
-            )?;
+            let clear_unhandled_error_callable =
+                ResolvedFunctionNode::externed("keid.clear_unhandled_error", &[], Varargs::None, BasicType::Void.to_complex());
+            let clear_unhandled_error_ref = self.get_function_ref(&clear_unhandled_error_callable)?;
+            self.call_function(clear_unhandled_error_ref, &clear_unhandled_error_callable, &[])?;
 
             self.state.get_current_block_mut().locals.push(LocalVar {
                 name: try_catch.error_var.as_ref().unwrap().token.0.clone(),
-                source: LocalVarSource::Scalar,
                 value: TypedValue {
-                    ty: error_type.clone(),
+                    ty: error_type,
                     val: unhandled_error,
                 },
             });
@@ -546,8 +454,8 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         }
 
         self.state.block_stack.pop(); // pop the parent block
+        self.builder.append_block(&rotated_parent.llvm_block); // append the rotated parent block
         self.state.push_block(&self.builder, rotated_parent);
-        self.state.get_current_block().llvm_block.append(); // append the rotated parent block
 
         Ok(())
     }

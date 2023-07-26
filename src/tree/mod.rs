@@ -20,11 +20,7 @@ use crate::{
 pub trait GenericNode {
     type Output;
 
-    fn create_impl(
-        &self,
-        type_provider: &TypeProvider,
-        generic_args: &[ComplexType],
-    ) -> anyhow::Result<Self::Output>;
+    fn create_impl(&self, type_provider: &TypeProvider, generic_args: &[ComplexType]) -> anyhow::Result<Self::Output>;
 }
 
 pub fn extract_type(
@@ -58,11 +54,7 @@ pub fn extract_type(
                 .into_iter()
                 .map(|arg| extract_type(type_provider, arg, generics, values))
                 .collect::<anyhow::Result<_>>()?;
-            let result = BasicType::Object(GenericIdentifier::from_name_with_args(
-                &ident.name,
-                &extracted_generics,
-            ))
-            .to_complex();
+            let result = BasicType::Object(GenericIdentifier::from_name_with_args(&ident.name, &extracted_generics)).to_complex();
             for interface in interfaces {
                 let interface_type = BasicType::Object(interface).to_complex();
                 if !type_provider.is_assignable_to(&result, &interface_type) {
@@ -123,11 +115,7 @@ pub struct TypedefNode {
 impl GenericNode for TypedefNode {
     type Output = TypedefImplNode;
 
-    fn create_impl(
-        &self,
-        _: &TypeProvider,
-        generic_args: &[ComplexType],
-    ) -> anyhow::Result<Self::Output> {
+    fn create_impl(&self, _: &TypeProvider, generic_args: &[ComplexType]) -> anyhow::Result<Self::Output> {
         if generic_args.len() != generic_args.len() {
             panic!();
         }
@@ -178,33 +166,19 @@ pub struct ResolvedInterfaceImplNode {
 impl GenericNode for InterfaceImplNode {
     type Output = ResolvedInterfaceImplNode;
 
-    fn create_impl(
-        &self,
-        type_provider: &TypeProvider,
-        generic_args: &[ComplexType],
-    ) -> anyhow::Result<Self::Output> {
+    fn create_impl(&self, type_provider: &TypeProvider, generic_args: &[ComplexType]) -> anyhow::Result<Self::Output> {
         if generic_args.len() != generic_args.len() {
             panic!();
         }
 
         let mut interface_generic_impls = Vec::new();
         for interface_generic in &self.interface_generics {
-            interface_generic_impls.push(extract_type(
-                type_provider,
-                interface_generic.clone(),
-                &self.generic_defs,
-                generic_args,
-            )?);
+            interface_generic_impls.push(extract_type(type_provider, interface_generic.clone(), &self.generic_defs, generic_args)?);
         }
 
         let mut target_generic_impls = Vec::new();
         for target_generic in &self.target_generics {
-            target_generic_impls.push(extract_type(
-                type_provider,
-                target_generic.clone(),
-                &self.generic_defs,
-                generic_args,
-            )?);
+            target_generic_impls.push(extract_type(type_provider, target_generic.clone(), &self.generic_defs, generic_args)?);
         }
 
         Ok(ResolvedInterfaceImplNode {
@@ -296,22 +270,14 @@ pub struct ResolvedEnumNode {
 
 impl ResolvedEnumNode {
     pub fn as_complex_type(&self, src: &EnumNode) -> ComplexType {
-        BasicType::Object(GenericIdentifier::from_name_with_args(
-            &src.base_name,
-            &self.generic_impls,
-        ))
-        .to_complex()
+        BasicType::Object(GenericIdentifier::from_name_with_args(&src.base_name, &self.generic_impls)).to_complex()
     }
 }
 
 impl GenericNode for EnumNode {
     type Output = ResolvedEnumNode;
 
-    fn create_impl(
-        &self,
-        type_provider: &TypeProvider,
-        generic_args: &[ComplexType],
-    ) -> anyhow::Result<Self::Output> {
+    fn create_impl(&self, type_provider: &TypeProvider, generic_args: &[ComplexType]) -> anyhow::Result<Self::Output> {
         if generic_args.len() != generic_args.len() {
             panic!();
         }
@@ -328,12 +294,7 @@ impl GenericNode for EnumNode {
                     .map(|field| {
                         Ok(AnonymousStructField {
                             name: field.name,
-                            ty: extract_type(
-                                type_provider,
-                                field.ty,
-                                &self.generic_defs,
-                                generic_args,
-                            )?,
+                            ty: extract_type(type_provider, field.ty, &self.generic_defs, generic_args)?,
                         })
                     })
                     .collect::<anyhow::Result<Vec<_>>>()
@@ -385,11 +346,7 @@ pub struct ClassNode {
 impl GenericNode for ClassNode {
     type Output = ResolvedClassNode;
 
-    fn create_impl(
-        &self,
-        type_provider: &TypeProvider,
-        generic_args: &[ComplexType],
-    ) -> anyhow::Result<Self::Output> {
+    fn create_impl(&self, type_provider: &TypeProvider, generic_args: &[ComplexType]) -> anyhow::Result<Self::Output> {
         if generic_args.len() != generic_args.len() {
             panic!();
         }
@@ -403,12 +360,7 @@ impl GenericNode for ClassNode {
         for field_decl in &self.fields {
             fields.push(ResolvedFieldNode {
                 name: field_decl.name.clone(),
-                ty: extract_type(
-                    type_provider,
-                    field_decl.ty.clone(),
-                    &self.generic_defs,
-                    generic_args,
-                )?,
+                ty: extract_type(type_provider, field_decl.ty.clone(), &self.generic_defs, generic_args)?,
             });
         }
 
@@ -445,11 +397,7 @@ pub struct ResolvedClassNode {
 
 impl ResolvedClassNode {
     pub fn as_complex_type(&self, src: &ClassNode) -> ComplexType {
-        BasicType::Object(GenericIdentifier::from_name_with_args(
-            &src.base_name,
-            &self.generic_impls,
-        ))
-        .to_complex()
+        BasicType::Object(GenericIdentifier::from_name_with_args(&src.base_name, &self.generic_impls)).to_complex()
     }
 }
 
@@ -480,11 +428,7 @@ impl GenericDefNode {
             interfaces: def
                 .interfaces
                 .iter()
-                .map(|interface| {
-                    GenericIdentifier::from_complex_type(
-                        &QualifiedType::from_qualifier(interface).complex,
-                    )
-                })
+                .map(|interface| GenericIdentifier::from_complex_type(&QualifiedType::from_qualifier(interface).complex))
                 .collect(),
         }
     }
@@ -529,16 +473,9 @@ pub struct FunctionNode {
 impl GenericNode for FunctionNode {
     type Output = ResolvedFunctionNode;
 
-    fn create_impl(
-        &self,
-        type_provider: &TypeProvider,
-        generic_args: &[ComplexType],
-    ) -> anyhow::Result<ResolvedFunctionNode> {
+    fn create_impl(&self, type_provider: &TypeProvider, generic_args: &[ComplexType]) -> anyhow::Result<ResolvedFunctionNode> {
         if self.generic_defs.len() != generic_args.len() {
-            panic!(
-                "generic defs: {:?}\ngeneric args: {:?}",
-                self.generic_defs, generic_args
-            );
+            panic!("generic defs: {:?}\ngeneric args: {:?}", self.generic_defs, generic_args);
         }
 
         let mut callable_name = self.base_name.clone();
@@ -551,14 +488,7 @@ impl GenericNode for FunctionNode {
         let params: Vec<ComplexType> = self
             .params
             .iter()
-            .map(|param| {
-                extract_type(
-                    type_provider,
-                    param.ty.clone(),
-                    &self.generic_defs,
-                    generic_args,
-                )
-            })
+            .map(|param| extract_type(type_provider, param.ty.clone(), &self.generic_defs, generic_args))
             .collect::<anyhow::Result<_>>()?;
 
         Ok(ResolvedFunctionNode {
@@ -572,12 +502,7 @@ impl GenericNode for FunctionNode {
             callable_name,
             generic_impls: generic_args.to_vec(),
             params,
-            return_type: extract_type(
-                type_provider,
-                self.return_type.clone(),
-                &self.generic_defs,
-                generic_args,
-            )?,
+            return_type: extract_type(type_provider, self.return_type.clone(), &self.generic_defs, generic_args)?,
             varargs: self.varargs,
         })
     }
@@ -607,12 +532,7 @@ pub struct ResolvedFunctionNode {
 }
 
 impl ResolvedFunctionNode {
-    pub fn externed(
-        name: &str,
-        params: &[ComplexType],
-        varargs: Varargs,
-        return_type: ComplexType,
-    ) -> ResolvedFunctionNode {
+    pub fn externed(name: &str, params: &[ComplexType], varargs: Varargs, return_type: ComplexType) -> ResolvedFunctionNode {
         ResolvedFunctionNode {
             module_id: usize::MAX,
             source_id: usize::MAX,
@@ -648,18 +568,13 @@ impl IntoOpaqueType for ResolvedFunctionNode {
         } else {
             self.return_type.as_llvm_type(cpl)
         };
-        cpl.context
-            .get_function_type(&func_params, self.varargs, return_type)
+        cpl.context.get_function_type(&func_params, self.varargs, return_type)
     }
 }
 
 impl ToString for ResolvedFunctionNode {
     fn to_string(&self) -> String {
-        let mut params = self
-            .params
-            .iter()
-            .map(|param| param.to_string())
-            .collect::<Vec<_>>();
+        let mut params = self.params.iter().map(|param| param.to_string()).collect::<Vec<_>>();
         let len = params.len() - 1;
         match self.varargs {
             Varargs::Array => params[len] = format!("...{}", params[len]),
@@ -667,11 +582,6 @@ impl ToString for ResolvedFunctionNode {
             Varargs::None => (),
         }
         let param_str = params.join(", ");
-        format!(
-            "`{}({}): {}`",
-            self.callable_name,
-            param_str,
-            self.return_type.to_string()
-        )
+        format!("`{}({}): {}`", self.callable_name, param_str, self.return_type.to_string())
     }
 }

@@ -118,7 +118,7 @@ impl IntoOpaqueType for BasicType {
             BasicType::Null => panic!("null has no LLVM type"),
             BasicType::Unknown => cpl.context.get_pointer_type(cpl.context.get_void_type()),
             BasicType::ISize | BasicType::USize => cpl.context.get_isize_type(),
-            BasicType::Object(identifier) => match cpl.type_provider.get_class_by_name(&identifier) {
+            BasicType::Object(identifier) => match cpl.type_provider.get_class_by_name(identifier) {
                 Some(class_impl) => match class_impl.class_type {
                     ClassType::Class | ClassType::Interface => {
                         cpl.context.get_pointer_type(cpl.context.get_abi_class_data_type(cpl, &class_impl))
@@ -126,7 +126,7 @@ impl IntoOpaqueType for BasicType {
                     ClassType::Struct => cpl.context.get_abi_class_data_type(cpl, &class_impl),
                     ClassType::Enum => panic!("enum value must be a BasicType::Enum"),
                 },
-                None => match cpl.type_provider.get_enum_by_name(&identifier) {
+                None => match cpl.type_provider.get_enum_by_name(identifier) {
                     Some(enum_impl) => cpl.context.get_abi_enum_type_any_element(cpl, &enum_impl),
                     None => {
                         if let Some(generic) = cpl.type_provider.context_generics.get(&self.clone().to_complex()) {
@@ -138,16 +138,10 @@ impl IntoOpaqueType for BasicType {
                 },
             },
             BasicType::AnonymousStruct(members) => {
-                let name = members
-                    .iter()
-                    .map(|member| format!("{}:{}", member.name, member.ty.to_string()))
-                    .collect::<Vec<String>>()
-                    .join(",");
+                let name =
+                    members.iter().map(|member| format!("{}:{}", member.name, member.ty.to_string())).collect::<Vec<String>>().join(",");
                 let name = format!("AnonymousStruct#{}", name);
-                cpl.context.get_struct_type(
-                    &name,
-                    &members.iter().map(|member| member.ty.as_llvm_type(cpl)).collect::<Vec<OpaqueType>>(),
-                )
+                cpl.context.get_struct_type(&name, &members.iter().map(|member| member.ty.as_llvm_type(cpl)).collect::<Vec<OpaqueType>>())
             }
         }
     }
@@ -175,11 +169,7 @@ impl ToString for BasicType {
             BasicType::AnonymousStruct(members) => {
                 return format!(
                     "{{ {}, }}",
-                    members
-                        .iter()
-                        .map(|member| format!("{}: {}", member.name, member.ty.to_string()))
-                        .collect::<Vec<String>>()
-                        .join(",")
+                    members.iter().map(|member| format!("{}: {}", member.name, member.ty.to_string())).collect::<Vec<String>>().join(",")
                 )
             }
             BasicType::Null => "null",
@@ -212,10 +202,9 @@ impl ComplexType {
     pub fn is_struct_with(&self, types: &[LookupItem]) -> bool {
         match &self {
             ComplexType::Nullable(_) | ComplexType::Array(_) => true,
-            ComplexType::Basic(BasicType::Object(ident)) => types
-                .iter()
-                .find(|ty| ty.name == ident.name && matches!(ty.ty, LookupItemType::Struct | LookupItemType::Enum))
-                .is_some(),
+            ComplexType::Basic(BasicType::Object(ident)) => {
+                types.iter().any(|ty| ty.name == ident.name && matches!(ty.ty, LookupItemType::Struct | LookupItemType::Enum))
+            }
             _ => false,
         }
     }
@@ -247,9 +236,7 @@ impl ComplexType {
     pub fn get_root_type(&self) -> BasicType {
         match self {
             Self::Basic(ty) => ty.clone(),
-            Self::Reference(inner) | Self::Nullable(inner) | Self::Array(inner) | Self::Spread(inner) => {
-                inner.get_root_type()
-            }
+            Self::Reference(inner) | Self::Nullable(inner) | Self::Array(inner) | Self::Spread(inner) => inner.get_root_type(),
         }
     }
 

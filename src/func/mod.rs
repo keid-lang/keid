@@ -24,18 +24,9 @@ use self::utils::{FunctionCompilerUtils, ImportedMember, ScopeChange};
 
 pub mod utils;
 
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum LocalVarSource {
-    /// The variable is a pointer to a value on the stack or the heap, and must be loaded if it's not multi-field.
-    Pointer,
-    /// The variable is an existing value that does not require loading.
-    Scalar,
-}
-
 #[derive(Debug, Clone)]
 pub struct LocalVar {
     name: String,
-    source: LocalVarSource,
     value: TypedValue,
 }
 
@@ -101,23 +92,18 @@ impl<'a> FunctionCompiler<'a> {
                 let var_ref = self.llvm_func.get_param(i as u32);
                 let var_type = self.func.params[i].clone();
 
-                let local_copy = self.emit(Insn::Alloca(var_type.as_llvm_type(&self.cpl)));
+                // copy all parameters to the local function stack
+                let local_copy = self.emit(Insn::Alloca(var_type.as_llvm_type(self.cpl)));
                 let value = TypedValue::new(var_type.clone(), local_copy);
                 self.copy(&TypedValue::new(var_type, var_ref), &value)?;
 
-                // destructors cannot scope the `this` parameter since it's already equal to zero at the point it's passed to the destructor
-                if !self
-                    .get_source_function()
-                    .modifiers
-                    .contains(&FunctionModifier::Internal)
-                {
+                // destructors cannot scope the `this` parameter since its reference count is already equal to zero at the point it's passed to the destructor
+                if !self.get_source_function().modifiers.contains(&FunctionModifier::Internal) {
                     self.try_scope(&value)?;
                 }
 
-                // TODO: copy param to local stack
                 local_vars.push(LocalVar {
                     name: params[i].name.clone(),
-                    source: LocalVarSource::Pointer,
                     value,
                 });
             }
@@ -130,8 +116,8 @@ impl<'a> FunctionCompiler<'a> {
 
     fn initialize_body(&mut self) {
         let root_block = self.state.new_block(&mut self.builder);
+        self.builder.append_block(&root_block.llvm_block);
         self.state.push_block(&self.builder, root_block);
-        self.state.get_current_block().llvm_block.append();
         self.initialize_local_vars().unwrap();
     }
 
@@ -157,19 +143,12 @@ impl<'a> FunctionCompiler<'a> {
                 .type_provider
                 .get_function_by_name(
                     &GenericIdentifier::from_name("core::runtime::pushStackFrame"),
-                    &[
-                        BasicType::Object(GenericIdentifier::from_name("core::string::String"))
-                            .to_complex(),
-                    ],
+                    &[BasicType::Object(GenericIdentifier::from_name("core::string::String")).to_complex()],
                 )
                 .unwrap();
             let push_stack_frame_ref = self.get_function_ref(&push_stack_frame_impl)?;
             let function_name = self.compile_string_literal_expr(&self.func.external_name)?;
-            self.call_function(
-                push_stack_frame_ref,
-                &push_stack_frame_impl,
-                &[function_name],
-            )?;
+            self.call_function(push_stack_frame_ref, &push_stack_frame_impl, &[function_name])?;
         }
 
         Ok(())
@@ -177,14 +156,8 @@ impl<'a> FunctionCompiler<'a> {
 
     fn pop_stack_frame(&mut self) -> Result<()> {
         if !Self::get_hidden_function_names().contains(&self.func.callable_name.as_str()) {
-            let pop_stack_frame_impl = self
-                .cpl
-                .type_provider
-                .get_function_by_name(
-                    &GenericIdentifier::from_name("core::runtime::popStackFrame"),
-                    &[],
-                )
-                .unwrap();
+            let pop_stack_frame_impl =
+                self.cpl.type_provider.get_function_by_name(&GenericIdentifier::from_name("core::runtime::popStackFrame"), &[]).unwrap();
             let pop_stack_frame_ref = self.get_function_ref(&pop_stack_frame_impl)?;
             self.call_function(pop_stack_frame_ref, &pop_stack_frame_impl, &[])?;
         }
@@ -199,15 +172,12 @@ impl<'a> FunctionCompiler<'a> {
         for i in 0..source_defs.len() {
             let arg = self.func.generic_impls[i].clone();
             if source_defs[i].name == arg.to_string() {
-                panic!(
-                    "recursive context generics: {} = {:#?}\n\nfunc: {:#?}",
-                    source_defs[i].name, arg, self.func
-                );
+                panic!("recursive context generics: {} = {:#?}\n\nfunc: {:#?}", source_defs[i].name, arg, self.func);
             }
-            self.cpl.type_provider.context_generics.insert(
-                BasicType::Object(GenericIdentifier::from_name(&source_defs[i].name)).to_complex(),
-                arg,
-            );
+            self.cpl
+                .type_provider
+                .context_generics
+                .insert(BasicType::Object(GenericIdentifier::from_name(&source_defs[i].name)).to_complex(), arg);
         }
 
         let source = self.get_source_function();
@@ -257,11 +227,7 @@ impl<'a> FunctionCompiler<'a> {
 
     fn compile_implicit_return(&mut self) -> Result<()> {
         if let Some(body) = self.get_source_function().body.as_ref() {
-            if !body
-                .last()
-                .map(|tkn| matches!(&tkn.token, Statement::Return(_)))
-                .unwrap_or(false)
-            {
+            if !body.last().map(|tkn| matches!(&tkn.token, Statement::Return(_))).unwrap_or(false) {
                 // if the last token is not a return, an implicit one gets added
                 if self.func.return_type == BasicType::Void.to_complex() {
                     self.pop_block()?;
@@ -305,17 +271,12 @@ impl<'a> FunctionCompiler<'a> {
             }
         }
 
-        return Err(compiler_error!(
+        Err(compiler_error!(
             self,
             "No such identifier `{}`; help: local identifiers are {}",
             ident.token.0,
-            utils::iter_join(
-                &all_locals
-                    .iter()
-                    .map(|local| format!("`{}`", local.name))
-                    .collect::<Vec<String>>()
-            )
-        ));
+            utils::iter_join(&all_locals.iter().map(|local| format!("`{}`", local.name)).collect::<Vec<String>>())
+        ))
     }
 
     fn resolve_interface_impl_function(
@@ -338,23 +299,14 @@ impl<'a> FunctionCompiler<'a> {
             .into_iter()
             .map(|ty| crate::tree::extract_type(&self.cpl.type_provider, ty, &generics, &values))
             .collect::<anyhow::Result<_>>()
-            .map_err(|e| compiler_error!(&self, "{}", e))?;
-        callable.return_type = crate::tree::extract_type(
-            &self.cpl.type_provider,
-            callable.return_type,
-            &generics,
-            &values,
-        )
-        .map_err(|e| compiler_error!(&self, "{}", e))?;
+            .map_err(|e| compiler_error!(self, "{}", e))?;
+        callable.return_type = crate::tree::extract_type(&self.cpl.type_provider, callable.return_type, &generics, &values)
+            .map_err(|e| compiler_error!(self, "{}", e))?;
 
         Ok(callable)
     }
 
-    fn resolve_type_with_context(
-        &self,
-        ty: &ComplexType,
-        import_map: &[ImportedMember],
-    ) -> Result<ComplexType> {
+    fn resolve_type_with_context(&self, ty: &ComplexType, import_map: &[ImportedMember]) -> Result<ComplexType> {
         if let Some(generic) = self.cpl.type_provider.context_generics.get(ty) {
             return Ok(generic.clone());
         }
@@ -362,38 +314,23 @@ impl<'a> FunctionCompiler<'a> {
         match ty {
             ComplexType::Basic(BasicType::Object(ident)) => {
                 for absolute_name in utils::lookup_import_map(import_map, &ident.name) {
-                    let generic_args = ident
-                        .generic_args
-                        .iter()
-                        .map(|arg| self.resolve_type(arg))
-                        .collect::<Result<Vec<ComplexType>>>()?;
+                    let generic_args = ident.generic_args.iter().map(|arg| self.resolve_type(arg)).collect::<Result<Vec<ComplexType>>>()?;
 
-                    let abs_obj_type =
-                        GenericIdentifier::from_name_with_args(&absolute_name, &generic_args);
+                    let abs_obj_type = GenericIdentifier::from_name_with_args(&absolute_name, &generic_args);
                     match self.cpl.type_provider.get_class_by_name(&abs_obj_type) {
-                        Some(class_type) => {
-                            return Ok(class_type.as_complex_type(
-                                self.cpl.type_provider.get_source_class(&class_type),
-                            ))
-                        }
+                        Some(class_type) => return Ok(class_type.as_complex_type(self.cpl.type_provider.get_source_class(&class_type))),
                         None => {
                             match self.cpl.type_provider.get_typedef_by_name(&abs_obj_type) {
                                 Some(typedef) => return Ok(typedef.target_type),
                                 None => {
                                     match self.cpl.type_provider.get_enum_by_name(&abs_obj_type) {
                                         Some(enum_type) => {
-                                            return Ok(enum_type.as_complex_type(
-                                                self.cpl.type_provider.get_source_enum(&enum_type),
-                                            ))
+                                            return Ok(enum_type.as_complex_type(self.cpl.type_provider.get_source_enum(&enum_type)))
                                         }
                                         None => {
                                             // if a generic type with the same name exists, then substitute the generic type with the actual type
                                             let source = self.get_source_function();
-                                            if let Some(pos) = source
-                                                .generic_defs
-                                                .iter()
-                                                .position(|def| def.name == absolute_name)
-                                            {
+                                            if let Some(pos) = source.generic_defs.iter().position(|def| def.name == absolute_name) {
                                                 return Ok(self.func.generic_impls[pos].clone());
                                             }
                                         }
@@ -404,18 +341,14 @@ impl<'a> FunctionCompiler<'a> {
                     }
                 }
 
-                Err(compiler_error!(
-                    self,
-                    "[ER2] Could not resolve type: `{}`",
-                    ident.to_string()
-                ))
+                Err(compiler_error!(self, "[ER2] Could not resolve type: `{}`", ident.to_string()))
             }
-            _ => return Ok(ty.clone()),
+            _ => Ok(ty.clone()),
         }
     }
 
     fn resolve_type(&self, ty: &ComplexType) -> Result<ComplexType> {
-        Ok(self.resolve_type_with_context(ty, &self.import_map)?)
+        self.resolve_type_with_context(ty, &self.import_map)
     }
 
     fn resolve_class_member_ptr(
@@ -434,15 +367,9 @@ impl<'a> FunctionCompiler<'a> {
         for i in 0..fields.len() {
             let field = &fields[i];
             if field.name == field_name.token.0 {
-                let element_ptr = self.emit(Insn::GetElementPtr(
-                    class_instance.val,
-                    type_root.as_llvm_type(self.cpl),
-                    field_offset + i as u32,
-                ));
-                return Ok(Box::new(TypedValueContainer(TypedValue::new(
-                    field.ty.clone(),
-                    element_ptr,
-                ))));
+                let element_ptr =
+                    self.emit(Insn::GetElementPtr(class_instance.val, type_root.as_llvm_type(self.cpl), field_offset + i as u32));
+                return Ok(Box::new(TypedValueContainer(TypedValue::new(field.ty.clone(), element_ptr))));
             }
         }
         let getter_impl = 'getter_block: {
@@ -450,42 +377,26 @@ impl<'a> FunctionCompiler<'a> {
 
             for accessor in &class.accessors {
                 if accessor.name == field_name.token.0 {
-                    let getter = self
-                        .cpl
-                        .type_provider
-                        .get_function_node(type_root.module_id, accessor.function_id)
-                        .unwrap();
+                    let getter = self.cpl.type_provider.get_function_node(type_root.module_id, accessor.function_id).unwrap();
                     break 'getter_block getter
                         .create_impl(&self.cpl.type_provider, &type_root.generic_impls)
-                        .map_err(|e| compiler_error!(&self, "{}", e))?;
+                        .map_err(|e| compiler_error!(self, "{}", e))?;
                 }
             }
 
-            let source_type = self.cpl.type_provider.get_source_class(&type_root);
-            let resolved_interface_impls = self.cpl.type_provider.get_resolved_interface_impls(
-                &GenericIdentifier::from_name_with_args(
-                    &source_type.base_name,
-                    &type_root.generic_impls,
-                ),
-            );
+            let source_type = self.cpl.type_provider.get_source_class(type_root);
+            let resolved_interface_impls = self
+                .cpl
+                .type_provider
+                .get_resolved_interface_impls(&GenericIdentifier::from_name_with_args(&source_type.base_name, &type_root.generic_impls));
             for resolved_interface_impl in resolved_interface_impls {
-                let interface_impl = self
-                    .cpl
-                    .type_provider
-                    .get_source_interface_impl(&resolved_interface_impl);
+                let interface_impl = self.cpl.type_provider.get_source_interface_impl(&resolved_interface_impl);
                 for accessor in &interface_impl.accessors {
                     if accessor.name == field_name.token.0 {
-                        let getter = self
-                            .cpl
-                            .type_provider
-                            .get_function_node(interface_impl.module_id, accessor.function_id)
-                            .unwrap();
+                        let getter = self.cpl.type_provider.get_function_node(interface_impl.module_id, accessor.function_id).unwrap();
                         break 'getter_block getter
-                            .create_impl(
-                                &self.cpl.type_provider,
-                                &resolved_interface_impl.generic_impls,
-                            )
-                            .map_err(|e| compiler_error!(&self, "{}", e))?;
+                            .create_impl(&self.cpl.type_provider, &resolved_interface_impl.generic_impls)
+                            .map_err(|e| compiler_error!(self, "{}", e))?;
                     }
                 }
             }
@@ -497,46 +408,25 @@ impl<'a> FunctionCompiler<'a> {
             ));
         };
 
-        Ok(Box::new(AccessorValueContainer::new(
-            getter_impl,
-            class_instance.val,
-        )))
+        Ok(Box::new(AccessorValueContainer::new(getter_impl, class_instance.val)))
     }
 
     pub fn is_unsafe(&self) -> bool {
-        self.get_source_function()
-            .modifiers
-            .contains(&FunctionModifier::Unsafe)
-            || self
-                .state
-                .block_stack
-                .iter()
-                .find(|block| block.block_type == BlockType::Unsafe)
-                .is_some()
+        self.get_source_function().modifiers.contains(&FunctionModifier::Unsafe)
+            || self.state.block_stack.iter().any(|block| block.block_type == BlockType::Unsafe)
     }
 
-    fn resolve_static_function(
-        &mut self,
-        sfc: &StaticFuncCall,
-        args: &[Token<Expr>],
-    ) -> Result<(ResolvedFunctionNode, Vec<TypedValue>)> {
+    fn resolve_static_function(&mut self, sfc: &StaticFuncCall, args: &[Token<Expr>]) -> Result<(ResolvedFunctionNode, Vec<TypedValue>)> {
         let generic_args = self.parse_generic_args(&sfc.call.generic_args)?;
 
         for owner in utils::lookup_import_map(&self.import_map, &sfc.owner.to_string()) {
-            for full_name in utils::lookup_import_map(
-                &self.import_map,
-                &format!("{}::{}", owner, sfc.call.name.token.0),
-            ) {
+            for full_name in utils::lookup_import_map(&self.import_map, &format!("{}::{}", owner, sfc.call.name.token.0)) {
                 let ident = GenericIdentifier::from_name_with_args(&full_name, &generic_args);
                 match self.find_function(&ident, args, None)? {
                     Some(sig) => return Ok(sig),
                     None => match self.find_function(
                         &GenericIdentifier::from_name_with_args(
-                            &format!(
-                                "{}::{}",
-                                self.get_source_function().namespace_name,
-                                sfc.get_full_name()
-                            ),
+                            &format!("{}::{}", self.get_source_function().namespace_name, sfc.get_full_name()),
                             &generic_args,
                         ),
                         args,
@@ -549,19 +439,14 @@ impl<'a> FunctionCompiler<'a> {
             }
         }
 
-        let evaluated_arguments = args
-            .iter()
-            .map(|arg| self.compile_expr(arg, None).map(|arg| arg.ty.to_string()))
-            .collect::<Result<Vec<String>>>()?;
+        let evaluated_arguments =
+            args.iter().map(|arg| self.compile_expr(arg, None).map(|arg| arg.ty.to_string())).collect::<Result<Vec<String>>>()?;
         self.loc(&sfc.call.name.loc);
         Err(compiler_error!(
             self,
             "No such function overload `{}({})`",
-            GenericIdentifier::from_name_with_args(
-                &format!("{}::{}", sfc.owner.to_string(), sfc.call.name.token.0),
-                &generic_args
-            )
-            .to_string(),
+            GenericIdentifier::from_name_with_args(&format!("{}::{}", sfc.owner.to_string(), sfc.call.name.token.0), &generic_args)
+                .to_string(),
             utils::iter_join(&evaluated_arguments),
         ))
     }
@@ -575,40 +460,26 @@ impl<'a> FunctionCompiler<'a> {
         let generic_args = self.parse_generic_args(&fc.generic_args)?;
         Ok(match &instance.ty {
             ComplexType::Basic(BasicType::Object(ident)) => {
-                let func = GenericIdentifier::from_name_with_args(
-                    &format!("{}::{}", ident.name, fc.name.token.0),
-                    &generic_args,
-                );
-                match self.find_function(&func, &args, Some(instance.clone()))? {
+                let func = GenericIdentifier::from_name_with_args(&format!("{}::{}", ident.name, fc.name.token.0), &generic_args);
+                match self.find_function(&func, args, Some(instance.clone()))? {
                     Some(func) => func,
                     None => {
-                        let resolved_interface_impls =
-                            self.cpl.type_provider.get_resolved_interface_impls(ident);
+                        let resolved_interface_impls = self.cpl.type_provider.get_resolved_interface_impls(ident);
                         for resolved_interface_impl in resolved_interface_impls {
                             let (module_id, function_ids) = {
-                                let source_impl = self
-                                    .cpl
-                                    .type_provider
-                                    .get_source_interface_impl(&resolved_interface_impl);
+                                let source_impl = self.cpl.type_provider.get_source_interface_impl(&resolved_interface_impl);
                                 (source_impl.module_id, source_impl.functions.clone())
                             };
                             for function_id in function_ids {
-                                let function_base_name = self
-                                    .cpl
-                                    .type_provider
-                                    .get_function_node(module_id, function_id)
-                                    .unwrap()
-                                    .base_name
-                                    .clone();
-                                if function_base_name
-                                    .contains(&format!("::{}#__impl#", fc.name.token.0))
-                                {
+                                let function_base_name =
+                                    self.cpl.type_provider.get_function_node(module_id, function_id).unwrap().base_name.clone();
+                                if function_base_name.contains(&format!("::{}#__impl#", fc.name.token.0)) {
                                     match self.find_function(
                                         &GenericIdentifier::from_name_with_args(
                                             &function_base_name,
                                             &resolved_interface_impl.generic_impls,
                                         ),
-                                        &args,
+                                        args,
                                         Some(instance.clone()),
                                     )? {
                                         Some(func) => return Ok(func),
@@ -647,81 +518,48 @@ impl<'a> FunctionCompiler<'a> {
                     }
                 }
             }
-            other => {
-                return Err(compiler_error!(
-                    self,
-                    "No such method in non-object type `{}::{}`",
-                    other.to_string(),
-                    fc.name.token.0,
-                ))
-            }
+            other => return Err(compiler_error!(self, "No such method in non-object type `{}::{}`", other.to_string(), fc.name.token.0,)),
         })
     }
 
     fn add_call_site_attributes(&self, call_site: OpaqueValue, func: &ResolvedFunctionNode) {
         for i in 0..func.params.len() {
-            if func.params[i].is_struct(&self.cpl.type_provider) {
-                if !func.params[i].to_string().starts_with("core::mem::Pointer")
+            if func.params[i].is_struct(&self.cpl.type_provider)
+                && (!func.params[i].to_string().starts_with("core::mem::Pointer")
                     || (func.module_id != usize::MAX && {
                         let source = self.cpl.type_provider.get_source_function(func);
                         !source.modifiers.contains(&FunctionModifier::Extern)
-                    })
-                {
-                    self.builder.add_call_site_attribute(
-                        call_site,
-                        i + 1,
-                        func.params[i].as_llvm_type(&self.cpl),
-                        "byval",
-                    );
-                }
+                    }))
+            {
+                self.builder.add_call_site_attribute(call_site, i + 1, func.params[i].as_llvm_type(self.cpl), "byval");
             }
         }
     }
 
     pub fn get_function_ref(&mut self, func: &ResolvedFunctionNode) -> Result<OpaqueFunctionValue> {
-        if let Some(extern_func) = self
-            .unit
-            .externed_functions
-            .iter()
-            .find(|externed| &externed.external_name == &func.external_name)
-        {
+        if let Some(extern_func) = self.unit.externed_functions.iter().find(|externed| &externed.external_name == &func.external_name) {
             Ok(extern_func.value_ref)
         } else {
             // intrinsic
             if func.module_id == usize::MAX {
-                let intrinsic_function = self
-                    .cpl
-                    .add_function(&self.unit.mdl, &func.external_name, func)
-                    .as_val();
+                let intrinsic_function = self.cpl.add_function(&self.unit.mdl, &func.external_name, func).as_val();
                 self.unit.externed_functions.push(ExternedFunction {
                     external_name: func.external_name.clone(),
                     value_ref: intrinsic_function,
                 });
                 Ok(intrinsic_function)
             } else {
-                let mut compiled_function = self
-                    .cpl
-                    .type_provider
-                    .get_compiled_function(&func.external_name);
+                let mut compiled_function = self.cpl.type_provider.get_compiled_function(&func.external_name);
                 if compiled_function.is_none() {
                     compiled_function = Some(self.cpl.queue_function_compilation(func.clone()));
                 }
 
                 if func.module_id != self.unit.module_id {
                     let source_external_name = func.external_name.clone();
-                    compiled_function = Some(
-                        self.cpl
-                            .add_function(&self.unit.mdl, &source_external_name, func)
-                            .as_val(),
-                    );
+                    compiled_function = Some(self.cpl.add_function(&self.unit.mdl, &source_external_name, func).as_val());
                 }
 
-                let compiled_function = compiled_function
-                    .ok_or(anyhow!(
-                        "Compiled function not found: {}",
-                        func.callable_name
-                    ))
-                    .unwrap();
+                let compiled_function = compiled_function.ok_or(anyhow!("Compiled function not found: {}", func.callable_name)).unwrap();
                 self.unit.externed_functions.push(ExternedFunction {
                     external_name: func.external_name.clone(),
                     value_ref: compiled_function,

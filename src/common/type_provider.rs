@@ -107,12 +107,7 @@ impl TypeProvider {
     }
 
     pub fn get_resolved_interface_id(&self, name: &GenericIdentifier) -> usize {
-        if let Some(id) = self
-            .resolved_interfaces
-            .borrow()
-            .iter()
-            .position(|x| x == name)
-        {
+        if let Some(id) = self.resolved_interfaces.borrow().iter().position(|x| x == name) {
             return id;
         }
         let mut resolved_interfaces = self.resolved_interfaces.borrow_mut();
@@ -125,8 +120,7 @@ impl TypeProvider {
         if self.compiled_functions.contains_key(external_name) {
             panic!("function has already been compiled: {}", external_name);
         }
-        self.compiled_functions
-            .insert(external_name.to_owned(), val);
+        self.compiled_functions.insert(external_name.to_owned(), val);
     }
 
     pub fn get_compiled_function(&self, external_name: &str) -> Option<OpaqueFunctionValue> {
@@ -134,7 +128,10 @@ impl TypeProvider {
     }
 
     pub fn include_file(&mut self, ast: KeidFile, module_id: usize) {
-        self.queued_files.push(QueuedFile { ast, module_id });
+        self.queued_files.push(QueuedFile {
+            ast,
+            module_id,
+        });
     }
 
     pub fn resolve_signatures(&mut self) -> Vec<(CompilerError, usize)> {
@@ -164,9 +161,7 @@ impl TypeProvider {
     pub fn get_impl_source_interface(&self, interface_impl: &InterfaceImplNode) -> &ClassNode {
         for root in &self.roots {
             for interface in &root.classes {
-                if interface.class_type == ClassType::Interface
-                    && interface.id == interface_impl.interface_id
-                {
+                if interface.class_type == ClassType::Interface && interface.id == interface_impl.interface_id {
                     return interface;
                 }
             }
@@ -174,10 +169,7 @@ impl TypeProvider {
         panic!("given interface does not exist: {:#?}", interface_impl);
     }
 
-    pub fn get_source_interface_impl(
-        &self,
-        resolved_interface_impl: &ResolvedInterfaceImplNode,
-    ) -> &InterfaceImplNode {
+    pub fn get_source_interface_impl(&self, resolved_interface_impl: &ResolvedInterfaceImplNode) -> &InterfaceImplNode {
         for root in &self.roots {
             for interface_impl in &root.interface_impls {
                 if resolved_interface_impl.interface_id == interface_impl.interface_id
@@ -187,10 +179,7 @@ impl TypeProvider {
                 }
             }
         }
-        panic!(
-            "given interface impl does not exist: {:#?}",
-            resolved_interface_impl
-        );
+        panic!("given interface impl does not exist: {:#?}", resolved_interface_impl);
     }
 
     pub fn get_source_function(&self, func: &ResolvedFunctionNode) -> &FunctionNode {
@@ -266,10 +255,7 @@ impl TypeProvider {
         let mut impls = Vec::with_capacity(class_impls.len());
         for class_impl in class_impls.iter() {
             impls.push(
-                self.get_class_node(class_impl.module_id, class_impl.class_id)
-                    .unwrap()
-                    .create_impl(self, &class_impl.generics)
-                    .unwrap(),
+                self.get_class_node(class_impl.module_id, class_impl.class_id).unwrap().create_impl(self, &class_impl.generics).unwrap(),
             );
         }
         impls
@@ -360,11 +346,7 @@ impl TypeProvider {
                         return None;
                     }
 
-                    return Some(
-                        typedef
-                            .create_impl(self, &object_type.generic_args)
-                            .unwrap(),
-                    );
+                    return Some(typedef.create_impl(self, &object_type.generic_args).unwrap());
                 }
             }
         }
@@ -383,10 +365,7 @@ impl TypeProvider {
         false
     }
 
-    pub fn get_functions_by_name(
-        &self,
-        object_type: &GenericIdentifier,
-    ) -> Vec<anyhow::Result<ResolvedFunctionNode>> {
+    pub fn get_functions_by_name(&self, object_type: &GenericIdentifier) -> Vec<anyhow::Result<ResolvedFunctionNode>> {
         let mut results = Vec::new();
         for functions in self.roots.iter().map(|root| &root.functions) {
             for function in functions {
@@ -402,11 +381,7 @@ impl TypeProvider {
         results
     }
 
-    pub fn get_function_by_name(
-        &self,
-        object_type: &GenericIdentifier,
-        args: &[ComplexType],
-    ) -> Option<ResolvedFunctionNode> {
+    pub fn get_function_by_name(&self, object_type: &GenericIdentifier, args: &[ComplexType]) -> Option<ResolvedFunctionNode> {
         for functions in self.roots.iter().map(|root| &root.functions) {
             for function in functions {
                 if function.base_name == object_type.name {
@@ -419,26 +394,20 @@ impl TypeProvider {
                     }
 
                     for i in 0..args.len() {
-                        let function_param = match extract_type(
-                            self,
-                            function.params[i].ty.clone(),
-                            &function.generic_defs,
-                            &object_type.generic_args,
-                        ) {
-                            Ok(param) => param,
-                            Err(_) => return None,
-                        };
+                        let function_param =
+                            match extract_type(self, function.params[i].ty.clone(), &function.generic_defs, &object_type.generic_args) {
+                                Ok(param) => param,
+                                Err(_) => return None,
+                            };
                         if !self.is_assignable_to(&args[i], &function_param) {
                             return None;
                         }
                     }
 
-                    return Some(
-                        match function.create_impl(self, &object_type.generic_args) {
-                            Ok(param) => param,
-                            Err(_) => return None,
-                        },
-                    );
+                    return Some(match function.create_impl(self, &object_type.generic_args) {
+                        Ok(param) => param,
+                        Err(_) => return None,
+                    });
                 }
             }
         }
@@ -452,35 +421,26 @@ impl TypeProvider {
         }
 
         match (child, parent) {
-            (ComplexType::Basic(BasicType::Unknown), _)
-            | (_, ComplexType::Basic(BasicType::Unknown)) => return true,
-            (
-                ComplexType::Basic(BasicType::Object(child_ident)),
-                ComplexType::Basic(BasicType::Object(parent_ident)),
-            ) => {
+            (ComplexType::Basic(BasicType::Unknown), _) | (_, ComplexType::Basic(BasicType::Unknown)) => true,
+            (ComplexType::Basic(BasicType::Object(child_ident)), ComplexType::Basic(BasicType::Object(parent_ident))) => {
                 let mut child_ident = child_ident;
                 loop {
                     if child_ident == parent_ident {
                         return true;
                     }
 
-                    let child_class = match self.get_class_by_name(&child_ident) {
+                    let child_class = match self.get_class_by_name(child_ident) {
                         Some(class) => class,
-                        None => match self.get_enum_by_name(&child_ident) {
+                        None => match self.get_enum_by_name(child_ident) {
                             Some(_) => return false,
                             None => {
-                                panic!(
-                                    "class does not exist: {:?} (parent = {:?})",
-                                    child_ident,
-                                    parent.to_string()
-                                )
+                                panic!("class does not exist: {:?} (parent = {:?})", child_ident, parent.to_string())
                             }
                         },
                     };
                     let resolved_interface_impls = self.get_resolved_interface_impls(child_ident);
                     for resolved_interface_impl in resolved_interface_impls {
-                        let interface_impl =
-                            self.get_source_interface_impl(&resolved_interface_impl);
+                        let interface_impl = self.get_source_interface_impl(&resolved_interface_impl);
                         let interface = self.get_impl_source_interface(interface_impl);
                         if parent_ident
                             == &GenericIdentifier::from_name_with_args(
@@ -502,9 +462,7 @@ impl TypeProvider {
                     }
                 }
             }
-            (_, ComplexType::Nullable(item)) => {
-                child == &ComplexType::Basic(BasicType::Null) || child == &**item || child == parent
-            }
+            (_, ComplexType::Nullable(item)) => child == &ComplexType::Basic(BasicType::Null) || child == &**item || child == parent,
             _ => false,
         }
     }
@@ -520,10 +478,7 @@ impl TypeProvider {
         None
     }
 
-    pub fn get_resolved_interface_impls(
-        &self,
-        type_root: &GenericIdentifier,
-    ) -> Vec<ResolvedInterfaceImplNode> {
+    pub fn get_resolved_interface_impls(&self, type_root: &GenericIdentifier) -> Vec<ResolvedInterfaceImplNode> {
         let mut impls = Vec::new();
         for interface_impls in self.roots.iter().map(|root| &root.interface_impls) {
             for interface_impl in interface_impls {
@@ -545,45 +500,29 @@ pub struct SourceTypeRetriever<'a> {
 }
 
 impl<'a> SourceTypeRetriever<'a> {
-    pub fn new(
-        import_map: &'a HashMap<String, String>,
-        type_provider: &'a TypeProvider,
-    ) -> SourceTypeRetriever<'a> {
+    pub fn new(import_map: &'a HashMap<String, String>, type_provider: &'a TypeProvider) -> SourceTypeRetriever<'a> {
         SourceTypeRetriever {
             import_map,
             type_provider,
         }
     }
 
-    pub fn retrieve_type(
-        &self,
-        loc: &TokenLocation,
-        original_type: ComplexType,
-    ) -> Result<ComplexType> {
+    pub fn retrieve_type(&self, loc: &TokenLocation, original_type: ComplexType) -> Result<ComplexType> {
         let root_type = original_type.get_root_type();
         match root_type {
             BasicType::Object(ty) => {
                 let absolute_name = self.import_map.get(&ty.name).unwrap_or(&ty.name);
-                let generics_ident =
-                    GenericIdentifier::from_name_with_args(absolute_name, &ty.generic_args);
+                let generics_ident = GenericIdentifier::from_name_with_args(absolute_name, &ty.generic_args);
 
-                Ok(
-                    match self.type_provider.get_class_by_name(&generics_ident) {
-                        Some(_) => BasicType::Object(generics_ident).to_complex(),
-                        None => {
-                            self.type_provider
-                                .get_typedef_by_name(&generics_ident)
-                                .ok_or_else(|| {
-                                    compiler_error_loc!(
-                                        loc,
-                                        "[ER1] Could not resolve type `{}`",
-                                        generics_ident.to_string()
-                                    )
-                                })?
-                                .target_type
-                        }
-                    },
-                )
+                Ok(match self.type_provider.get_class_by_name(&generics_ident) {
+                    Some(_) => BasicType::Object(generics_ident).to_complex(),
+                    None => {
+                        self.type_provider
+                            .get_typedef_by_name(&generics_ident)
+                            .ok_or_else(|| compiler_error_loc!(loc, "[ER1] Could not resolve type `{}`", generics_ident.to_string()))?
+                            .target_type
+                    }
+                })
             }
             _ => Ok(original_type),
         }

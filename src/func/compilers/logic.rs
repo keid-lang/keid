@@ -37,33 +37,13 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
 
         let casted = match (&from.ty, &to) {
             (ComplexType::Basic(original), ComplexType::Basic(target)) => match (original, target) {
-                (is_int!(), is_int!()) => {
-                    self.emit(Insn::IntCast(from.val, target.as_llvm_type(&self.cpl), original.is_signed()))
-                }
-                (is_int!(), is_float!()) => {
-                    self.emit(Insn::IntToFloat(from.val, target.as_llvm_type(&self.cpl), original.is_signed()))
-                }
-                (is_float!(), is_int!()) => {
-                    self.emit(Insn::FloatToInt(from.val, target.as_llvm_type(&self.cpl), target.is_signed()))
-                }
-                (is_float!(), is_float!()) => self.emit(Insn::FloatCast(from.val, target.as_llvm_type(&self.cpl))),
-                _ => {
-                    return Err(compiler_error!(
-                        self,
-                        "Cannot cast from type `{}` to `{}`",
-                        from.ty.to_string(),
-                        to.to_string()
-                    ))
-                }
+                (is_int!(), is_int!()) => self.emit(Insn::IntCast(from.val, target.as_llvm_type(self.cpl), original.is_signed())),
+                (is_int!(), is_float!()) => self.emit(Insn::IntToFloat(from.val, target.as_llvm_type(self.cpl), original.is_signed())),
+                (is_float!(), is_int!()) => self.emit(Insn::FloatToInt(from.val, target.as_llvm_type(self.cpl), target.is_signed())),
+                (is_float!(), is_float!()) => self.emit(Insn::FloatCast(from.val, target.as_llvm_type(self.cpl))),
+                _ => return Err(compiler_error!(self, "Cannot cast from type `{}` to `{}`", from.ty.to_string(), to.to_string())),
             },
-            _ => {
-                return Err(compiler_error!(
-                    self,
-                    "Cannot cast from type `{}` to `{}`",
-                    from.ty.to_string(),
-                    to.to_string()
-                ))
-            }
+            _ => return Err(compiler_error!(self, "Cannot cast from type `{}` to `{}`", from.ty.to_string(), to.to_string())),
         };
 
         Ok(TypedValue {
@@ -73,15 +53,8 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
     }
 
     fn compile_logic_expr(&mut self, lhs: TypedValue, op: Operator, rhs: TypedValue) -> Result<TypedValue> {
-        if !self.cpl.type_provider.is_assignable_to(&lhs.ty, &rhs.ty)
-            && !self.cpl.type_provider.is_assignable_to(&rhs.ty, &lhs.ty)
-        {
-            return Err(compiler_error!(
-                self,
-                "Cannot compare value of type `{}` with `{}`",
-                lhs.ty.to_string(),
-                rhs.ty.to_string()
-            ));
+        if !self.cpl.type_provider.is_assignable_to(&lhs.ty, &rhs.ty) && !self.cpl.type_provider.is_assignable_to(&rhs.ty, &lhs.ty) {
+            return Err(compiler_error!(self, "Cannot compare value of type `{}` with `{}`", lhs.ty.to_string(), rhs.ty.to_string()));
         }
 
         match (&lhs.ty, &rhs.ty) {
@@ -89,14 +62,9 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
                 let inverse = match op {
                     Operator::Equals => false,
                     Operator::NotEquals => true,
-                    _ => {
-                        return Err(compiler_error!(
-                            self,
-                            "Only the `==` and `!=` operators are implemented for array types"
-                        ))
-                    }
+                    _ => return Err(compiler_error!(self, "Only the `==` and `!=` operators are implemented for array types")),
                 };
-                self.assert_assignable_to(&rhs_element_type, &lhs_element_type)?;
+                self.assert_assignable_to(rhs_element_type, lhs_element_type)?;
 
                 let array_equals_impl = self
                     .cpl
@@ -129,17 +97,15 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
 
                 let resolved_interface_impls = self.cpl.type_provider.get_resolved_interface_impls(lhs_ident);
                 for resolved_interface_impl in resolved_interface_impls {
-                    let source_interface_impl =
-                        self.cpl.type_provider.get_source_interface_impl(&resolved_interface_impl);
+                    let source_interface_impl = self.cpl.type_provider.get_source_interface_impl(&resolved_interface_impl);
                     let rhs_type = BasicType::Object(rhs_ident.clone()).to_complex();
                     if source_interface_impl.interface_name == operator_interface_name
                         && resolved_interface_impl.interface_generic_impls[0] == rhs_type
                     {
-                        let interface_id =
-                            self.cpl.type_provider.get_resolved_interface_id(&GenericIdentifier::from_name_with_args(
-                                &source_interface_impl.interface_name,
-                                &[rhs_type.clone()],
-                            ));
+                        let interface_id = self.cpl.type_provider.get_resolved_interface_id(&GenericIdentifier::from_name_with_args(
+                            &source_interface_impl.interface_name,
+                            &[rhs_type.clone()],
+                        ));
 
                         let callable = self
                             .cpl
@@ -155,11 +121,7 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
                         let callable = self.resolve_interface_impl_function(callable, source_interface_impl)?;
 
                         // method ID 0, since all of these interfaces have only one single method
-                        let method_ptr = self.get_interface_method_ptr(
-                            &InterfaceInvocation::Instance(lhs.clone()),
-                            interface_id,
-                            0,
-                        )?;
+                        let method_ptr = self.get_interface_method_ptr(&InterfaceInvocation::Instance(lhs.clone()), interface_id, 0)?;
 
                         let result = self.call_function(method_ptr, &callable, &[lhs.clone(), rhs.clone()])?;
                         if op == Operator::Equals {
@@ -193,11 +155,8 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
                     }
                     ((nullable, ComplexType::Nullable(inner)), (_, ComplexType::Basic(BasicType::Null)))
                     | ((_, ComplexType::Basic(BasicType::Null)), (nullable, ComplexType::Nullable(inner))) => {
-                        let nullability_ptr = self.emit(Insn::GetElementPtr(
-                            nullable,
-                            ComplexType::Nullable(inner.clone()).as_llvm_type(&self.cpl),
-                            1,
-                        ));
+                        let nullability_ptr =
+                            self.emit(Insn::GetElementPtr(nullable, ComplexType::Nullable(inner.clone()).as_llvm_type(self.cpl), 1));
                         let nullability = self.emit(Insn::Load(nullability_ptr, self.cpl.context.get_i8_type()));
                         let const_zero = self.cpl.context.const_int(self.cpl.context.get_i8_type(), 0);
                         (nullability, const_zero)
@@ -218,15 +177,9 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
             Operator::Multiply => (self.emit(Insn::IMul(lhs.val, rhs.val)), lhs.ty),
             Operator::Divide => (self.emit(Insn::UDiv(lhs.val, rhs.val)), lhs.ty),
             Operator::Modulus => (self.emit(Insn::URem(lhs.val, rhs.val)), lhs.ty),
-            Operator::LessThan => {
-                (self.emit(Insn::ICmp(IntPredicate::LLVMIntULT, lhs.val, rhs.val)), BasicType::Bool.to_complex())
-            }
-            Operator::GreaterThan => {
-                (self.emit(Insn::ICmp(IntPredicate::LLVMIntUGT, lhs.val, rhs.val)), BasicType::Bool.to_complex())
-            }
-            Operator::LessThanOrEquals => {
-                (self.emit(Insn::ICmp(IntPredicate::LLVMIntULE, lhs.val, rhs.val)), BasicType::Bool.to_complex())
-            }
+            Operator::LessThan => (self.emit(Insn::ICmp(IntPredicate::LLVMIntULT, lhs.val, rhs.val)), BasicType::Bool.to_complex()),
+            Operator::GreaterThan => (self.emit(Insn::ICmp(IntPredicate::LLVMIntUGT, lhs.val, rhs.val)), BasicType::Bool.to_complex()),
+            Operator::LessThanOrEquals => (self.emit(Insn::ICmp(IntPredicate::LLVMIntULE, lhs.val, rhs.val)), BasicType::Bool.to_complex()),
             Operator::GreaterThanOrEquals => {
                 (self.emit(Insn::ICmp(IntPredicate::LLVMIntUGE, lhs.val, rhs.val)), BasicType::Bool.to_complex())
             }

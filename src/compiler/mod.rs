@@ -53,12 +53,7 @@ impl SignatureCompiler {
     }
 
     pub fn add_file(&mut self, file: KeidFile) {
-        if self
-            .source_files
-            .iter()
-            .find(|src| src.source_path == file.source_path)
-            .is_some()
-        {
+        if self.source_files.iter().any(|src| src.source_path == file.source_path) {
             // don't add files twice
             return;
         }
@@ -103,15 +98,8 @@ impl SignatureCompiler {
         for file in &self.source_files {
             type_provider.include_file(file.clone(), module_id);
 
-            let mdl = context.create_module(
-                &file.source_path,
-                &utils::path_to_module_name(root, &file.source_path),
-            );
-            units.push(CompilationUnit::new(
-                module_id,
-                mdl,
-                file.source_path.clone(),
-            ));
+            let mdl = context.create_module(&file.source_path, &utils::path_to_module_name(root, &file.source_path));
+            units.push(CompilationUnit::new(module_id, mdl, file.source_path.clone()));
             module_id += 1;
         }
 
@@ -168,50 +156,32 @@ impl Compiler {
         }
     }
 
-    pub fn add_function(
-        &self,
-        mdl: &Module,
-        external_name: &str,
-        func: &ResolvedFunctionNode,
-    ) -> Function {
+    pub fn add_function(&self, mdl: &Module, external_name: &str, func: &ResolvedFunctionNode) -> Function {
         let function = mdl.add_function(external_name, func.as_llvm_type(self), 0);
         for i in 0..func.params.len() {
-            if func.params[i].is_struct(&self.type_provider) {
-                if !func.params[i].to_string().starts_with("core::mem::Pointer")
+            if func.params[i].is_struct(&self.type_provider)
+                && (!func.params[i].to_string().starts_with("core::mem::Pointer")
                     || (func.module_id != usize::MAX && {
                         let source = self.type_provider.get_source_function(func);
                         !source.modifiers.contains(&FunctionModifier::Extern)
-                    })
-                {
-                    function.add_param_attribute(i + 1, func.params[i].as_llvm_type(self), "byval");
-                }
+                    }))
+            {
+                function.add_param_attribute(i + 1, func.params[i].as_llvm_type(self), "byval");
             }
         }
         function
     }
 
-    pub fn queue_function_compilation(
-        &mut self,
-        func_impl: ResolvedFunctionNode,
-    ) -> OpaqueFunctionValue {
-        if let Some(func) = self
-            .type_provider
-            .get_compiled_function(&func_impl.external_name)
-        {
+    pub fn queue_function_compilation(&mut self, func_impl: ResolvedFunctionNode) -> OpaqueFunctionValue {
+        if let Some(func) = self.type_provider.get_compiled_function(&func_impl.external_name) {
             return func;
         }
 
-        let unit = self
-            .units
-            .iter()
-            .enumerate()
-            .find(|(_, unit)| unit.module_id == func_impl.module_id)
-            .unwrap();
+        let unit = self.units.iter().enumerate().find(|(_, unit)| unit.module_id == func_impl.module_id).unwrap();
 
         let llvm_func = self.add_function(&unit.1.mdl, &func_impl.external_name, &func_impl);
         let llvm_func_val = llvm_func.as_val();
-        self.type_provider
-            .add_compiled_function(&func_impl.external_name, llvm_func_val);
+        self.type_provider.add_compiled_function(&func_impl.external_name, llvm_func_val);
 
         self.function_queue.push(QueuedFunction {
             func_impl,
@@ -239,23 +209,13 @@ impl Compiler {
                     utils::get_import_map(
                         &module.imports,
                         &self.type_provider,
-                        Some(
-                            &self
-                                .type_provider
-                                .get_module_namespace(self.units[unit_id].module_id),
-                        ),
+                        Some(&self.type_provider.get_module_namespace(self.units[unit_id].module_id)),
                     )
                 };
 
                 let unit = self.units[unit_id].clone();
                 let unit = {
-                    let mut func_cpl = FunctionCompiler::new(
-                        self,
-                        unit,
-                        &queued_function.func_impl,
-                        import_map,
-                        queued_function.llvm_func,
-                    );
+                    let mut func_cpl = FunctionCompiler::new(self, unit, &queued_function.func_impl, import_map, queued_function.llvm_func);
                     func_cpl.compile();
 
                     let (errors, consumed_unit) = func_cpl.consume();
@@ -287,9 +247,7 @@ impl Compiler {
         self.type_provider = resources.type_provider;
 
         for unit in &mut self.units {
-            let array_type = self
-                .context
-                .get_array_type(self.context.get_abi_class_info_type(), 0);
+            let array_type = self.context.get_array_type(self.context.get_abi_class_info_type(), 0);
             unit.mdl.extern_global(&GlobalVariable {
                 name: "keid.classinfo".to_string(),
                 ty: array_type,
@@ -304,27 +262,15 @@ impl Compiler {
         }
 
         // Phase 0 -- compile core required functions
+        self.queue_function_compilation(self.type_provider.get_function_by_name(&GenericIdentifier::from_name("keid.init"), &[]).unwrap());
         self.queue_function_compilation(
-            self.type_provider
-                .get_function_by_name(&GenericIdentifier::from_name("keid.init"), &[])
-                .unwrap(),
-        );
-        self.queue_function_compilation(
-            self.type_provider
-                .get_function_by_name(
-                    &GenericIdentifier::from_name("core::runtime::printStackFrames"),
-                    &[],
-                )
-                .unwrap(),
+            self.type_provider.get_function_by_name(&GenericIdentifier::from_name("core::runtime::printStackFrames"), &[]).unwrap(),
         );
         self.queue_function_compilation(
             self.type_provider
                 .get_function_by_name(
                     &GenericIdentifier::from_name("core::error::Error::print"),
-                    &[
-                        BasicType::Object(GenericIdentifier::from_name("core::error::Error"))
-                            .to_complex(),
-                    ],
+                    &[BasicType::Object(GenericIdentifier::from_name("core::error::Error")).to_complex()],
                 )
                 .unwrap(),
         );
@@ -364,29 +310,15 @@ impl Compiler {
                         .iter()
                         .map(|class_impl| {
                             let source = self.type_provider.get_source_class(class_impl);
-                            let class = GenericIdentifier::from_name_with_args(
-                                &source.base_name,
-                                &class_impl.generic_impls,
-                            );
+                            let class = GenericIdentifier::from_name_with_args(&source.base_name, &class_impl.generic_impls);
                             self.type_provider
                                 .get_resolved_interface_impls(&class)
                                 .iter()
                                 .map(|resolved_interface_impl| {
-                                    let interface_impl = self
-                                        .type_provider
-                                        .get_source_interface_impl(resolved_interface_impl);
+                                    let interface_impl = self.type_provider.get_source_interface_impl(resolved_interface_impl);
                                     let mut all_functions = interface_impl.functions.clone();
-                                    all_functions.extend(
-                                        interface_impl
-                                            .accessors
-                                            .iter()
-                                            .map(|accessor| accessor.function_id),
-                                    );
-                                    (
-                                        interface_impl.module_id,
-                                        all_functions,
-                                        class_impl.generic_impls.clone(),
-                                    )
+                                    all_functions.extend(interface_impl.accessors.iter().map(|accessor| accessor.function_id));
+                                    (interface_impl.module_id, all_functions, class_impl.generic_impls.clone())
                                 })
                                 .collect()
                         })
@@ -396,45 +328,24 @@ impl Compiler {
                     for modules in interface_modules {
                         for (module_id, functions, generics) in modules {
                             for function_id in functions {
-                                let node = self
-                                    .type_provider
-                                    .get_function_node(module_id, function_id)
-                                    .unwrap();
+                                let node = self.type_provider.get_function_node(module_id, function_id).unwrap();
 
-                                let name = GenericIdentifier::from_name_with_args(
-                                    &node.base_name,
-                                    generics.as_slice(),
-                                );
+                                let name = GenericIdentifier::from_name_with_args(&node.base_name, generics.as_slice());
                                 let params = node
                                     .params
                                     .iter()
-                                    .map(|param| {
-                                        extract_type(
-                                            &self.type_provider,
-                                            param.ty.clone(),
-                                            &node.generic_defs,
-                                            &generics,
-                                        )
-                                    })
+                                    .map(|param| extract_type(&self.type_provider, param.ty.clone(), &node.generic_defs, &generics))
                                     .collect::<anyhow::Result<Vec<ComplexType>>>()
                                     .unwrap();
                                 match self.type_provider.get_function_by_name(&name, &params) {
                                     Some(func) => {
-                                        if self
-                                            .type_provider
-                                            .get_compiled_function(&func.external_name)
-                                            .is_none()
-                                        {
+                                        if self.type_provider.get_compiled_function(&func.external_name).is_none() {
                                             self.queue_function_compilation(func);
                                             queued += 1;
                                         }
                                     }
                                     None => {
-                                        panic!(
-                                            "no such function: {}({})",
-                                            name.to_string(),
-                                            utils::iter_join(&params)
-                                        )
+                                        panic!("no such function: {}({})", name.to_string(), utils::iter_join(&params))
                                     }
                                 }
                             }
@@ -459,25 +370,15 @@ impl Compiler {
                     .filter(|cls| cls.class_impl.class_type != ClassType::Struct)
                     .map(|cls| {
                         let source = self.type_provider.get_source_class(&cls.class_impl);
-                        (
-                            source.base_name.clone(),
-                            cls.class_impl.generic_impls.clone(),
-                        )
+                        (source.base_name.clone(), cls.class_impl.generic_impls.clone())
                     })
                     .collect();
                 for (class_name, generic_impls) in class_names {
-                    let instance_type = BasicType::Object(GenericIdentifier::from_name_with_args(
-                        &class_name,
-                        &generic_impls,
-                    ))
-                    .to_complex();
+                    let instance_type = BasicType::Object(GenericIdentifier::from_name_with_args(&class_name, &generic_impls)).to_complex();
                     let mut destructor_impl = self
                         .type_provider
                         .get_function_by_name(
-                            &GenericIdentifier::from_name_with_args(
-                                &format!("{}::keid.destructor", class_name),
-                                &generic_impls,
-                            ),
+                            &GenericIdentifier::from_name_with_args(&format!("{}::keid.destructor", class_name), &generic_impls),
                             &[instance_type.clone()],
                         )
                         .unwrap();
@@ -492,30 +393,22 @@ impl Compiler {
             }
         }
 
-        self.class_info
-            .create_class_info_storage(&mut self.context, &self.type_provider);
+        self.class_info.create_class_info_storage(&mut self.context, &self.type_provider);
 
         if target.is_opaque_pointers {
             let processed_intrinsics = preprocessor::preprocess(
                 include_str!("./intrinsics.ll"),
-                &PreprocessorContext { use_rtdbg: false },
+                &PreprocessorContext {
+                    use_rtdbg: false,
+                },
             )
             .unwrap();
 
-            let string_class = self
-                .type_provider
-                .get_class_by_name(&GenericIdentifier::from_name("core::string::String"))
-                .unwrap();
-            let string_classinfo_offset = self
-                .class_info
-                .get_abi_class_info_offset(&self.context, &string_class)
-                .to_string();
-            let processed_intrinsics =
-                processed_intrinsics.replace("$STRING_CLASSINFO_OFFSET", &string_classinfo_offset);
+            let string_class = self.type_provider.get_class_by_name(&GenericIdentifier::from_name("core::string::String")).unwrap();
+            let string_classinfo_offset = self.class_info.get_abi_class_info_offset(&self.context, &string_class).to_string();
+            let processed_intrinsics = processed_intrinsics.replace("$STRING_CLASSINFO_OFFSET", &string_classinfo_offset);
 
-            let intrinsics_module = self
-                .context
-                .parse_llvm_ir(&processed_intrinsics, "intrinsics.ll");
+            let intrinsics_module = self.context.parse_llvm_ir(&processed_intrinsics, "intrinsics.ll");
             self.units.push(CompilationUnit {
                 module_id: self.units.len(),
                 path_name: "keid_intrinsics".to_string(),
@@ -524,9 +417,7 @@ impl Compiler {
             });
         }
 
-        let reflect_abi_module = self
-            .context
-            .parse_llvm_ir(include_str!("../../assets/core/object/abi.ll"), "abi.ll");
+        let reflect_abi_module = self.context.parse_llvm_ir(include_str!("../../assets/core/object/abi.ll"), "abi.ll");
         self.units.push(CompilationUnit {
             module_id: self.units.len(),
             path_name: "keid_core_reflect_abi".to_string(),
@@ -544,20 +435,13 @@ impl Compiler {
         false
     }
 
-    pub fn create_artifacts(
-        &mut self,
-        root: &str,
-        target: &LLVMTargetData,
-    ) -> Vec<CompilationArtifact> {
+    pub fn create_artifacts(&mut self, root: &str, target: &LLVMTargetData) -> Vec<CompilationArtifact> {
         let mut artifacts = Vec::with_capacity(self.units.len());
         let config = bincode::config::standard();
         for unit in &self.units {
             let name = utils::path_to_module_name(root, &unit.path_name);
 
-            if name != "keid_intrinsics"
-                && name != "keid_metadata"
-                && name != "keid_core_reflect_abi"
-            {
+            if name != "keid_intrinsics" && name != "keid_metadata" && name != "keid_core_reflect_abi" {
                 let module = self.type_provider.get_module(unit.module_id);
                 let kpkg = KeidPackageData::new(module);
 
@@ -576,10 +460,7 @@ impl Compiler {
                     data: ir.into_bytes(),
                 })
             } else {
-                let code = unit
-                    .mdl
-                    .to_object_code(&utils::path_to_module_name(root, &unit.path_name), target)
-                    .unwrap();
+                let code = unit.mdl.to_object_code(&utils::path_to_module_name(root, &unit.path_name), target).unwrap();
                 artifacts.push(CompilationArtifact {
                     kind: CompilationArtifactType::NativeObject,
                     name: name.to_owned(),

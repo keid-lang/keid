@@ -20,15 +20,15 @@ pub enum Insn {
     RetVoid,
     Ret(OpaqueValue),
     Alloca(OpaqueType),
-    GlobalString(String),            // Returns pointer to global string
-    Store(OpaqueValue, OpaqueValue), // Store src par0 -> dest par1
-    Load(OpaqueValue, OpaqueType),   // pointer, element type of pointer
+    GlobalString(String),                                            // Returns pointer to global string
+    Store(OpaqueValue, OpaqueValue),                                 // Store src par0 -> dest par1
+    Load(OpaqueValue, OpaqueType),                                   // pointer, element type of pointer
     Call(OpaqueFunctionValue, OpaqueFunctionType, Vec<OpaqueValue>), // func ref, func type, args, return type
-    GetElementPtr(OpaqueValue, OpaqueType, u32), // struct ref, struct type, value index
-    GetElementPtrDynamic(OpaqueValue, OpaqueType, OpaqueValue), // struct ref, struct type, dynamic value index
-    CondBr(OpaqueValue, OpaqueBasicBlock, OpaqueBasicBlock),    // test, then, else
-    Br(OpaqueBasicBlock),                                       // break to target
-    ICmp(IntPredicate, OpaqueValue, OpaqueValue),               // operator, lhs, rhs
+    GetElementPtr(OpaqueValue, OpaqueType, u32),                     // struct ref, struct type, value index
+    GetElementPtrDynamic(OpaqueValue, OpaqueType, OpaqueValue),      // struct ref, struct type, dynamic value index
+    CondBr(OpaqueValue, OpaqueBasicBlock, OpaqueBasicBlock),         // test, then, else
+    Br(OpaqueBasicBlock),                                            // break to target
+    ICmp(IntPredicate, OpaqueValue, OpaqueValue),                    // operator, lhs, rhs
     Xor(OpaqueValue, OpaqueValue),
     Trunc(OpaqueValue, OpaqueType), // truncate par0 per the type of par1
     IAdd(OpaqueValue, OpaqueValue),
@@ -46,13 +46,13 @@ pub enum Insn {
     Malloc(OpaqueType),
     MallocArray(OpaqueType, OpaqueValue),
     Free(OpaqueValue),
-    Memset(OpaqueValue, OpaqueValue, OpaqueValue), // Pointer, Value, Length
+    Memset(OpaqueValue, OpaqueValue, OpaqueValue),  // Pointer, Value, Length
     Memmove(OpaqueValue, OpaqueValue, OpaqueValue), // src, dst, count
     PtrToInt(OpaqueValue),
     IntToPtr(OpaqueValue, OpaqueType), // value, target pointer type
     BitCast(OpaqueValue, OpaqueType),
-    IntCast(OpaqueValue, OpaqueType, bool), // value, dest type, is signed
-    FloatCast(OpaqueValue, OpaqueType),     // value, dest type
+    IntCast(OpaqueValue, OpaqueType, bool),    // value, dest type, is signed
+    FloatCast(OpaqueValue, OpaqueType),        // value, dest type
     IntToFloat(OpaqueValue, OpaqueType, bool), // value, dest type, is signed
     FloatToInt(OpaqueValue, OpaqueType, bool), // value, dest type, is signed
 }
