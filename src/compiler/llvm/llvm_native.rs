@@ -1084,7 +1084,16 @@ impl InsnBuilder {
         if get_eval_only() {
             return;
         }
-        unsafe { LLVMPositionBuilderAtEnd(self.bdl, block.block) }
+        unsafe {
+            let current_block = LLVMGetInsertBlock(self.bdl);
+            if !current_block.is_null() {
+                let first = LLVMGetFirstInstruction(current_block);
+                if first.is_null() {
+                    panic!("cannot call use_block if the previous block has no instructions")
+                }
+            }
+            LLVMPositionBuilderAtEnd(self.bdl, block.block)
+        }
     }
 
     pub fn get_allocated_type(&self, var: OpaqueValue) -> OpaqueType {
@@ -1118,12 +1127,7 @@ impl InsnBuilder {
                     )
                 }
                 Insn::Store(src, dest) => LLVMBuildStore(self.bdl, src.0, dest.0),
-                Insn::Load(src, ty) => {
-                    if LLVMTypeOf(src.0) == LLVMInt64TypeInContext(self.ctx) {
-                        panic!();
-                    }
-                    LLVMBuildLoad2(self.bdl, ty.0, src.0, insn_name)
-                }
+                Insn::Load(src, ty) => LLVMBuildLoad2(self.bdl, ty.0, src.0, insn_name),
                 Insn::Call(func, ty, args) => {
                     let mut args: Vec<LLVMValueRef> = args.iter().map(|arg| arg.0).collect();
                     let args = args.as_mut_slice();
