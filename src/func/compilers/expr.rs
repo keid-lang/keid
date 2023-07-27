@@ -619,7 +619,10 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                     ));
                     let arg_value = match &field.value {
                         Some(expr) => self.compile_expr(expr, Some(&corresponding_field.ty))?,
-                        None => self.resolve_ident(&field.field_name)?.value,
+                        None => {
+                            let ident = self.resolve_ident(&field.field_name)?;
+                            self.load_local_var(&ident)?
+                        }
                     };
                     self.store(Operator::Equals, arg_value, &TypedValue::new(corresponding_field.ty.clone(), field_ptr))?;
                 }

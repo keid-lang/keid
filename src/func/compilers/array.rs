@@ -18,10 +18,10 @@ impl<'a> ArrayCompiler for FunctionCompiler<'a> {
         self.assert_assignable_to(&length.ty, &BasicType::USize.to_complex())?;
 
         let array_llvm_type = self.cpl.context.get_abi_array_data_type(element_type.as_llvm_type(self.cpl), &element_type.to_string());
-        let data_ptr = self.emit(Insn::MallocArray(element_type.as_llvm_type(self.cpl), length.val));
+        let data_ptr = self.heap_allocate(element_type.as_llvm_type(self.cpl), Some(length.val))?;
         self.emit(Insn::Memset(data_ptr, self.cpl.context.const_null(element_type.as_llvm_type(self.cpl)), length.val));
 
-        let metadata_ptr = self.emit(Insn::Malloc(array_llvm_type));
+        let metadata_ptr = self.heap_allocate(array_llvm_type, None)?;
 
         // set the ref count to 0
         let const_zero = self.cpl.context.const_int(self.cpl.context.get_isize_type(), 0);

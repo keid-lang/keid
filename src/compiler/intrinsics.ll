@@ -35,7 +35,9 @@ source_filename = "intrinsics.ll"
 @no_such_method_error = private unnamed_addr constant [104 x i8] c"NoSuchMethodError: attempted to invoke an invalid interface method (interface id = %i, method id = %i)\0A\00", align 1
 @index_out_of_bounds_error = private unnamed_addr constant [84 x i8] c"IndexOutOfBoundsError: attempted to access index %i of a collection with length %i\0A\00", align 1
 @error_already_thrown_error = private unnamed_addr constant [100 x i8] c "ErrorAlreadyThrownError: attempted to throw error when current thread already is handling an error\0A\00", align 1
-@current_error = thread_local global ptr null, align 8 
+@allocator = global ptr null, align 8
+@deallocator = global ptr null, align 8
+@current_error = thread_local global ptr null, align 8
 @rtdbg_instance = global ptr null, align 8
 
 @"core::runtime::hasInit" = external global i1
@@ -298,7 +300,7 @@ block.check_null:
 ;   call void %destructor_ptr(ptr %object) ; invoke the object's destructor method
 
 ;   %raw_pointer = bitcast ptr %object to ptr
-;   tail call void @free(ptr %raw_pointer) ; free the object's heap memory
+;   tail call void @keid_free(ptr %raw_pointer) ; free the object's heap memory
 ;   ret void
 
 ; block.should_not_free:
@@ -367,31 +369,20 @@ block.return_true:
   ret i1 true
 }
 
-define void @keid_exit(i32 %code) {
-block.main:
-$IF(RTDBG, ```
-  %rtdbg = load ptr, ptr @rtdbg_instance, align 4
-  call void @rtdbg_finish(ptr %rtdbg)
-```)
-
-  call void @exit(i32 %code)
-  unreachable
-}
-
-; libc functions
-define void @main() {
+define void @_keid_start() {
 block.main:
 $IF(RTDBG, ```
   %rtdbg = call ptr @rtdbg_initialize()
   store ptr %rtdbg, ptr @rtdbg_instance
 ```)
+
   call void @"keid.init()"()
  
   ; now that initialization has finished, notify the runtime
   store i1 1, ptr @"core::runtime::hasInit", align 1
 
   ; invoke the user-defined main function
-  call void @"keid.main"()
+  call void @"keid.main()"()
 
   ; check if there is an unhandled error from the main function
   %unhandled_error = call ptr @keid.get_unhandled_error()
@@ -408,9 +399,45 @@ block.exit_gracefully:
   unreachable
 }
 
+define void @keid_exit(i32 %code) {
+block.main:
+$IF(RTDBG, ```
+  %rtdbg = load ptr, ptr @rtdbg_instance, align 4
+  call void @rtdbg_finish(ptr %rtdbg)
+```)
+
+  call void @exit(i32 %code)
+  unreachable
+}
+
+; wrappers of libc fuctions
+define ptr @keid_malloc(i64 %bytes) {
+block.main:
+  %malloc = load ptr, ptr @allocator, align 4
+  %res = call ptr %malloc(i64 %bytes)
+  ret ptr %res
+}
+
+define void @keid_free(ptr %mem) {
+block.main:
+  %free = load ptr, ptr @deallocator, align 4
+  call ptr %free(ptr %mem)
+  ret void
+}
+
+; libc functions
+define void @main() {
+block.main:
+  store ptr bitcast (ptr @malloc to ptr), ptr @allocator, align 8
+  store ptr bitcast (ptr @free to ptr), ptr @deallocator, align 8
+
+  call void @_keid_start()
+  unreachable
+}
+
 declare void @exit(i32)
-declare void @free(ptr)
 declare i32 @printf(ptr, ...)
+declare void @free(ptr)
 declare ptr @malloc(i32)
 
 $IF(RTDBG, ```
@@ -425,7 +452,7 @@ declare void @rtdbg_dump_basic_type(ptr)
 
 ; keid core library functions
 declare void @"keid.init()"()
-declare void @"keid.main"()
+declare void @"keid.main()"()
 declare void @"core::array::copyFromPtr<char>(core::mem::Pointer<char>, usize)"(ptr, i64, ptr)
 declare void @"core::mem::Pointer::to<char>(usize)"(i64, ptr)
 declare ptr @"core::string::String::fromUtf8Slice([char])"(ptr)

@@ -59,6 +59,11 @@ pub struct RuntimeDebugState {
 }
 
 #[no_mangle]
+pub extern "C" fn rtdbg_range(start: usize, end: usize, current: usize) {
+    println!("rtdbg_range(start: {}, end: {}, current: {})", start, end, current);
+}
+
+#[no_mangle]
 pub extern "C" fn rtdbg_fail() -> ! {
     println!("  [librtdbg] Exiting due to fatal runtime error");
     unsafe {

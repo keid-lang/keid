@@ -360,7 +360,10 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                     let field = self.resolve_class_member_ptr(&class_instance, &class_impl, &arg.field_name)?;
                     let arg_value = match &arg.value {
                         Some(expr) => self.compile_expr(expr, Some(&field.get_type()))?,
-                        None => self.resolve_ident(&arg.field_name)?.value,
+                        None => {
+                            let ident = self.resolve_ident(&arg.field_name)?;
+                            self.load_local_var(&ident)?
+                        }
                     };
                     field.store(Operator::Equals, self, arg_value)?;
                 }
@@ -405,7 +408,7 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
 
                 // allocate the object
                 let class_abi = self.cpl.context.get_abi_class_data_type(self.cpl, &class_impl);
-                let class_pointer = self.emit(Insn::Malloc(class_abi));
+                let class_pointer = self.heap_allocate(class_abi, None)?;
                 let mut class_instance = TypedValue {
                     ty: class_type,
                     val: class_pointer,

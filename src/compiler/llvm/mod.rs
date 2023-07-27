@@ -43,9 +43,6 @@ pub enum Insn {
     FMul(OpaqueValue, OpaqueValue),
     FDiv(OpaqueValue, OpaqueValue),
     PointerCast(OpaqueValue, OpaqueType),
-    Malloc(OpaqueType),
-    MallocArray(OpaqueType, OpaqueValue),
-    Free(OpaqueValue),
     Memset(OpaqueValue, OpaqueValue, OpaqueValue),  // Pointer, Value, Length
     Memmove(OpaqueValue, OpaqueValue, OpaqueValue), // src, dst, count
     PtrToInt(OpaqueValue),

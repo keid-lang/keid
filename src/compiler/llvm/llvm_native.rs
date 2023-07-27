@@ -2,6 +2,7 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::ffi::c_void;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::path::PathBuf;
@@ -14,7 +15,9 @@ use anyhow::Result;
 use llvm_sys::analysis::*;
 use llvm_sys::core::*;
 use llvm_sys::debuginfo::*;
+use llvm_sys::execution_engine::*;
 use llvm_sys::ir_reader::*;
+use llvm_sys::linker::LLVMLinkModules2;
 use llvm_sys::prelude::*;
 use llvm_sys::target::*;
 use llvm_sys::target_machine::*;
@@ -663,6 +666,19 @@ impl Clone for Module {
 }
 
 impl Module {
+    pub fn link_into(self, dest: &Module) {
+        unsafe {
+            if LLVMLinkModules2(dest.mdl, self.mdl) != 0 {
+                eprintln!("LLVMLinkModules2 failed");
+                std::process::exit(1);
+            }
+        }
+    }
+
+    pub fn as_val(&self) -> LLVMModuleRef {
+        self.mdl
+    }
+
     pub fn lookup_intrinsic(&self, name: &str, params: &[OpaqueType]) -> Option<OpaqueFunctionValue> {
         unsafe {
             let name_len = name.len();
@@ -1001,9 +1017,6 @@ impl InsnBuilder {
                 Insn::FMul(lhs, rhs) => LLVMBuildFMul(self.bdl, lhs.0, rhs.0, insn_name),
                 Insn::FDiv(lhs, rhs) => LLVMBuildFDiv(self.bdl, lhs.0, rhs.0, insn_name),
                 Insn::PointerCast(value, ty) => LLVMBuildPointerCast(self.bdl, value.0, ty.0, insn_name),
-                Insn::Malloc(ty) => LLVMBuildMalloc(self.bdl, ty.0, insn_name),
-                Insn::MallocArray(ty, len) => LLVMBuildArrayMalloc(self.bdl, ty.0, len.0, insn_name),
-                Insn::Free(ptr) => LLVMBuildFree(self.bdl, ptr.0),
                 Insn::Memset(ptr, val, len) => LLVMBuildMemSet(self.bdl, ptr.0, val.0, len.0, self.target.get_pointer_size() as _),
                 Insn::Memmove(src, dst, count) => {
                     LLVMBuildMemMove(self.bdl, dst.0, self.target.get_pointer_size(), src.0, self.target.get_pointer_size(), count.0)
@@ -1218,3 +1231,74 @@ impl PassManager {
 //         }
 //     }
 // }
+
+pub struct ExecutionEngine {
+    engine: LLVMExecutionEngineRef,
+}
+
+extern "C" {
+    fn malloc(bytes: usize) -> *mut c_void;
+    fn free(ptr: *mut c_void);
+}
+
+impl ExecutionEngine {
+    pub fn new(main_module: LLVMModuleRef) -> ExecutionEngine {
+        unsafe {
+            LLVMLinkInMCJIT();
+
+            let mut jit_opts = LLVMMCJITCompilerOptions {
+                OptLevel: 0,
+                CodeModel: LLVMCodeModel::LLVMCodeModelDefault,
+                NoFramePointerElim: 0,
+                EnableFastISel: 0,
+                MCJMM: std::ptr::null_mut(),
+            };
+            LLVMInitializeMCJITCompilerOptions(&mut jit_opts, std::mem::size_of_val(&jit_opts));
+
+            let mut engine = std::ptr::null_mut();
+            let mut err = std::ptr::null_mut();
+            if LLVMCreateMCJITCompilerForModule(&mut engine, main_module, &mut jit_opts, std::mem::size_of_val(&jit_opts), &mut err) != 0 {
+                let cstr = CStr::from_ptr(err);
+                eprintln!("LLVMCreateJITCompilerForModule: {}", cstr.to_str().unwrap());
+                std::process::exit(1);
+            }
+
+            ExecutionEngine {
+                engine,
+            }
+        }
+    }
+
+    pub fn get_error(&self) -> Option<String> {
+        unsafe {
+            let mut err = std::ptr::null_mut();
+            if LLVMExecutionEngineGetErrMsg(self.engine, &mut err) == 0 {
+                Some(CStr::from_ptr(err).to_str().unwrap().to_owned())
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn call_function(&self, name: &str) {
+        unsafe {
+            let cstr = CString::new(name).unwrap();
+            let mut func = std::ptr::null_mut();
+            if LLVMFindFunction(self.engine, cstr.as_ptr(), &mut func) != 0 {
+                eprintln!("LLVMFindFunction: no such function {}", name);
+                std::process::exit(1);
+            }
+
+            let args = &mut [];
+            LLVMRunFunction(self.engine, func, 0, args.as_mut_ptr());
+        }
+    }
+}
+
+impl Drop for ExecutionEngine {
+    fn drop(&mut self) {
+        unsafe {
+            LLVMDisposeExecutionEngine(self.engine);
+        }
+    }
+}

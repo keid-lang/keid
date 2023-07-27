@@ -8,6 +8,8 @@ public interface Iterable<T> {
     get iterator: Iterator<T>
 }
 
+extern function rtdbg_range(start: usize, end: usize, current: usize)
+
 public class Range {
     // The range type can be represented as [start..end) in interval notation.
     start: usize // inclusive bound
@@ -15,6 +17,9 @@ public class Range {
     current: usize
 
     public static create(start: usize, end: usize): Range {
+        unsafe {
+            rtdbg_range(start, end, start)
+        }
         return new Range {
             start
             end
@@ -25,6 +30,10 @@ public class Range {
 
 implement Iterator<usize> for Range {
     get next: ?usize {
+        unsafe {
+            rtdbg_range(this.start, this.end, this.current)
+        }
+
         if this.current >= this.end {
             return null
         }

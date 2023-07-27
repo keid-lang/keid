@@ -67,6 +67,7 @@ pub trait FunctionCompilerUtils {
     fn return_null(&mut self);
 
     fn unbox_object(&mut self, value: TypedValue) -> Result<TypedValue>;
+    fn heap_allocate(&mut self, ty: OpaqueType, count: Option<OpaqueValue>) -> Result<OpaqueValue>;
 }
 
 impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
@@ -613,6 +614,27 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
         } else {
             self.emit(Insn::Ret(self.cpl.context.const_null(self.func.return_type.as_llvm_type(self.cpl))));
         }
+    }
+
+    fn heap_allocate(&mut self, ty: OpaqueType, count: Option<OpaqueValue>) -> Result<OpaqueValue> {
+        let malloc_func = ResolvedFunctionNode::externed(
+            "keid_malloc",
+            &[BasicType::USize.to_complex()],
+            Varargs::None,
+            BasicType::Void.to_complex().to_reference(),
+        );
+
+        let size = self.cpl.context.target.get_type_size(ty);
+        let mut size_const = self.cpl.context.const_int(self.cpl.context.get_i64_type(), size);
+        if let Some(count) = count {
+            size_const = self.emit(Insn::IMul(size_const, count));
+        }
+
+        let size_const = TypedValue::new(BasicType::USize.to_complex(), size_const);
+
+        let malloc_func_ref = self.get_function_ref(&malloc_func)?;
+        let memory = self.call_function(malloc_func_ref, &malloc_func, &[size_const])?;
+        Ok(memory)
     }
 }
 

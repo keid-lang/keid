@@ -4,14 +4,14 @@ import (
     core::mem
 )
 
-extern function malloc(size: usize): Pointer<void>
+extern function keid_malloc(size: usize): Pointer<void>
 extern function memset(region: Pointer<void>, val: int32, length: usize)
 extern function memmove(dst: Pointer<void>, src: Pointer<void>, length: usize)
-extern function free(ptr: Pointer<void>)
+extern function keid_free(ptr: Pointer<void>)
 
 public function alloc(size: usize): Pointer<void> {
     unsafe {
-        return malloc(size)
+        return keid_malloc(size)
     }
 }
 
@@ -24,7 +24,7 @@ public function copy(src: Pointer<void>, dst: Pointer<void>, length: usize) {
 
 public function dealloc(ptr: Pointer<void>) {
     unsafe {
-        free(ptr)
+        keid_free(ptr)
     }
     return
 }

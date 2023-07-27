@@ -280,7 +280,7 @@ impl<'a> AstConverter<'a> {
                 }
                 let external_name = base_name.split("::").last().unwrap().to_owned();
                 match external_name.as_str() {
-                    "main" => "keid.main".to_string(),
+                    "main" => "keid.main()".to_string(),
                     _ => external_name,
                 }
             } else {

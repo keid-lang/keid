@@ -284,7 +284,7 @@ impl Compiler {
                 let module = self.type_provider.get_module(module_id);
 
                 for function in &module.functions {
-                    if function.external_name == "keid.main" {
+                    if function.external_name == "keid.main()" {
                         // start by just compiling the main function
                         break 'block Some(function.create_impl(&self.type_provider, &[]).unwrap());
                     }
@@ -433,6 +433,24 @@ impl Compiler {
         });
 
         false
+    }
+
+    pub fn interpret(mut self) {
+        let base_module = self.units.remove(0).mdl;
+        while !self.units.is_empty() {
+            let unit = self.units.remove(0);
+
+            println!("Linking module for interpreter: {}", unit.path_name);
+            unit.mdl.link_into(&base_module);
+        }
+
+        std::fs::write("interpreter.ll", base_module.to_llvm_ir()).unwrap();
+
+        println!("Creating new ExecutionEngine...");
+        let engine = ExecutionEngine::new(base_module.as_val());
+        println!("Executing _keid_start in interpreter...");
+        engine.call_function("_keid_start");
+        println!("Interpreter exited.");
     }
 
     pub fn create_artifacts(&mut self, root: &str, target: &LLVMTargetData) -> Vec<CompilationArtifact> {
