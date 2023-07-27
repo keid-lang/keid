@@ -2,7 +2,6 @@ source_filename = "intrinsics.ll"
 
 ; heap data for a class: ptr (classinfo pointer), i64 (ref count)
 %KeidAbiClassData = type { ptr, i64 }
-%"KeidAbiClass#core::string::String" = type { ptr, i64, %"KeidAbiSlice#char" }
 
 ; pointer to either a stack-allocated struct or a heap-allocated class: ptr (classinfo pointer)
 %KeidAbiStructData = type { ptr }
@@ -25,9 +24,9 @@ source_filename = "intrinsics.ll"
 ;  ptr (pointer to global virtual method array containing interface implementations)
 %KeidAbiInterfaceImpl = type { i32, ptr, ptr }
 
-%"KeidAbiStruct#core::mem::Pointer<char>" = type { ptr, i64 }
-%"KeidAbiSlice#char" = type { i64, i64, ptr }
-%"KeidAbiArrayData#core::string::String" = type { i64, ptr }
+%"core::mem::Pointer<char>" = type { ptr, i64 }
+%"[char]#Slice" = type { i64, i64, ptr }
+%"[core::string::String]#Heap" = type { i64, ptr }
 
 @null_value_error = private unnamed_addr constant [62 x i8] c"NullValueError: attempted non-null assertion on a null value\0A\00", align 1
 @missing_class_info_error = private unnamed_addr constant [91 x i8] c"MissingClassInfoError: attempted retrieval of null class info pointer in object or struct\0A\00", align 1
@@ -69,11 +68,11 @@ block.return:
 define ptr @keid_new_string(ptr %bytes, i64 %length) {
 block.main:
   %ptr_bits = ptrtoint ptr %bytes to i64
-  %"core::mem::Pointer<char> ptr" = alloca %"KeidAbiStruct#core::mem::Pointer<char>", align 8
+  %"core::mem::Pointer<char> ptr" = alloca %"core::mem::Pointer<char>", align 8
   call void @"core::mem::Pointer::to<char>(usize)"(i64 %ptr_bits, ptr %"core::mem::Pointer<char> ptr")
-  %"[char] slice" = alloca %"KeidAbiSlice#char", align 8
-  call void @"core::array::copyFromPtr<char>(core::mem::Pointer<char>, usize)"(ptr byval(%"KeidAbiStruct#core::mem::Pointer<char>") %"core::mem::Pointer<char> ptr", i64 %length, ptr %"[char] slice")
-  %"core::string::String str" = call ptr @"core::string::String::fromUtf8Slice([char])"(ptr byval(%"KeidAbiSlice#char") %"[char] slice")
+  %"[char] slice" = alloca %"[char]#Slice", align 8
+  call void @"core::array::copyFromPtr<char>(core::mem::Pointer<char>, usize)"(ptr byval(%"core::mem::Pointer<char>") %"core::mem::Pointer<char> ptr", i64 %length, ptr %"[char] slice")
+  %"core::string::String str" = call ptr @"core::string::String::fromUtf8Slice([char])"(ptr byval(%"[char]#Slice") %"[char] slice")
 
   ret ptr %"core::string::String str"
 }
@@ -128,6 +127,10 @@ block.find_method:
   %method_array_ptr = load ptr, ptr %method_array_ptr_ptr, align 4 ; load the pointer to the method array pointer
   %method_array_item_ptr = getelementptr inbounds [0 x ptr], ptr %method_array_ptr, i32 0, i32 %method_id ; get a pointer to the method pointer
   %method_array_item = load ptr, ptr %method_array_item_ptr, align 4 ; load the pointer to the method pointer
+  %method_array_item_is_null = icmp eq ptr %method_array_item, null
+  br i1 %method_array_item_is_null, label %block.fail, label %block.success
+  
+block.success:
   ret ptr %method_array_item ; return the method pointer
 
 block.fail: ; the method pointer was not found -- fatal unrecoverable error
@@ -307,7 +310,7 @@ block.check_null:
 
 define void @keid.throw_error(ptr %error) {
 block.check_error:
-  %has_error = call i1 @keid.has_unhandled_error()
+  %has_error = call i1 @keid.check_unhandled_error()
   br i1 %has_error, label %block.has_error, label %block.set_error
 block.has_error:
   call i32 @printf(ptr @error_already_thrown_error)
@@ -326,7 +329,7 @@ block.main:
   ret void
 }
 
-define i1 @keid.has_unhandled_error() {
+define i1 @keid.check_unhandled_error() {
 block.main:
   %current_error = load ptr, ptr @current_error, align 4
   %current_error_is_not_null = icmp ne ptr %current_error, null
@@ -392,8 +395,8 @@ $IF(RTDBG, ```
 
   ; check if there is an unhandled error from the main function
   %unhandled_error = call ptr @keid.get_unhandled_error()
-  %has_unhandled_error = icmp ne ptr %unhandled_error, null
-  br i1 %has_unhandled_error, label %block.print_error, label %block.exit_gracefully
+  %check_unhandled_error = icmp ne ptr %unhandled_error, null
+  br i1 %check_unhandled_error, label %block.print_error, label %block.exit_gracefully
 block.print_error:
   ; clear the error so that Error::print can execute
   call void @keid.clear_unhandled_error()

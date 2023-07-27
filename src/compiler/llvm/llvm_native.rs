@@ -331,7 +331,7 @@ impl Context {
     /// where `n` equals the size of the largest possible variant data.
     /// This ensures that any variant of the given type will fit into the returned type.
     pub fn get_abi_enum_type_any_element(&self, cpl: &Compiler, enum_impl: &ResolvedEnumNode) -> OpaqueType {
-        let abi_name = format!("KeidAbiEnum#{}", enum_impl.full_name);
+        let abi_name = &enum_impl.full_name;
         if let Some(existing_type) = self.get_cached_struct_type(&abi_name) {
             return existing_type;
         }
@@ -376,7 +376,7 @@ impl Context {
     /// followed by the associated fields of that element (if any exist),
     /// then followed by padding until the length of the largest element is reached.
     pub fn get_abi_enum_type_specific_element(&self, cpl: &Compiler, enum_impl: &ResolvedEnumNode, id: usize) -> OpaqueType {
-        let abi_name = format!("KeidAbiEnum#{}#{}", enum_impl.full_name, enum_impl.elements[id].name);
+        let abi_name = format!("{}.{}", enum_impl.full_name, enum_impl.elements[id].name);
         if let Some(existing_type) = self.get_cached_struct_type(&abi_name) {
             return existing_type;
         }
@@ -421,7 +421,7 @@ impl Context {
     pub fn get_abi_class_data_type(&self, cpl: &Compiler, class_impl: &ResolvedClassNode) -> OpaqueType {
         match class_impl.class_type {
             ClassType::Class | ClassType::Interface => {
-                let abi_name = format!("KeidAbiClass#{}", class_impl.full_name);
+                let abi_name = &class_impl.full_name;
                 if let Some(existing_type) = self.get_cached_struct_type(&abi_name) {
                     return existing_type;
                 }
@@ -441,7 +441,7 @@ impl Context {
                 struct_type
             }
             ClassType::Struct => {
-                let abi_name = format!("KeidAbiStruct#{}", class_impl.full_name);
+                let abi_name = &class_impl.full_name;
                 if let Some(existing_type) = self.get_cached_struct_type(&abi_name) {
                     return existing_type;
                 }
@@ -490,7 +490,7 @@ impl Context {
     }
 
     pub fn get_abi_nullable_type(&self, item_type: OpaqueType, item_type_name: &str) -> OpaqueType {
-        self.get_struct_type(&format!("Nullable#{}", item_type_name), &[item_type, self.get_i8_type()])
+        self.get_struct_type(&format!("?{}", item_type_name), &[item_type, self.get_i8_type()])
     }
 
     pub fn get_pointer_type(&self, pointee_type: OpaqueType) -> OpaqueType {
@@ -505,7 +505,7 @@ impl Context {
         // TODO: include class info pointer here
         // arrays of primitive types should be able to identify that as well
         self.get_struct_type(
-            &format!("KeidAbiArrayData#{}", element_type_name),
+            &format!("[{}]#Heap", element_type_name),
             &[
                 self.get_isize_type(),               // ref count
                 self.get_pointer_type(element_type), // array data
@@ -515,7 +515,7 @@ impl Context {
 
     pub fn get_abi_slice_type(&self, element_type: OpaqueType, element_type_name: &str) -> OpaqueType {
         self.get_struct_type(
-            &format!("KeidAbiSlice#{}", element_type_name),
+            &format!("[{}]#Slice", element_type_name),
             &[
                 self.get_isize_type(),                                                                // data offset
                 self.get_isize_type(),                                                                // data length

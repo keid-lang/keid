@@ -16,7 +16,7 @@ impl Linker {
     }
 
     fn get_system_search_dirs(&self) -> Result<Vec<String>> {
-        let cmd_output = String::from_utf8(Command::new("clang").arg("-print-search-dirs").output()?.stdout)?;
+        let cmd_output = String::from_utf8(Command::new("gcc").arg("-print-search-dirs").output()?.stdout)?;
         for line in cmd_output.split('\n') {
             let line = line.trim();
             if line.starts_with("libraries: =") {

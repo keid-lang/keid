@@ -579,14 +579,14 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
 
         let rotated_parent = self.state.new_rotated_parent(&mut self.builder);
         if check {
-            let has_unhandled_error_callable =
-                ResolvedFunctionNode::externed("keid.has_unhandled_error", &[], Varargs::None, BasicType::Bool.to_complex());
-            let has_unhandled_error_ref = self.get_function_ref(&has_unhandled_error_callable)?;
-            let has_unhandled_error_val = self.call_function(has_unhandled_error_ref, &has_unhandled_error_callable, &[])?;
+            let check_unhandled_error_callable =
+                ResolvedFunctionNode::externed("keid.check_unhandled_error", &[], Varargs::None, BasicType::Bool.to_complex());
+            let check_unhandled_error_ref = self.get_function_ref(&check_unhandled_error_callable)?;
+            let check_unhandled_error_val = self.call_function(check_unhandled_error_ref, &check_unhandled_error_callable, &[])?;
 
             let return_block = self.builder.create_block();
 
-            self.emit(Insn::CondBr(has_unhandled_error_val, return_block.as_val(), rotated_parent.llvm_block.as_val()));
+            self.emit(Insn::CondBr(check_unhandled_error_val, return_block.as_val(), rotated_parent.llvm_block.as_val()));
 
             self.builder.append_block(&return_block);
             self.builder.use_block(&return_block);

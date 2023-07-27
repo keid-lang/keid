@@ -569,7 +569,7 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
 
         // prevent recursively checking errors, or error-checking external functions
         if callable.module_id != usize::MAX
-            && callable.external_name != "keid.has_unhandled_error"
+            && callable.external_name != "keid.check_unhandled_error"
             && callable.external_name != "keid.get_unhandled_error"
         {
             self.handle_unhandled_error(true)?;
