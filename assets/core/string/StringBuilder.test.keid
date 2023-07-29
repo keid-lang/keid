@@ -59,6 +59,5 @@ function testInsert() {
     e.append("hello")
     e.insert(3, "world")
 
-    // TODO fix
-    // test.assertEqual(e.toString(), "helworldlo")
+    test.assertEqual(e.toString(), "helworldlo")
 }

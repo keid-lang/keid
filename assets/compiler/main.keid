@@ -2,6 +2,7 @@ namespace keidc
 
 import (
     core::collections
+    core::string
 )
 
 public extern function main(): int32 {

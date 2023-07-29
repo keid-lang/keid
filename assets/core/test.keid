@@ -10,16 +10,28 @@ function fail(msg: string) {
     throw assertionError(msg)
 }
 
-public function assertTrue(cond: bool) {
-    if !cond {
-        test.fail("expecting true, received false")
+let DEBUG: bool = false
+
+function pass(msg: string) {
+    if DEBUG {
+        std::io.println("assertion passed: ",  msg)
     }
 }
 
-public function assertFalse(cond: bool) {
+function assert(cond: bool, msg: string) {
     if cond {
-        test.fail("expecting false, received true")
+        pass(msg)
+    } else {
+        fail(msg)
     }
+}
+
+public function assertTrue(cond: bool) {
+    assert(cond, "expecting true")
+}
+
+public function assertFalse(cond: bool) {
+    assert(!cond, "expecting false")
 }
 
 public function assertEqual(a: string, b: string) {
