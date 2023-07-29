@@ -10,11 +10,14 @@ function fail(msg: string) {
     throw assertionError(msg)
 }
 
-let DEBUG: bool = false
+let DEBUG_LEVEL: uint32 = 0
 
 function pass(msg: string) {
-    if DEBUG {
+    if DEBUG_LEVEL >= 1 {
         std::io.println("assertion passed: ",  msg)
+    }
+    if DEBUG_LEVEL >= 2 { 
+        runtime.printStackFrames()
     }
 }
 
@@ -35,28 +38,22 @@ public function assertFalse(cond: bool) {
 }
 
 public function assertEqual(a: string, b: string) {
-    if a != b {
-        test.fail(string.format("'", a, "' != '", b, "'"))
-    }
+    assert(a == b, string.format("'", a, "' == '", b, "'"))
 }
 
 public function assertNotEqual(a: string, b: string) {
-    if a == b {
-        test.fail(string.format("'", a, "' == '", b, "'"))
-    }
+    assert(a != b, string.format("'", a, "' != '", b, "'"))
 }
 
 macro $DEFINE_INT_ASSERTION(#type, #operator, #name)
     public function assert#name(a: #type, b: #type) {
-        if a #operator b {
-            test.fail(string.format(a.toString(), " #operator ", b.toString()))
-        }
+        assert(a #operator b, string.format(a.toString(), " #operator ", b.toString()))
     }
 end macro
 
 macro $DEFINE_INT_ASSERTIONS(#type)
-    $DEFINE_INT_ASSERTION(#type, !=, Equal)
-    $DEFINE_INT_ASSERTION(#type, ==, NotEqual)
+    $DEFINE_INT_ASSERTION(#type, ==, Equal)
+    $DEFINE_INT_ASSERTION(#type, !=, NotEqual)
 end macro
 
 $DEFINE_INT_ASSERTIONS(uint8)
