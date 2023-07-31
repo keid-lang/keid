@@ -56,8 +56,32 @@ function testPreallocatedTooBig() {
 
 function testInsert() {
     let e = StringBuilder.empty()
-    e.append("hello")
-    e.insert(3, "world")
+    e.append("short")
+    e.insert(3, "lengthy")
+    test.assertEqual(e.toString(), "sholengthyrt")
 
-    test.assertEqual(e.toString(), "helworldlo")
+    e = StringBuilder.empty()
+    e.append("short")
+    e.insert(0, "lengthy")
+    test.assertEqual(e.toString(), "lengthyshort")
+
+    e = StringBuilder.empty()
+    e.append("short")
+    e.insert(5, "lengthy")
+    test.assertEqual(e.toString(), "shortlengthy")
+
+    e = StringBuilder.empty()
+    e.append("lengthy")
+    e.insert(3, "short")
+    test.assertEqual(e.toString(), "lenshortgthy")
+
+    e = StringBuilder.empty()
+    e.append("lengthy")
+    e.insert(0, "short")
+    test.assertEqual(e.toString(), "shortlengthy")
+
+    e = StringBuilder.empty()
+    e.append("lengthy")
+    e.insert(7, "short")
+    test.assertEqual(e.toString(), "lengthyshort")
 }

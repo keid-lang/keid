@@ -33,7 +33,7 @@ public class StringBuilder {
 
     public insert(index: usize, val: string): StringBuilder {
         this.buffer.ensureCapacity(this.pos + val.length)
-        for i in range.create(index, this.pos) {
+        for i in range.create(this.pos, index) {
             let currentCh = this.buffer.getElement(i)
             this.buffer.setElement(i + val.length, currentCh)
         }
