@@ -1,0 +1,49 @@
+namespace core::collections
+
+public class Range {
+    // The range type can be represented as [start..end) for end > start and (start..end] for end < start in interval notation.
+    start: usize // inclusive bound
+    end: usize   // exclusive bound
+    step: isize // -1 or +1
+    current: usize
+
+    public static create(start: usize, end: usize): Range {
+        let step: isize = 1
+        if start > end {
+            step = -1
+            start -= 1
+        }
+
+        return new Range {
+            start
+            end
+            step // TODO:  step = start <= end ? 1 : -1
+            current = start
+        }
+    }
+}
+
+implement Iterator<usize> for Range {
+    get next: ?usize {
+        // TODO:  change to if > 0 else structure
+        if this.step == 1 {
+            if this.current >= this.end {
+                return null
+            }
+        }
+        if this.step == -1 {
+            if this.current < this.end {
+                return null
+            }
+            // TODO:  add else structure
+            if this.current == this.end {
+                this.end += 1
+                return this.current
+            }
+        }
+
+        let tmp = this.current
+        this.current = (this.current as isize + this.step) as usize
+        return tmp
+    }
+}

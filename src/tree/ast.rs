@@ -311,6 +311,7 @@ pub struct Assign {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Let {
+    pub is_extern: bool,
     pub is_const: bool,
     pub name: Token<Identifier>,
     pub var_type: Option<QualifiedType>,
@@ -475,6 +476,7 @@ pub enum MemberType {
     Root,
     Class,
     Array,
+    Slice,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -520,6 +522,12 @@ pub struct MatchExpr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct SubsliceExpr {
+    pub start: Option<Box<Token<Expr>>>,
+    pub end: Option<Box<Token<Expr>>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Null,
     BoolLit(bool),
@@ -542,6 +550,7 @@ pub enum Expr {
     SizeOf(QualifiedType),
     AnonymousStruct(Vec<NewCallField>),
     Match(MatchExpr),
+    Subslice(SubsliceExpr),
     Psuedo(crate::common::TypedValue),
 }
 

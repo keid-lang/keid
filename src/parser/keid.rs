@@ -277,9 +277,36 @@ fn parse_expr(pair: Pair<Rule>) -> Result<Token<Expr>> {
         Rule::sizeof_expr => Expr::SizeOf(parse_unary_type_expr(pair.into_inner())),
         Rule::anonymous_struct => Expr::AnonymousStruct(parse_anonymous_struct(pair.into_inner())?),
         Rule::match_expr => Expr::Match(parse_match_expr(pair.into_inner())?),
+        Rule::array_slice_expr => Expr::Subslice(parse_subslice_expr(pair.into_inner())?),
         x => unimplemented!("[{:?}]: {:?}", x, pair),
     };
     Ok(tokenize(&span, token))
+}
+
+fn parse_subslice_expr(mut pairs: Pairs<Rule>) -> Result<SubsliceExpr> {
+    let mut start = None;
+    let mut end = None;
+    let mut crossed_separator = false;
+    loop {
+       match pairs.next() {
+            Some(pair) => {
+                if pair.as_rule() == Rule::array_slice_separator {
+                    crossed_separator = true;
+                } else {
+                    if crossed_separator {
+                        end = Some(Box::new(parse_expr(pair)?));
+                    } else {
+                        start = Some(Box::new(parse_expr(pair)?));
+                    }
+                }
+            },
+            None => break,
+       }
+    }
+    Ok(SubsliceExpr {
+        start,
+        end,
+    })
 }
 
 fn parse_match_expr(mut pairs: Pairs<Rule>) -> Result<MatchExpr> {
@@ -319,6 +346,13 @@ fn parse_match_expr(mut pairs: Pairs<Rule>) -> Result<MatchExpr> {
 }
 
 fn parse_let(mut pairs: Pairs<Rule>) -> Result<Let> {
+    let is_extern = if pairs.peek().unwrap().as_rule() == Rule::keyword_extern {
+        pairs.next();
+        true
+    } else {
+        false
+    };
+
     let is_const = pairs.next().unwrap().as_rule() == Rule::keyword_const; // either "let" or "const"
     let name_pair = pairs.next().unwrap();
     let name = Identifier::from_ident(&name_pair);
@@ -351,6 +385,7 @@ fn parse_let(mut pairs: Pairs<Rule>) -> Result<Let> {
     };
 
     Ok(Let {
+        is_extern,
         is_const,
         name,
         var_type,
@@ -367,6 +402,7 @@ fn parse_field_decl(mut pairs: Pairs<Rule>) -> Result<Let> {
         None => None,
     };
     Ok(Let {
+        is_extern: false,
         is_const: false,
         name,
         var_type,

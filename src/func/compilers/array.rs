@@ -4,13 +4,16 @@ use crate::{
         GenericIdentifier, Result, TypedValue,
     },
     compiler::llvm::Insn,
-    func::{utils::FunctionCompilerUtils, FunctionCompiler},
+    func::*,
+    tree::ast::SubsliceExpr,
 };
 
-use super::CallCompiler;
+use super::{CallCompiler, ExprCompiler};
 
 pub trait ArrayCompiler {
     fn compile_new_array(&mut self, element_type: &ComplexType, initial_value: &TypedValue, length: &TypedValue) -> Result<TypedValue>;
+
+    fn compile_subslice(&mut self, original: &TypedValue, sublice: &SubsliceExpr) -> Result<TypedValue>;
 }
 
 impl<'a> ArrayCompiler for FunctionCompiler<'a> {
@@ -70,5 +73,55 @@ impl<'a> ArrayCompiler for FunctionCompiler<'a> {
             ty: ComplexType::Array(Box::new(element_type.clone())),
             val: slice_ptr,
         })
+    }
+
+    fn compile_subslice(&mut self, original: &TypedValue, subslice: &SubsliceExpr) -> Result<TypedValue> {
+        let element_type = match &original.ty {
+            ComplexType::Array(element) => *element.clone(),
+            _ => {
+                return Err(compiler_error!(self, "Cannot use subslice operator on value of non-slice type `{}`", original.ty.to_string()))
+            }
+        };
+
+        let offset =
+            subslice.start.as_ref().map(|start| self.compile_expr(&start, Some(&BasicType::USize.to_complex()))).unwrap_or_else(|| {
+                let current_offset_ptr = self.emit(Insn::GetElementPtr(original.val, original.ty.as_llvm_type(&self.cpl), 0));
+                let current_offset = self.emit(Insn::Load(current_offset_ptr, self.cpl.context.get_i64_type()));
+                Ok(TypedValue::new(BasicType::USize.to_complex(), current_offset))
+            })?;
+        self.assert_assignable_to(&offset.ty, &BasicType::USize.to_complex())?;
+
+        let length =
+            subslice.end.as_ref().map(|end| self.compile_expr(&end, Some(&BasicType::USize.to_complex()))).unwrap_or_else(|| {
+                let current_length_ptr = self.emit(Insn::GetElementPtr(original.val, original.ty.as_llvm_type(&self.cpl), 0));
+                let current_length = self.emit(Insn::Load(current_length_ptr, self.cpl.context.get_i64_type()));
+                Ok(TypedValue::new(BasicType::USize.to_complex(), current_length))
+            })?;
+        self.assert_assignable_to(&length.ty, &BasicType::USize.to_complex())?;
+        let adjusted_length = self.emit(Insn::ISub(length.val, offset.val));
+
+        let slice_llvm_type = self.cpl.context.get_abi_slice_type(element_type.as_llvm_type(self.cpl), &element_type.to_string());
+        let slice_ptr = self.emit(Insn::Alloca(slice_llvm_type));
+
+        let offset_ptr = self.emit(Insn::GetElementPtr(slice_ptr, slice_llvm_type, 0));
+        self.emit(Insn::Store(offset.val, offset_ptr));
+
+        // set the slice length equal to (current length - offset)
+        let length_ptr = self.emit(Insn::GetElementPtr(slice_ptr, slice_llvm_type, 1));
+        self.emit(Insn::Store(adjusted_length, length_ptr));
+
+        let original_array_ptr = self.emit(Insn::GetElementPtr(original.val, slice_llvm_type, 2));
+        let original_array = self.emit(Insn::Load(
+            original_array_ptr,
+            self.cpl
+                .context
+                .get_pointer_type(self.cpl.context.get_abi_array_data_type(element_type.as_llvm_type(self.cpl), &element_type.to_string())),
+        ));
+
+        // pointer to the array metadata
+        let array_ptr = self.emit(Insn::GetElementPtr(slice_ptr, slice_llvm_type, 2));
+        self.emit(Insn::Store(original_array, array_ptr));
+
+        Ok(TypedValue::new(original.ty.clone(), slice_ptr))
     }
 }

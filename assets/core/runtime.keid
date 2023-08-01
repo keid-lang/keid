@@ -10,11 +10,11 @@ public attribute ExternalFunction(name: string)
 let hasInit: bool = false
 let preventRecursivePush: usize = 0
 
-extern function keid_core_runtime_push_stack_frame(frame: Pointer<char>)
+extern function keid_core_runtime_push_stack_frame(frame: Pointer<uint8>)
 extern function keid_core_runtime_pop_stack_frame()
 extern function keid_core_runtime_print_stack_frames()
-extern function keid_core_runtime_get_stack_frames(): Pointer<char>
-extern function keid_core_runtime_free_stack_frames(frames: Pointer<char>)
+extern function keid_core_runtime_get_stack_frames(): Pointer<uint8>
+extern function keid_core_runtime_free_stack_frames(frames: Pointer<uint8>)
 
 function pushStackFrame(name: string) {
     if preventRecursivePush > 0 {
@@ -24,7 +24,7 @@ function pushStackFrame(name: string) {
         preventRecursivePush += 1
         let cstr = name.toNullTerminated()
         unsafe {
-            fixed let cstrPtr: Pointer<char> = ref cstr {
+            fixed let cstrPtr: Pointer<uint8> = ref cstr {
                 keid_core_runtime_push_stack_frame(cstrPtr)
             }
         }

@@ -15,9 +15,9 @@ function testEmptyString() {
     test.assertEqual(s.chars.length, 0)
 }
 
-function testFromUtf8Slice() {
-    let chars = new char[65; 5] // 65 == 'A'
-    let s = String.fromUtf8Slice(chars)
+function testfromUtf8() {
+    let chars = new uint8[65; 5] // 65 == 'A'
+    let s = String.fromUtf8(chars)
     test.assertEqual(s, "AAAAA")
     test.assertTrue(s.equals("AAAAA"))
     test.assertNotEqual(s, "not AAAAA")
@@ -59,20 +59,20 @@ function testStringEquals() {
 }
 
 function testStringsWithNul() {
-    let chars = new char[66; 5] // 66 = 'B'
+    let chars = new uint8[66; 5] // 66 = 'B'
     chars[1] = 0
     chars[4] = 0
     // chars is now [66, 0, 66, 66, 0]
 
-    let s = String.fromUtf8Slice(chars)
+    let s = String.fromUtf8(chars)
     test.assertEqual(s.length, 5)
     test.assertNotEqual(s, "B")
     test.assertNotEqual(s, "B\0")
     test.assertNotEqual(s, "B\0BB")
     // FAILS test.assertTrue(s == "B\0BB\0")
 
-    let chars2 = new char[0; 1]
-    let s2 = String.fromUtf8Slice(chars2)
+    let chars2 = new uint8[0; 1]
+    let s2 = String.fromUtf8(chars2)
     test.assertEqual(s2.length, 1)
     // FAILS test.assertTrue(s2 == "\0")
 }

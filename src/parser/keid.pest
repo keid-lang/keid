@@ -30,6 +30,7 @@ keyword_const = @{ "const" ~ WHITESPACE }
 keyword_attribute = @{ "attribute" ~ WHITESPACE }
 keyword_throw = @{ "throw" ~ WHITESPACE }
 keyword_match = @{ "match" ~ WHITESPACE }
+keyword_extern = @{ "extern" ~ WHITESPACE }
 keyword_try = @{ "try" }
 keyword_catch = @{ "catch" }
 keyword_loop = @{ "loop" }
@@ -78,8 +79,11 @@ initial_member_expr = { initial_member_val ~ postfix_operator* }
 member_val = _{ func_call | ident }
 member_expr = { member_val ~ postfix_operator* }
 
+array_slice_separator = @{ ":" }
+array_slice_expr = { expr? ~ array_slice_separator ~ expr? }
+
 class_member = { "." ~ member_expr }
-array_member = { "[" ~ expr ~ "]" }
+array_member = { "[" ~ (array_slice_expr | expr) ~ "]" }
 
 member = { initial_member_expr ~ (class_member | array_member)* }
 
@@ -89,6 +93,7 @@ import_statement = { keyword_import ~ "(" ~ NEWLINE+ ~ literal_qualifier ~ (NEWL
 namespace_statement = { keyword_namespace ~ literal_qualifier }
 
 let_statement = {
+    keyword_extern? ~
     (keyword_let | keyword_const) ~ ident ~ (":" ~ variable_type)?
     ~ ("=" ~ expr)?
 }

@@ -44,18 +44,22 @@ public class StringBuilder {
         return this
     }
 
-    ///: a new string whose value is a copy of the current state of this `Builder`.
+    /// Returns a new string whose value is a copy of the current state of this `Builder`.
     public toString(): string {
         let copy = new char[default(char); this.pos]
         array.copy<char>(this.buffer.array, 0, copy, 0, this.pos)
-        return string.fromUtf8Slice(copy)
+        return new string {
+            chars = copy
+        }
     }
 
-    ///: a new string whose value is shared with this buffer.
+    /// Returns a new string whose value is shared with this buffer.
     /// Changes to the buffer MAY OR MAY NOT be reflected in the value of the string.
     /// This should only ever be used when it is GUARANTEED that no further changes
     /// to this `Builder` occur during the entire lifetime of this object. 
     /// This is almost never what you want to use. You should use `toString` instead.
-    public toRefString(): string => string.fromUtf8Slice(this.buffer.array)
+    public toRefString(): string => new string {
+        chars = this.buffer.array[:this.pos]
+    }
 }
 

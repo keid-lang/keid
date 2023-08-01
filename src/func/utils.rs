@@ -690,6 +690,17 @@ pub fn get_import_map(imports: &[ImportNode], type_provider: &TypeProvider, from
     for module in modules {
         let types = type_provider.get_namespace_members(&module);
         let top_namespace_name = &module[module.rfind("::").map(|i| i + 2).unwrap_or(0)..];
+
+        {
+            let member = ImportedMember {
+                local_name: top_namespace_name.to_owned(),
+                absolute_name: module.clone(),
+            };
+            if !map.contains(&member) {
+                map.push(member);
+            }
+        }
+
         for item in &types {
             let absolute_name = format!("{}::{}", module, item.name);
             match item.member_type {
@@ -701,7 +712,7 @@ pub fn get_import_map(imports: &[ImportNode], type_provider: &TypeProvider, from
                 }
                 NamespaceMemberType::Member => {
                     let member = ImportedMember {
-                        local_name: format!("{}::{}", top_namespace_name, item.name),
+                        local_name: format!("{}.{}", top_namespace_name, item.name),
                         absolute_name,
                     };
                     if !map.contains(&member) {

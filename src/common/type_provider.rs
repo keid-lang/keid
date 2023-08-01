@@ -310,11 +310,11 @@ impl TypeProvider {
         None
     }
 
-    pub fn get_static_field_by_name(&self, field_name: &str) -> Option<ComplexType> {
+    pub fn get_static_field_by_name(&self, field_name: &str) -> Option<&FieldNode> {
         for fields in self.roots.iter().map(|root| &root.fields) {
             for field in fields {
                 if field.name == field_name {
-                    return Some(field.ty.clone());
+                    return Some(&field);
                 }
             }
         }

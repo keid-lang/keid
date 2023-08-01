@@ -25,22 +25,35 @@ impl<'a> GlobalInitializerCompiler for FunctionCompiler<'a> {
 
                 {
                     let mdl = &mut self.cpl.units[module_id].mdl;
-                    let global = mdl.create_global(&mut self.cpl.context, &field.name, llvm_type);
-                    mdl.initialize_global(global, self.cpl.context.const_null(llvm_type));
-                }
-
-                match &field.initial_value {
-                    Some(initial_value) => {
-                        let compiled = self.compile_expr(initial_value, Some(&field_type))?;
-                        self.assert_assignable_to(&compiled.ty, &field_type)?;
-
-                        let global_ref = self.unit.mdl.extern_global(&GlobalVariable {
-                            name: field.name.clone(),
+                    if field.is_extern {
+                        mdl.extern_global(&GlobalVariable {
+                            name: field.external_name.clone(),
                             ty: llvm_type,
                         });
-                        self.store(Operator::Equals, compiled, &TypedValue::new(field_type.clone(), global_ref))?;
+                    } else {
+                        let global = mdl.create_global(&mut self.cpl.context, &field.external_name, llvm_type);
+                        mdl.initialize_global(global, self.cpl.context.const_null(llvm_type));
                     }
-                    None => panic!("all global fields must have an initial value"),
+                }
+
+                if field.is_extern {
+                    if field.initial_value.is_some() {
+                        return Err(compiler_error!(self, "Extern variables cannot be assigned a value"));
+                    }
+                } else {
+                    match &field.initial_value {
+                        Some(initial_value) => {
+                            let compiled = self.compile_expr(initial_value, Some(&field_type))?;
+                            self.assert_assignable_to(&compiled.ty, &field_type)?;
+
+                            let global_ref = self.unit.mdl.extern_global(&GlobalVariable {
+                                name: field.name.clone(),
+                                ty: llvm_type,
+                            });
+                            self.store(Operator::Equals, compiled, &TypedValue::new(field_type.clone(), global_ref))?;
+                        }
+                        None => return Err(compiler_error!(self, "Global variables must have an initial value")),
+                    }
                 }
             }
         }

@@ -123,13 +123,14 @@ impl<'a> FunctionCompiler<'a> {
 
     fn get_hidden_function_names() -> Vec<&'static str> {
         vec![
-            "core::array::copyFromPtr<char>",
+            "core::array::copyFromPtr<uint8>",
             "core::array::fill<char>",
+            "core::array::fill<uint8>",
             "core::collections::Iterator::__get_next#__impl#core::collections::Range",
             "core::collections::Range::create",
-            "core::mem::Pointer::offset<char>",
-            "core::mem::Pointer::to<char>",
-            "core::string::String::fromUtf8Slice",
+            "core::mem::Pointer::offset<uint8>",
+            "core::mem::Pointer::to<uint8>",
+            "core::string::String::fromUtf8",
             "core::runtime::pushStackFrame",
             "core::runtime::popStackFrame",
             "core::runtime::printStackFrames",

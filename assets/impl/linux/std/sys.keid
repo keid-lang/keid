@@ -1,0 +1,21 @@
+namespace std::sys::impl
+
+import (
+    core::mem
+)
+
+extern function __errno_location(): Pointer<int32>
+extern function strerror(errno: int32): Pointer<uint8>
+
+function getErrorCode(): int32 {
+    unsafe {
+        return deref __errno_location()
+    }
+}
+
+function getErrorMessage(errno: int32): string {
+    unsafe {
+        let msgPtr = strerror(errno)
+        return string.fromCStr(msgPtr)
+    }
+}

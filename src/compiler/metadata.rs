@@ -117,7 +117,7 @@ impl ClassInfoStorage {
 
                 let mut functions: Vec<usize> = Vec::new();
                 functions.extend(&source_interface.functions);
-                functions.extend(interface_impl.accessors.iter().map(|acc| acc.function_id));
+                functions.extend(source_interface.accessors.iter().map(|acc| acc.function_id));
                 functions.dedup();
 
                 for source_function_id in functions {

@@ -5,7 +5,7 @@ import (
     core::string
 )
 
-extern function keid_reflect_get_object_class_name(instance: object): Pointer<char>
+extern function keid_reflect_get_object_class_name(instance: object): Pointer<uint8>
 
 public class Class {
     name: string

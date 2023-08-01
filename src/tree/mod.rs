@@ -201,7 +201,10 @@ pub struct TypedefImplNode {
 
 #[derive(Debug, Clone)]
 pub struct FieldNode {
+    pub is_extern: bool,
+    pub is_const: bool,
     pub name: String,
+    pub external_name: String,
     pub ty: ComplexType,
     pub initial_value: Option<Token<Expr>>,
 }

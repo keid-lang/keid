@@ -24,8 +24,8 @@ source_filename = "intrinsics.ll"
 ;  ptr (pointer to global virtual method array containing interface implementations)
 %KeidAbiInterfaceImpl = type { i32, ptr, ptr }
 
-%"core::mem::Pointer<char>" = type { ptr, i64 }
-%"[char]#Slice" = type { i64, i64, ptr }
+%"core::mem::Pointer<uint8>" = type { ptr, i64 }
+%"[uint8]#Slice" = type { i64, i64, ptr }
 %"[core::string::String]#Heap" = type { i64, ptr }
 
 @null_value_error = private unnamed_addr constant [62 x i8] c"NullValueError: attempted non-null assertion on a null value\0A\00", align 1
@@ -43,38 +43,15 @@ source_filename = "intrinsics.ll"
 @"core::runtime::hasInit" = external global i1
 @keid.classinfo = external global [0 x %KeidAbiClassInfo]
 
-; This is an implementation of strlen() in LLVM IR that works in no-std environments.
-define i64 @keid_cstrlen(ptr %str) {
-block.start:
-  %ptr_bits_ptr = alloca i64, align 8
-  %start_ptr_bits = ptrtoint ptr %str to i64
-  store i64 %start_ptr_bits, ptr %ptr_bits_ptr
-  br label %block.loop_head
-block.loop_head:
-  %ptr_bits = load i64, ptr %ptr_bits_ptr
-  %current_ptr = inttoptr i64 %ptr_bits to ptr
-  %current_char = load i8, ptr %current_ptr
-  %is_null_char = icmp eq i8 %current_char, 0
-  br i1 %is_null_char, label %block.return, label %block.next
-block.next:
-  %next_ptr_bits = add i64 %ptr_bits, 1 ; add one byte
-  store i64 %next_ptr_bits, ptr %ptr_bits_ptr
-  br label %block.loop_head
-block.return:
-  %end_ptr_bits = load i64, ptr %ptr_bits_ptr
-  %len = sub i64 %end_ptr_bits, %start_ptr_bits ; subtract the length difference of the pointers
-  ret i64 %len
-}
-
 ; Creates a new `core::string::String` object given a pointer to the string's UTF-8 bytes and total byte length.
 define ptr @keid_new_string(ptr %bytes, i64 %length) {
 block.main:
   %ptr_bits = ptrtoint ptr %bytes to i64
-  %"core::mem::Pointer<char> ptr" = alloca %"core::mem::Pointer<char>", align 8
-  call void @"core::mem::Pointer::to<char>(usize)"(i64 %ptr_bits, ptr %"core::mem::Pointer<char> ptr")
-  %"[char] slice" = alloca %"[char]#Slice", align 8
-  call void @"core::array::copyFromPtr<char>(core::mem::Pointer<char>, usize)"(ptr byval(%"core::mem::Pointer<char>") %"core::mem::Pointer<char> ptr", i64 %length, ptr %"[char] slice")
-  %"core::string::String str" = call ptr @"core::string::String::fromUtf8Slice([char])"(ptr byval(%"[char]#Slice") %"[char] slice")
+  %"core::mem::Pointer<uint8> ptr" = alloca %"core::mem::Pointer<uint8>", align 8
+  call void @"core::mem::Pointer::to<uint8>(usize)"(i64 %ptr_bits, ptr %"core::mem::Pointer<uint8> ptr")
+  %"[uint8] slice" = alloca %"[uint8]#Slice", align 8
+  call void @"core::array::copyFromPtr<uint8>(core::mem::Pointer<uint8>, usize)"(ptr byval(%"core::mem::Pointer<uint8>") %"core::mem::Pointer<uint8> ptr", i64 %length, ptr %"[uint8] slice")
+  %"core::string::String str" = call ptr @"core::string::String::fromUtf8([uint8])"(ptr byval(%"[uint8]#Slice") %"[uint8] slice")
 
   ret ptr %"core::string::String str"
 }
@@ -385,11 +362,11 @@ $IF(RTDBG, ```
   call void @"keid.main()"()
 
   ; check if there is an unhandled error from the main function
-  %unhandled_error = call ptr @keid.get_unhandled_error()
-  %check_unhandled_error = icmp ne ptr %unhandled_error, null
+  %check_unhandled_error = call i1 @keid.check_unhandled_error()
   br i1 %check_unhandled_error, label %block.print_error, label %block.exit_gracefully
 block.print_error:
   ; clear the error so that Error::print can execute
+  %unhandled_error = load ptr, ptr @current_error, align 4
   call void @keid.clear_unhandled_error()
   call void @"core::error::Error::print(core::error::Error)"(ptr %unhandled_error)
   call void @keid_exit(i32 1)
@@ -453,8 +430,8 @@ declare void @rtdbg_dump_basic_type(ptr)
 ; keid core library functions
 declare void @"keid.init()"()
 declare void @"keid.main()"()
-declare void @"core::array::copyFromPtr<char>(core::mem::Pointer<char>, usize)"(ptr, i64, ptr)
-declare void @"core::mem::Pointer::to<char>(usize)"(i64, ptr)
-declare ptr @"core::string::String::fromUtf8Slice([char])"(ptr)
+declare void @"core::array::copyFromPtr<uint8>(core::mem::Pointer<uint8>, usize)"(ptr, i64, ptr)
+declare void @"core::mem::Pointer::to<uint8>(usize)"(i64, ptr)
+declare ptr @"core::string::String::fromUtf8([uint8])"(ptr)
 declare void @"core::runtime::printStackFrames()"()
 declare void @"core::error::Error::print(core::error::Error)"(ptr)

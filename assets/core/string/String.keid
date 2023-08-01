@@ -6,33 +6,69 @@ import (
     core::ops
 )
 
-extern function keid_cstrlen(cstr: Pointer<char>): usize
-
 public class String {
     chars: [char]
 
     public get length: usize => this.chars.length
 
-    public static unsafe fromCStr(cstr: Pointer<char>): string {
-        let len = keid_cstrlen(cstr)
+    static unsafe getCStrLength(cstr: Pointer<uint8>): usize {
+        let currentPtr = cstr
+        let size: usize = 0
+        loop {
+            let nextByte = deref currentPtr
+            if nextByte == 0 {
+                return size
+            }
+            size += 1
+            currentPtr = currentPtr.offset(1)
+        }
+    }
+
+    public static unsafe fromCStr(cstr: Pointer<uint8>): string {
+        let len = string.getCStrLength(cstr)
         if len == 0 {
             return ""
         }
-        return String.fromUtf8Slice(array.copyFromPtr<char>(cstr, len))
+        return string.fromUtf8(array.copyFromPtr<uint8>(cstr, len))
     }
 
     /// Note that any changes to the new underlying array will be reflected in the string's value.
-    public static fromUtf8Slice(chars: [char]): string => new String { chars, }
+    public static fromUtf8(bytes: [uint8]): string {
+        let chars = new char[default(char); bytes.length]
+        for i in range.create(0, bytes.length) {
+            chars[i] = bytes[i] as char
+        }
 
-    ///: an array containing the characters in the string as NUL-terminated and UTF-8 encoded.
-    public toNullTerminated(): [char] {
+        return new string {
+            chars
+        }
+    }
+
+    /// Returns the string as a UTF-8 encoded byte slice.
+    /// No null terminator is added.
+    public toUtf8(): [uint8] {
         if this.chars.length == 0 {
-            return new char[0] // return just a null terminator
+            return new uint8[]
+        }
+
+        let utf8 = new uint8[0; this.chars.length]
+        for i in range.create(0, this.chars.length) {
+            utf8[i] = this.chars[i] as uint8
+        }
+        return utf8
+    }
+
+    /// Returns an array containing the characters in the string as NUL-terminated and UTF-8 encoded.
+    public toNullTerminated(): [uint8] {
+        if this.chars.length == 0 {
+            return new uint8[0] // return just a null terminator
         }
 
         // the last char stays zero, making it null terminated
-        let terminated = new char[0; this.chars.length + 1]
-        array.copy<char>(this.chars, 0, terminated, 0, this.chars.length)
+        let terminated = new uint8[0; this.chars.length + 1]
+        for i in range.create(0, this.chars.length) {
+            terminated[i] = this.chars[i] as uint8
+        }
         return terminated
     }
 }

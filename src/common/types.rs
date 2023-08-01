@@ -105,7 +105,7 @@ impl IntoOpaqueType for BasicType {
             BasicType::Void => cpl.context.get_void_type(),
             BasicType::Bool => cpl.context.get_i1_type(),
             BasicType::Int8 => cpl.context.get_i8_type(),
-            BasicType::Char => cpl.context.get_i8_type(),
+            BasicType::Char => cpl.context.get_i64_type(),
             BasicType::Int16 => cpl.context.get_i16_type(),
             BasicType::Int32 => cpl.context.get_i32_type(),
             BasicType::Int64 => cpl.context.get_i64_type(),

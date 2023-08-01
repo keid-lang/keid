@@ -1,0 +1,9 @@
+namespace core::io
+
+public interface Writer {
+    write(data: [uint8]): isize
+}
+
+public interface Reader {
+    read(buffer: [uint8]): isize
+}

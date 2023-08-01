@@ -391,11 +391,19 @@ impl<'a> AstConverter<'a> {
     }
 
     fn parse_field_decl(&self, field: Let, parent: Option<&DeclParent>, dst: &KeidModuleNode, ns: String) -> Result<FieldNode> {
+        let name = match parent {
+            Some(_) => field.name.token.0.clone(),
+            None => format!("{}::{}", ns, field.name.token.0),
+        };
         Ok(FieldNode {
-            name: match parent {
-                Some(_) => field.name.token.0,
-                None => format!("{}::{}", ns, field.name.token.0),
+            external_name: if field.is_extern {
+                field.name.token.0
+            } else {
+                name.clone()
             },
+            is_const: field.is_const,
+            is_extern: field.is_extern,
+            name,
             ty: self.get_type(
                 match field.var_type {
                     Some(ty) => ty,

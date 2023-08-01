@@ -147,10 +147,8 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                                         1,
                                     ));
 
-                                    current = TypedValue {
-                                        ty: BasicType::USize.to_complex(),
-                                        val: self.emit(Insn::Load(length_ptr, BasicType::USize.as_llvm_type(self.cpl))),
-                                    };
+                                    let length = self.emit(Insn::Load(length_ptr, BasicType::USize.as_llvm_type(self.cpl)));
+                                    current = TypedValue::new(BasicType::USize.to_complex(), length);
                                 } else {
                                     return Err(compiler_error!(
                                         self,
@@ -162,11 +160,16 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                             }
                             x => unimplemented!("{:#?}", x),
                         },
-                        (MemberType::Array, ComplexType::Array(_)) => {
-                            let index = self.compile_expr(&next_member.value, Some(&BasicType::USize.to_complex()))?;
-                            self.assert_assignable_to(&index.ty, &BasicType::USize.to_complex())?;
-                            current = self.load_array_element(&current, &index)?;
-                        }
+                        (MemberType::Array, ComplexType::Array(_)) => match &next_member.value.token {
+                            Expr::Subslice(subslice) => {
+                                current = self.compile_subslice(&current, subslice)?;
+                            }
+                            _ => {
+                                let index = self.compile_expr(&next_member.value, Some(&BasicType::USize.to_complex()))?;
+                                self.assert_assignable_to(&index.ty, &BasicType::USize.to_complex())?;
+                                current = self.load_array_element(&current, &index)?;
+                            }
+                        },
                         (MemberType::Class, ComplexType::Basic(_)) => {
                             let instance = self.autobox_primitive(current.clone())?;
                             let ident = match &instance.ty {
@@ -511,12 +514,12 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
         }
 
         let field_name = sfr.to_string();
-        let (field_name, field_type) = match self.cpl.type_provider.get_static_field_by_name(&field_name) {
-            Some(field) => (field_name, field),
+        let field = match self.cpl.type_provider.get_static_field_by_name(&field_name) {
+            Some(field) => field,
             None => {
                 let namespaced_name = format!("{}::{}", self.get_source_function().namespace_name, field_name);
                 match self.cpl.type_provider.get_static_field_by_name(&namespaced_name) {
-                    Some(field) => (namespaced_name, field),
+                    Some(field) => field,
                     None => {
                         if sfr.0.len() > 1 {
                             let declaring_type = Qualifier(sfr.0[0..sfr.0.len() - 1].to_vec());
@@ -543,10 +546,10 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
         };
 
         let global = self.unit.mdl.get_or_extern_global(&GlobalVariable {
-            name: field_name,
-            ty: field_type.as_llvm_type(self.cpl),
+            name: field.external_name.clone(),
+            ty: field.ty.as_llvm_type(self.cpl),
         });
-        Ok(TypedValue::new(field_type, global))
+        Ok(TypedValue::new(field.ty.clone(), global))
     }
 
     fn resolve_enum_variant(&mut self, declaring_type: &GenericIdentifier, member: &str) -> Result<ResolvedEnumMember> {
@@ -785,9 +788,9 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
             self.cpl
                 .type_provider
                 .get_function_by_name(
-                    &GenericIdentifier::from_name_with_args("core::array::copyFromPtr", &[BasicType::Char.to_complex()]),
+                    &GenericIdentifier::from_name_with_args("core::array::copyFromPtr", &[BasicType::UInt8.to_complex()]),
                     &[
-                        BasicType::Object(GenericIdentifier::from_name_with_args("core::mem::Pointer", &[BasicType::Char.to_complex()]))
+                        BasicType::Object(GenericIdentifier::from_name_with_args("core::mem::Pointer", &[BasicType::UInt8.to_complex()]))
                             .to_complex(),
                         BasicType::USize.to_complex(),
                     ],
@@ -798,7 +801,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
             self.cpl
                 .type_provider
                 .get_function_by_name(
-                    &GenericIdentifier::from_name_with_args("core::mem::Pointer::to", &[BasicType::Char.to_complex()]),
+                    &GenericIdentifier::from_name_with_args("core::mem::Pointer::to", &[BasicType::UInt8.to_complex()]),
                     &[BasicType::USize.to_complex()],
                 )
                 .unwrap(),
@@ -807,8 +810,8 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
             self.cpl
                 .type_provider
                 .get_function_by_name(
-                    &GenericIdentifier::from_name_with_args("core::string::String::fromUtf8Slice", &[]),
-                    &[BasicType::Char.to_complex().to_array()],
+                    &GenericIdentifier::from_name_with_args("core::string::String::fromUtf8", &[]),
+                    &[BasicType::UInt8.to_complex().to_array()],
                 )
                 .unwrap(),
         );

@@ -2,6 +2,8 @@ namespace std::fs::impl
 
 import (
     core::mem
+    core::error
+    std::os
 )
 
 /// Sets the seek offset to be `n` bytes from the start of the file.
@@ -11,22 +13,31 @@ const LIBC_SEEK_CUR: uint32 = 1
 /// Sets the seek offset to be at the end of the file.
 const LIBC_SEEK_END: uint32 = 2
 
-extern function fseek(fd: usize, offset: uint32, whence: uint32): uint32
-extern function fopen(pathname: Pointer<char>, mode: Pointer<char>): usize
+extern function fseek(fd: usize, offset: usize, whence: uint32): uint32
+extern function fopen(pathname: Pointer<uint8>, mode: Pointer<uint8>): usize
 extern function ftell(fd: usize): usize
-extern function fread(buf: Pointer<uint8>, count: usize, length: usize, fd: usize): uint32
+extern function fread(buf: Pointer<uint8>, count: usize, length: usize, fd: usize): isize
+extern function fwrite(buf: Pointer<uint8>, size: usize, count: usize, fd: usize): isize
 extern function fclose(fd: usize): uint32
-extern function perror(msg: Pointer<char>)
-extern function exit(status: int32)
 
-public function openFile(path: string): usize {
+function getIoError(prefix: string): Error {
     unsafe {
-        let fd = fopen(path.chars, "r")
-        if fd == 0 {
-            perror("fopen() failed")
-            exit(1)
+        let msg = std::sys::impl.getErrorMessage(std::sys::impl.getErrorCode())
+        return error.io(string.format(prefix, ": ", msg))
+    }
+}
+
+public function openFile(path: string, mode: string): usize {
+    unsafe {
+        fixed let pathPtr = ref path.toNullTerminated() {
+            fixed let modePtr = ref mode.toNullTerminated() {
+                let fd = fopen(pathPtr, modePtr)
+                if fd == 0 {
+                    throw getIoError("opening file")
+                }
+                return fd
+            }
         }
-        return fd
     }
 }
 
@@ -51,10 +62,28 @@ public function seekFile(fd: usize, pos: usize) {
     }
 }
 
-public function readFileBytes(fd: usize, buf: [uint8], count: usize) {
+public function getSeekFilePos(fd: usize): usize {
+    unsafe {
+        return ftell(fd)
+    }
+}
+
+public function readFileBytes(fd: usize, buf: [uint8]): isize {
     unsafe {
         fixed let ptr: Pointer<uint8> = ref buf {
-            fread(ptr, 1, count, fd)
+            return fread(ptr, 1, buf.length, fd)
+        }
+    }
+}
+
+public function writeFileBytes(fd: usize, buf: [uint8]): isize {
+    unsafe {
+        fixed let ptr: Pointer<uint8> = ref buf {
+            let written = fwrite(ptr, 1, buf.length, fd)
+            if written != buf.length as isize {
+                throw getIoError(string.format("writing to file (wrote ", written.toString(), " / ", buf.length.toString(), " bytes)"))
+            }
+            return written
         }
     }
 }

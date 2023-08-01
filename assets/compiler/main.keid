@@ -3,6 +3,8 @@ namespace keidc
 import (
     core::collections
     core::string
+    std::fs
+    std::os
 )
 
 public extern function main(): int32 {
@@ -19,7 +21,7 @@ public extern function main(): int32 {
 
     // core::string::String tests
     core::string::test.testEmptyString()
-    core::string::test.testFromUtf8Slice()
+    core::string::test.testfromUtf8()
     core::string::test.testStringToString()
     core::string::test.testStringEquals()
     core::string::test.testStringsWithNul()

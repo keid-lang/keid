@@ -4,12 +4,12 @@ import (
     core::mem
 )
 
-extern function puts(str: Pointer<char>)
+extern function puts(str: Pointer<uint8>)
 
 public function println(message: string) {
     let cstr = message.toNullTerminated()
     unsafe {
-        fixed let cstrPtr: Pointer<char> = ref cstr {
+        fixed let cstrPtr: Pointer<uint8> = ref cstr {
             puts(cstrPtr)
         }
     }

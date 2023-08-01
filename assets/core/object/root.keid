@@ -28,6 +28,16 @@ implement ToString for Bool {
     }
 }
 
+public struct Char {
+    value: char
+}
+
+implement ToString for Char {
+    toString(): string => new string {
+        chars = new char[this.value]
+    }
+}
+
 macro $IMPL_INT_TYPE(#wrapper, #primitive)
     public struct #wrapper {
         value: #primitive
@@ -43,7 +53,7 @@ macro $IMPL_INT_TYPE(#wrapper, #primitive)
             let sb = StringBuilder.empty()
             while current > 0 {
                 let digit = (current % 10) + 0x30 // converts the digit to its ascii equivalent
-                sb.insert(0, String.fromUtf8Slice(new char[digit as char]))
+                sb.insert(0, String.fromUtf8(new uint8[digit as uint8]))
                 current /= 10
             }
 

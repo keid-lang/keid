@@ -1,32 +1,49 @@
 namespace std::fs
 
 import (
+    core::io
     std::io
     std::os
 )
+
+public enum FileOpenMode {
+    ReadOnly
+    ReadWrite
+    ReadWriteTruncate
+    WriteOnly
+    AppendOnly
+    ReadAppend
+}
  
 public class File {
+    mode: FileOpenMode
     handle: usize
     open: bool
 
-    public static open(path: string): File {
+    destructor {
+        this.close()
+    }
+
+    public static open(path: string, mode: FileOpenMode): File {
+        let modeStr = match mode {
+            ReadOnly => "r"
+            ReadWrite => "r+"
+            ReadWriteTruncate => "w+"
+            WriteOnly => "w"
+            AppendOnly => "a"
+            ReadAppend => "a+"
+        }
         return new File {
-            handle = std::fs::impl.openFile(path)
+            mode
+            handle = std::fs::impl.openFile(path, modeStr)
             open = true
         }
     }
 
     assertOpen() {
         if !this.open {
-            io.println("assertOpen() failed")
-            os.exit(1)
+            throw error.io("file handle is closed")
         }
-    }
-
-    public read(buf: [uint8]) {
-        this.assertOpen()
-
-        std::fs::impl.readFileBytes(this.handle, buf, buf.length)
     }
 
     public close() {
@@ -39,9 +56,51 @@ public class File {
         this.open = false
     }
 
+    public seek(offset: usize) {
+        std::fs::impl.seekFile(this.handle, offset)
+    }
+
+    /// Reads all the bytes in the file from start to end, regardless of the current cursor position.
+    public readAllBytes(): [uint8] {
+        let pos = std::fs::impl.getSeekFilePos(this.handle)
+        this.seek(0)
+
+        let buf = new uint8[0; this.length]
+        this.read(buf)
+
+        this.seek(pos)
+
+        return buf
+    }
+
+    /// Writes all the bytes to the file, beginning at the start of the file.
+    /// This function does not affect the cursor position.
+    public writeAllBytes(bytes: [uint8]) {
+        let pos = std::fs::impl.getSeekFilePos(this.handle)
+        this.seek(0)
+        this.write(bytes)
+        this.seek(pos)
+    }
+
     public get length: usize {
         this.assertOpen()
 
         return std::fs::impl.getFileLength(this.handle)
+    }
+}
+
+implement Reader for File {
+    read(buf: [uint8]): isize {
+        this.assertOpen()
+
+        return std::fs::impl.readFileBytes(this.handle, buf)
+    }
+}
+
+implement Writer for File {
+    write(buf: [uint8]): isize {
+        this.assertOpen()
+
+        return std::fs::impl.writeFileBytes(this.handle, buf)
     }
 }
