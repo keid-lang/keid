@@ -451,7 +451,8 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                     val: new_nullable,
                 });
             }
-            (ComplexType::Basic(_), ComplexType::Nullable(_)) => {
+            (ComplexType::Basic(from), ComplexType::Nullable(to)) => {
+                self.assert_assignable_to(&from.to_complex(), &to)?;
                 // coerce from a normal type to a nullable
 
                 let new_nullable = self.emit(Insn::Alloca(dest_type.as_llvm_type(self.cpl)));

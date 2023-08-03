@@ -8,6 +8,12 @@ public class ArrayBackedStorage<T: Default> {
             array = new T[default(T); 0]
         }
     }
+
+    public static withCapacity<T: Default>(capacity: usize): ArrayBackedStorage<T> {
+        return new ArrayBackedStorage<T> {
+            array = new T[default(T); capacity]
+        }
+    }
 }
 
 implement <T: Default> PositionalStorage<T> for ArrayBackedStorage<T> {

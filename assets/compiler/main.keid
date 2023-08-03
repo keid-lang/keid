@@ -8,23 +8,10 @@ import (
     keidc::ksdl
 )
 
-function foo() {
-    let x = 5
-    if x == 1 {
-        std::io.println("foo")
-    } else if x == 4 {
-        std::io.println("bar")
-    } else {
-        std::io.println("bee")
-    }
-}
-
 public extern function main(): int32 {
-    let syntaxDefFile = File.open("/home/lucas/code/keid/keid/assets/compiler/syntax.def", FileOpenMode.ReadOnly)
+    let syntaxDefFile = File.open("/home/lbaizer/code/keid/keid/assets/compiler/syntax.def", FileOpenMode.ReadOnly)
     let syntaxDef = String.fromUtf8(syntaxDefFile.readAllBytes())
     syntaxDefFile.close()
-
-    foo()
 
     let parser = Parser.fromKsdl(syntaxDef)
     parser.parse("Program", "namespace foo::bar\n\npublic class Foo {\n}\n")
@@ -52,7 +39,7 @@ public extern function main(): int32 {
     core::string::test.testSubstring()
     core::string::test.testSplit()
     core::string::test.testTrim()
-    core::string::test.testStartsEndsWith()
+    core::string::test.testStartsWith()
 
     // core::string::StringBuilder tests
     core::string::test.testEmptyStringBuilder()

@@ -15,7 +15,7 @@ function testEmptyAppend() {
     let e = StringBuilder.empty()
     e.append("Hello")
     test.assertEqual(e.pos, 5)
-    test.assertEqual(e.capacity, 5)
+    test.assertEqual(e.capacity, 8)
     test.assertEqual(e.toString(), "Hello")
 }
 
@@ -24,7 +24,7 @@ function testEmptyDoubleAppend() {
     e.append("Hello")
     e.append(", World!")
     test.assertEqual(e.pos, 13)
-    test.assertEqual(e.capacity, 13)
+    test.assertEqual(e.capacity, 17)
     test.assertEqual(e.toString(), "Hello, World!")
 }
 
@@ -37,7 +37,7 @@ function testPreallocatedTooSmall() {
     e.append("This string is longer than the initial capacity.")
 
     test.assertEqual(e.pos, 48)
-    test.assertEqual(e.capacity, 48)
+    test.assertEqual(e.capacity, 80)
     test.assertEqual(e.toString(), "This string is longer than the initial capacity.")
 }
 

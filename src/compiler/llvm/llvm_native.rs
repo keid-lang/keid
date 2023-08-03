@@ -964,7 +964,6 @@ impl InsnBuilder {
                 let first = LLVMGetFirstInstruction(current_block);
                 if first.is_null() {
                     self.emit(Insn::Br(block.as_val()), 0, 0);
-                    return;
                 }
             }
         }
@@ -1010,7 +1009,16 @@ impl InsnBuilder {
                     let indices = &mut [value_idx.0];
                     LLVMBuildInBoundsGEP2(self.bdl, value_type.0, struct_ref.0, indices.as_mut_ptr(), 1, insn_name)
                 }
-                Insn::CondBr(test, then, otherwise) => LLVMBuildCondBr(self.bdl, test.0, then.0, otherwise.0),
+                Insn::CondBr(test, then, otherwise) => {
+                    let current = LLVMGetInsertBlock(self.bdl);
+                    if then.0 == current {
+                        panic!("CondBr primary target attempted to reference current block, causing infinite recursion")
+                    }
+                    if otherwise.0 == current {
+                        panic!("CondBr secondary target attempted to reference current block, causing infinite recursion")
+                    }
+                    LLVMBuildCondBr(self.bdl, test.0, then.0, otherwise.0)
+                }
                 Insn::Br(target) => LLVMBuildBr(self.bdl, target.0),
                 Insn::ICmp(op, lhs, rhs) => LLVMBuildICmp(self.bdl, op, lhs.0, rhs.0, insn_name),
                 Insn::Xor(lhs, rhs) => LLVMBuildXor(self.bdl, lhs.0, rhs.0, insn_name),

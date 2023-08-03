@@ -92,11 +92,10 @@ public class String {
         for i in range.create(from, this.length) {
             if this.chars[i] != substr.chars[streak] {
                 streak = 0
-            }
-            // TODO: change to "else"
-            if this.chars[i] == substr.chars[streak] {
+            } else {
                 streak += 1
             }
+
             if streak == substr.length {
                 return (i + 1) - streak
             }
@@ -132,7 +131,7 @@ public class String {
     /// Splits the string on the given delimeter.
     /// The returned List contains each substring separated by the delimeter.
     /// If the string does not contain the delimeter, then the entire string is returned as the only element in the list.
-    public split(delim: string): List<string> {
+    public split(delim: string): [string] {
         let parts = List.empty<string>()
 
         let prevCursor: usize = 0
@@ -142,7 +141,7 @@ public class String {
                 if prevCursor < this.length {
                     parts.push(this.substringAfter(prevCursor))
                 }
-                return parts
+                return parts.toArray()
             }
 
             if prevCursor == next! {
@@ -174,15 +173,8 @@ public class String {
 
     /// Returns true if the start of this string matches the substring entirely, otherwise false.
     public startsWith(substr: string): bool {
-        let idx = this.indexOf(substr)
-        if idx == null {
-            return false
-        }
-        return idx == 0
+        return this.indexOf(substr) == 0
     }
-
-    /// Returns true if the end of this string matches the substring entirely, otherwise false.
-    public endsWith(substr: string): bool => this.indexOf(substr) == this.length - substr.length
 }
 
 implement ToString for String {

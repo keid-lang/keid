@@ -132,29 +132,29 @@ function testSplit() {
     let split = a.split(" ")
 
     test.assertEqual(split.length, 5)
-    test.assertEqual(split.get(0), "Hello")
-    test.assertEqual(split.get(1), "my")
-    test.assertEqual(split.get(2), "name")
-    test.assertEqual(split.get(3), "is")
-    test.assertEqual(split.get(4), "Foo")
+    test.assertEqual(split[0], "Hello")
+    test.assertEqual(split[1], "my")
+    test.assertEqual(split[2], "name")
+    test.assertEqual(split[3], "is")
+    test.assertEqual(split[4], "Foo")
     
     let a2 = "Hello   my   NAME   is   Foo"
     let split2 = a2.split("   ")
 
     test.assertEqual(split2.length, 5)
-    test.assertEqual(split2.get(0), "Hello")
-    test.assertEqual(split2.get(1), "my")
-    test.assertEqual(split2.get(2), "NAME")
-    test.assertEqual(split2.get(3), "is")
-    test.assertEqual(split2.get(4), "Foo")
+    test.assertEqual(split2[0], "Hello")
+    test.assertEqual(split2[1], "my")
+    test.assertEqual(split2[2], "NAME")
+    test.assertEqual(split2[3], "is")
+    test.assertEqual(split2[4], "Foo")
 
     let b = "aaabbbaaaaabbb"
     let split3 = b.split("bb")
 
     test.assertEqual(split3.length, 3)
-    test.assertEqual(split3.get(0), "aaa")
-    test.assertEqual(split3.get(1), "baaaaa")
-    test.assertEqual(split3.get(2), "b")
+    test.assertEqual(split3[0], "aaa")
+    test.assertEqual(split3[1], "baaaaa")
+    test.assertEqual(split3[2], "b")
 }
 
 function testTrim() {
@@ -174,18 +174,28 @@ function testTrim() {
     test.assertEqual(cTrim, "SAY HELLO   To\nME")
 }
 
-function testStartsEndsWith() {
+function testStartsWith() {
     let a = "hellogoodbye"
+
+    test.assertEqual(a.indexOf("h")!, 0)
+    test.assertTrue(a.indexOf("h") == 0)
     test.assertTrue(a.startsWith("h"))
+
+    test.assertEqual(a.indexOf("hello")!, 0)
     test.assertTrue(a.startsWith("hello"))
+
+    test.assertNotEqual(a.indexOf("ello")!, 0)
     test.assertFalse(a.startsWith("ello"))
+
+    test.assertEqual(a.indexOf("hellogoodbye")!, 0)
     test.assertTrue(a.startsWith("hellogoodbye"))
+
+    test.assertNotEqual(a.indexOf("bye")!, 0)
     test.assertFalse(a.startsWith("bye"))
 
-    test.assertTrue(a.endsWith("e"))
-    test.assertTrue(a.endsWith("bye"))
-    test.assertTrue(a.endsWith("goodbye"))
-    test.assertFalse(a.endsWith("goodby"))
-    test.assertTrue(a.endsWith("hellogoodbye"))
-    test.assertFalse(a.endsWith("hello"))
+    test.assertNull(a.indexOf("hellO"))
+    test.assertFalse(a.startsWith("hellO"))
+
+    test.assertNull(a.indexOf("hellobyegood"))
+    test.assertFalse(a.startsWith("hellobyegood"))
 }
