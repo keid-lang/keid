@@ -64,7 +64,7 @@ pub trait FunctionCompilerUtils {
 
     fn autobox_primitive(&mut self, primitive: TypedValue) -> Result<TypedValue>;
     fn handle_unhandled_error(&mut self, check: bool) -> Result<()>;
-    fn return_null(&mut self);
+    fn return_null(&mut self) -> Result<()>;
 
     fn unbox_object(&mut self, value: TypedValue) -> Result<TypedValue>;
     fn heap_allocate(&mut self, ty: OpaqueType, count: Option<OpaqueValue>) -> Result<OpaqueValue>;
@@ -595,7 +595,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
             self.emit(Insn::Br(catch_block));
         } else {
             // the error is unhandled, terminate execution of this function immediately
-            self.return_null();
+            self.return_null()?;
         }
 
         self.state.block_stack.pop();
@@ -605,12 +605,14 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
         Ok(())
     }
 
-    fn return_null(&mut self) {
+    fn return_null(&mut self) -> Result<()> {
+        // self.pop_stack_frame()?;
         if self.func.return_type == BasicType::Void.to_complex() || self.func.return_type.is_struct(&self.cpl.type_provider) {
             self.emit(Insn::RetVoid);
         } else {
             self.emit(Insn::Ret(self.cpl.context.const_null(self.func.return_type.as_llvm_type(self.cpl))));
         }
+        Ok(())
     }
 
     fn heap_allocate(&mut self, ty: OpaqueType, count: Option<OpaqueValue>) -> Result<OpaqueValue> {

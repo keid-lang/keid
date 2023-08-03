@@ -624,9 +624,9 @@ impl Context {
 
 impl Drop for Context {
     fn drop(&mut self) {
-        unsafe {
-            LLVMContextDispose(self.ctx);
-        }
+        // unsafe {
+        //     LLVMContextDispose(self.ctx);
+        // }
     }
 }
 
@@ -644,9 +644,9 @@ pub struct Module {
 
 impl Drop for Module {
     fn drop(&mut self) {
-        if !self.is_clone {
-            unsafe { LLVMDisposeDIBuilder(self.debug) }
-        }
+        // if !self.is_clone {
+        //     unsafe { LLVMDisposeDIBuilder(self.debug) }
+        // }
     }
 }
 

@@ -32,6 +32,7 @@ function assert(cond: bool, msg: string) {
 }
 
 public function assertTrue(cond: bool) {
+    std::io.println(cond.toString())
     assert(cond, "expecting true")
 }
 
