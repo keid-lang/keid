@@ -9,8 +9,6 @@ import (
 )
 
 public extern function main(): int32 {
-    core::string::test.testStartsEndsWith()
-
     let syntaxDefFile = File.open("/home/lbaizer/code/keid/keid/assets/compiler/syntax.def", FileOpenMode.ReadOnly)
     let syntaxDef = String.fromUtf8(syntaxDefFile.readAllBytes())
     syntaxDefFile.close()
@@ -41,6 +39,7 @@ public extern function main(): int32 {
     core::string::test.testSubstring()
     core::string::test.testSplit()
     core::string::test.testTrim()
+    core::string::test.testStartsWith()
 
     // core::string::StringBuilder tests
     core::string::test.testEmptyStringBuilder()

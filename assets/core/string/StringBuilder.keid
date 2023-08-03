@@ -13,8 +13,7 @@ public class StringBuilder {
     public static empty(): StringBuilder => StringBuilder.withCapacity(0)
 
     public static withCapacity(capacity: usize): StringBuilder {
-        let buffer = ArrayBackedStorage.empty<char>()
-        buffer.ensureCapacity(capacity)
+        let buffer = ArrayBackedStorage.withCapacity<char>(capacity)
         return new StringBuilder {
             buffer
             pos = 0

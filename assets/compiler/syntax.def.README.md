@@ -9,7 +9,7 @@ rule [RuleName]
     Statement1
     Statement2
     ...
-end
+end rule
 ```
 
 ## Statements
@@ -31,7 +31,7 @@ Assume an example KSDL schema written as such:
 ```ksdl
 rule Identifier
     repeated 'A-Z' | 'a-z' | '0-9'
-end
+end rule
 
 rule ClassDecl
     "class"
@@ -40,7 +40,7 @@ rule ClassDecl
 
 rule Statement
     $st = ClassDecl | FooDecl | BarDecl | ...
-end
+end rule
 ```
 
 If our text to parse was 'class Foo$Bar', the `Identifier` rule will fail because '$' is not an acceptable character. As a result, the `ClassDecl` rule will revert its state back to the start and allow the `Statement` rule to continue parsing, attempting `FooDecl` next.
@@ -52,7 +52,7 @@ rule ClassDecl
     "class"
     move
     $name = Identifier
-end
+end rule
 ```
 
 After the `class` literal is reached, `move` is excuted, and the failure to parse the identifier will cause a parsing error immediately, and `FooDecl` will never be evaluted.

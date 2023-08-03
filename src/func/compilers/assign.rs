@@ -135,6 +135,7 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                     self.try_unscope(&static_field)?;
                     let compiled_rhs = self.compile_expr(rhs, Some(&static_field.ty))?;
 
+                    self.loc(&rhs.loc);
                     self.store(op, compiled_rhs, &static_field)?;
                 }
                 Err(e) => {
@@ -142,6 +143,7 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                     self.try_unscope(&local_var.value)?;
                     let compiled_rhs = self.compile_expr(rhs, Some(&local_var.value.ty))?;
 
+                    self.loc(&rhs.loc);
                     self.store(op, compiled_rhs, &local_var.value)?;
 
                     return Ok(());
@@ -168,6 +170,7 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                 self.loc(&var_type.loc);
                 let var_type = self.resolve_type(&var_type.complex)?;
                 let initial_ref = self.compile_expr(initial_value, Some(&var_type))?;
+                let initial_ref = self.implicit_cast(initial_ref, &var_type)?;
 
                 self.loc(&initial_value.loc);
                 self.assert_assignable_to(&initial_ref.ty, &var_type)?;

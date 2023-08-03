@@ -24,11 +24,9 @@ function pass(msg: string) {
 function assert(cond: bool, msg: string) {
     if cond {
         pass(msg)
-        return
+    } else {
+        fail(msg)
     }
-
-    // TODO: make this an else
-    fail(msg)
 }
 
 public function assertTrue(cond: bool) {

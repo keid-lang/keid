@@ -164,47 +164,66 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
     fn compile_if_chain(&mut self, if_chain: &IfChain) -> Result<()> {
         let mut blocks = Vec::new();
 
-        // TODO: support else blocks
-
         for conditional in &if_chain.conditionals {
-            let compiled_test = self.compile_expr(&conditional.test, Some(&BasicType::Bool.to_complex()))?;
-            self.loc(&conditional.test.loc);
-            self.assert_assignable_to(&compiled_test.ty, &BasicType::Bool.to_complex())?;
-
+            let test_block = self.state.new_block(&mut self.builder);
             let if_block = self.state.new_block(&mut self.builder);
-            blocks.push((compiled_test, if_block, &conditional.body));
+            blocks.push((&conditional.test, test_block, if_block, &conditional.body));
         }
 
         let rotated_parent = self.state.new_rotated_parent(&mut self.builder);
-        let block_len = blocks.len();
-        for i in 0..block_len {
-            let (test, then_block, body) = blocks.remove(0);
+        let else_block = if if_chain.fallback.is_some() {
+            Some(self.state.new_block(&mut self.builder))
+        } else {
+            None
+        };
 
-            // if the next block is in the chain (i.e. an `else if` or `else` block)
+        self.emit(Insn::Br(blocks[0].1.llvm_block.as_val()));
+
+        while !blocks.is_empty() {
+            let (test, test_block, then_block, body) = blocks.remove(0);
+
+            self.builder.append_block(&test_block.llvm_block);
+            self.builder.use_block(&test_block.llvm_block);
+
+            let compiled_test = self.compile_expr(&test, Some(&BasicType::Bool.to_complex()))?;
+            self.assert_assignable_to(&compiled_test.ty, &BasicType::Bool.to_complex())?;
+
+            // if the next block is in the chain (i.e. an `else if` block)
             // then conditionally branch to that block as the fallback
-            // otherwise, if it's the last block in the chain, branch to the parent block
-            let else_block = if i == block_len - 1 {
-                rotated_parent.clone()
+            // otherwise, if it's the last block in the chain, branch to the else block if one exists
+            // if no else block exists, go to the parent block instead
+            let else_block = if blocks.is_empty() {
+                else_block.clone().unwrap_or_else(|| rotated_parent.clone())
             } else {
-                blocks[i + 1].1.clone()
+                blocks[0].1.clone()
             };
 
-            self.emit(Insn::CondBr(test.val, then_block.llvm_block.as_val(), else_block.llvm_block.as_val()));
+            self.emit(Insn::CondBr(compiled_test.val, then_block.llvm_block.as_val(), else_block.llvm_block.as_val()));
 
             self.builder.append_block(&then_block.llvm_block); // append the rotated parent block
             self.state.push_block(&self.builder, then_block);
 
             if !self.compile_block(body) {
-                self.emit(Insn::Br(else_block.llvm_block.as_val()));
                 self.pop_block()?;
+                self.emit(Insn::Br(rotated_parent.llvm_block.as_val()));
+            }
+        }
+
+        if let Some(else_block) = else_block {
+            self.builder.append_block(&else_block.llvm_block); // append the else parent block
+            self.state.push_block(&self.builder, else_block);
+
+            if !self.compile_block(if_chain.fallback.as_ref().unwrap()) {
+                self.pop_block()?;
+                self.emit(Insn::Br(rotated_parent.llvm_block.as_val()));
             }
 
-            self.state.block_stack.pop(); // pop the parent block off the stack
-
-            // append the rotated parent block
-            self.builder.append_block(&else_block.llvm_block);
-            self.state.push_block(&self.builder, else_block);
+            self.state.block_stack.pop(); // pop the else block off the stack
         }
+
+        // append the rotated parent block
+        self.builder.append_block(&rotated_parent.llvm_block);
+        self.state.push_block(&self.builder, rotated_parent);
 
         Ok(())
     }

@@ -141,7 +141,7 @@ op_gt = { ">" }
 op_not = { "!" }
 op_spread = { "..." }
 op_as = @{ "as" }
-op_null_assert = { "!" }
+op_null_assert = @{ "!" ~ !("=") }
 op_null_coalesce = { "??" }
 op_null_propagate = { "?" }
 
@@ -194,7 +194,7 @@ operator = _{
     op_null_coalesce
 }
 postfix_operator = _{
-    op_null_assert ~ !("=")
+    op_null_assert
 }
 logic_val = _{ reference_op | dereference_op | string | char | integer | match_expr | sizeof_expr | default_expr | specified_array | new_array | new_call | null | boolean | explicit_anonymous_struct | member | ("(" ~ logic_expr ~ ")") }
 logic_expr = { prefix_operator* ~ logic_val ~ postfix_operator* ~ ((operator ~ prefix_operator* ~ logic_val ~ postfix_operator*) | (op_as ~ variable_type))* }

@@ -6,6 +6,28 @@ use crate::{
     func::*,
 };
 
+macro_rules! is_int {
+    () => {
+        BasicType::UInt8
+            | BasicType::UInt16
+            | BasicType::UInt32
+            | BasicType::UInt64
+            | BasicType::USize
+            | BasicType::Int8
+            | BasicType::Int16
+            | BasicType::Int32
+            | BasicType::Int64
+            | BasicType::ISize
+            | BasicType::Char
+    };
+}
+
+macro_rules! is_float {
+    () => {
+        BasicType::Float32 | BasicType::Float64
+    };
+}
+
 pub trait LogicCompiler {
     fn compile_logic_expr(&mut self, lhs: TypedValue, op: Operator, rhs: TypedValue) -> Result<TypedValue>;
     fn compile_cast(&mut self, from: TypedValue, to: ComplexType) -> Result<TypedValue>;
@@ -13,28 +35,6 @@ pub trait LogicCompiler {
 
 impl<'a> LogicCompiler for FunctionCompiler<'a> {
     fn compile_cast(&mut self, from: TypedValue, to: ComplexType) -> Result<TypedValue> {
-        macro_rules! is_int {
-            () => {
-                BasicType::UInt8
-                    | BasicType::UInt16
-                    | BasicType::UInt32
-                    | BasicType::UInt64
-                    | BasicType::USize
-                    | BasicType::Int8
-                    | BasicType::Int16
-                    | BasicType::Int32
-                    | BasicType::Int64
-                    | BasicType::ISize
-                    | BasicType::Char
-            };
-        }
-
-        macro_rules! is_float {
-            () => {
-                BasicType::Float32 | BasicType::Float64
-            };
-        }
-
         let casted = match (&from.ty, &to) {
             (ComplexType::Basic(original), ComplexType::Basic(target)) => match (original, target) {
                 (is_int!(), is_int!()) => self.emit(Insn::IntCast(from.val, target.as_llvm_type(self.cpl), original.is_signed())),
@@ -147,6 +147,19 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
             _ => (),
         }
 
+        let is_signed = if matches!(&lhs.ty, ComplexType::Basic(is_int!())) && matches!(&rhs.ty, ComplexType::Basic(is_int!())) {
+            let lhs_signed =
+                matches!(&lhs.ty, ComplexType::Basic(BasicType::Int8 | BasicType::Int16 | BasicType::Int32 | BasicType::Int64));
+            let rhs_signed =
+                matches!(&rhs.ty, ComplexType::Basic(BasicType::Int8 | BasicType::Int16 | BasicType::Int32 | BasicType::Int64));
+            if rhs_signed != lhs_signed {
+                return Err(compiler_error!(self, "Cannot compare integers of type `{}` and `{}`", lhs.ty.to_string(), rhs.ty.to_string()));
+            }
+            lhs_signed
+        } else {
+            false
+        };
+
         let (val, ty) = match &op {
             Operator::Equals | Operator::NotEquals => {
                 let predicate = match &op {
@@ -162,15 +175,15 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
                         let lhs_nullability = self.emit(Insn::Load(lhs_nullability_ptr, self.cpl.context.get_i8_type()));
                         let rhs_nullability_ptr = self.emit(Insn::GetElementPtr(rhs_val, nullable_llvm_type, 1));
                         let rhs_nullability = self.emit(Insn::Load(rhs_nullability_ptr, self.cpl.context.get_i8_type()));
-                        let nullability_equal = self.emit(Insn::ICmp(predicate, lhs_nullability, rhs_nullability));
+                        let nullability_equal = self.emit(Insn::ICmp(IntPredicate::LLVMIntEQ, lhs_nullability, rhs_nullability));
                         let local_result_ptr = self.emit(Insn::Alloca(self.cpl.context.get_i1_type()));
                         self.emit(Insn::Store(nullability_equal, local_result_ptr));
 
                         let inner_equality_block = self.builder.create_block();
                         let rotated_parent = self.builder.create_block();
 
-                        let const_zero = self.cpl.context.const_int(self.cpl.context.get_i8_type(), 0);
-                        let is_not_null = self.emit(Insn::ICmp(IntPredicate::LLVMIntEQ, lhs_nullability, const_zero));
+                        let const_one = self.cpl.context.const_int(self.cpl.context.get_i8_type(), 1);
+                        let is_not_null = self.emit(Insn::ICmp(IntPredicate::LLVMIntEQ, lhs_nullability, const_one));
 
                         self.emit(Insn::CondBr(is_not_null, inner_equality_block.as_val(), rotated_parent.as_val()));
 
@@ -195,7 +208,11 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
                             self.builder.use_block(&rotated_parent);
 
                             let local_result = self.emit(Insn::Load(local_result_ptr, self.cpl.context.get_i1_type()));
-                            return Ok(TypedValue::new(BasicType::Bool.to_complex(), local_result));
+
+                            let const_true = self.cpl.context.const_int(self.cpl.context.get_i1_type(), 1);
+                            let local_op = self.emit(Insn::ICmp(predicate, local_result, const_true));
+
+                            return Ok(TypedValue::new(BasicType::Bool.to_complex(), local_op));
                         }
                     }
                     ((nullable, ComplexType::Nullable(inner)), (_, ComplexType::Basic(BasicType::Null)))
@@ -216,17 +233,62 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
             Operator::Multiply => (self.emit(Insn::IMul(lhs.val, rhs.val)), lhs.ty),
             Operator::Divide => (self.emit(Insn::UDiv(lhs.val, rhs.val)), lhs.ty),
             Operator::Modulus => (self.emit(Insn::URem(lhs.val, rhs.val)), lhs.ty),
-            Operator::LessThan => (self.emit(Insn::ICmp(IntPredicate::LLVMIntULT, lhs.val, rhs.val)), BasicType::Bool.to_complex()),
-            Operator::GreaterThan => (self.emit(Insn::ICmp(IntPredicate::LLVMIntUGT, lhs.val, rhs.val)), BasicType::Bool.to_complex()),
-            Operator::LessThanOrEquals => (self.emit(Insn::ICmp(IntPredicate::LLVMIntULE, lhs.val, rhs.val)), BasicType::Bool.to_complex()),
-            Operator::GreaterThanOrEquals => {
-                (self.emit(Insn::ICmp(IntPredicate::LLVMIntUGE, lhs.val, rhs.val)), BasicType::Bool.to_complex())
-            }
+            Operator::LessThan => (
+                self.emit(Insn::ICmp(
+                    if is_signed {
+                        IntPredicate::LLVMIntSLT
+                    } else {
+                        IntPredicate::LLVMIntULT
+                    },
+                    lhs.val,
+                    rhs.val,
+                )),
+                BasicType::Bool.to_complex(),
+            ),
+            Operator::GreaterThan => (
+                self.emit(Insn::ICmp(
+                    if is_signed {
+                        IntPredicate::LLVMIntSGT
+                    } else {
+                        IntPredicate::LLVMIntUGT
+                    },
+                    lhs.val,
+                    rhs.val,
+                )),
+                BasicType::Bool.to_complex(),
+            ),
+            Operator::LessThanOrEquals => (
+                self.emit(Insn::ICmp(
+                    if is_signed {
+                        IntPredicate::LLVMIntSLE
+                    } else {
+                        IntPredicate::LLVMIntULE
+                    },
+                    lhs.val,
+                    rhs.val,
+                )),
+                BasicType::Bool.to_complex(),
+            ),
+            Operator::GreaterThanOrEquals => (
+                self.emit(Insn::ICmp(
+                    if is_signed {
+                        IntPredicate::LLVMIntSGE
+                    } else {
+                        IntPredicate::LLVMIntUGE
+                    },
+                    lhs.val,
+                    rhs.val,
+                )),
+                BasicType::Bool.to_complex(),
+            ),
             Operator::BooleanAnd => (self.emit(Insn::IAnd(lhs.val, rhs.val)), BasicType::Bool.to_complex()),
             Operator::BooleanOr => (self.emit(Insn::IOr(lhs.val, rhs.val)), BasicType::Bool.to_complex()),
             op => unimplemented!("not yet implemented: `{:?}`", op),
         };
 
-        Ok(TypedValue::new(ty, val))
+        Ok(TypedValue {
+            ty,
+            val,
+        })
     }
 }

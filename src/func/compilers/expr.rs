@@ -161,6 +161,9 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                                     ));
                                 }
                             }
+                            Expr::FuncCall(_) => {
+                                return Err(compiler_error!(self, "Cannot invoke method on array type `{}`", current.ty.to_string()))
+                            }
                             x => unimplemented!("{:#?}", x),
                         },
                         (MemberType::Array, ComplexType::Array(_)) => match &next_member.value.token {
@@ -765,7 +768,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
 
     fn compile_integer_literal_expr(&mut self, val: i64, type_hint: Option<&ComplexType>) -> Result<TypedValue> {
         let ty = match type_hint {
-            Some(ComplexType::Basic(basic)) => match basic {
+            Some(ComplexType::Basic(basic) | ComplexType::Nullable(box ComplexType::Basic(basic))) => match basic {
                 BasicType::Bool
                 | BasicType::Void
                 | BasicType::Object {

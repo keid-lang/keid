@@ -7,44 +7,44 @@ Newline { "\r\n" | "\n" }
 rule Identifier
     'A-Z' | 'a-z' | '_'
     optional repeated 'A-Z' | 'a-z' | '_' | '0-9'
-end
+end rule
 
 rule TypeModifier
     "public"
-end
+end rule
 
 rule ClassDecl
     $modifiers = optional repeated TypeModifier
     "class"
     move
     $name = Identifier
-end
+end rule
 
 rule Namespace
     Identifier
     optional repeated compound
         "::"
         Identifier
-    end
-end
+    end compound
+end rule
 
 rule NamespaceStatement
     "namespace"
     move
     $ns = Namespace
-end
+end rule
 
 rule ImportStatement
     "import"
     move
     $ns = Namespace
-end
+end rule
 
 rule RootStatement
     move
     $st = ImportStatement | ClassDecl
     Newline
-end
+end rule
 
 rule Program
     optional repeated Newline
@@ -52,4 +52,4 @@ rule Program
     optional repeated Newline
     $st = optional repeated RootStatement
     optional repeated Newline
-end
+end rule
