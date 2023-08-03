@@ -18,6 +18,8 @@ pub trait BlockCompiler {
     fn compile_fixed_block(&mut self, fixed: &FixedBlock) -> Result<bool>;
     fn compile_throw(&mut self, expr: &Token<Expr>) -> Result<()>;
     fn compile_try_catch(&mut self, try_catch: &TryCatch) -> Result<()>;
+    fn compile_continue(&mut self) -> Result<()>;
+    fn compile_break(&mut self) -> Result<()>;
 }
 
 impl<'a> BlockCompiler for FunctionCompiler<'a> {
@@ -69,7 +71,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                     });
 
                     // compile the return statement
-                    let res = self.compile_return(return_val);
+                    let res = self.compile_return(return_val.as_ref());
                     returns = true;
                     // pop the cloned block without keid.scope() by popping the stack directly
                     self.state.block_stack.pop();
@@ -103,6 +105,16 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                     res
                 }
                 Statement::TryCatch(try_catch) => self.compile_try_catch(try_catch),
+                Statement::Continue => {
+                    let res = self.compile_continue();
+                    returns = true;
+                    res
+                }
+                Statement::Break => {
+                    let res = self.compile_break();
+                    returns = true;
+                    res
+                }
                 x => unimplemented!("{:#?}", x),
             };
             match result {
@@ -200,7 +212,11 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
     fn compile_while_loop(&mut self, while_loop: &WhileLoop) -> Result<()> {
         let rotated_parent = self.state.new_rotated_parent(&mut self.builder); // create a copy ("rotation") of the current parent block
         let test_block = self.state.new_rotated_parent(&mut self.builder);
-        let loop_block = self.state.new_rotated_parent(&mut self.builder);
+        let mut loop_block = self.state.new_rotated_parent(&mut self.builder);
+        loop_block.block_type = BlockType::Loop {
+            head: test_block.llvm_block.clone(),
+            after: rotated_parent.llvm_block.clone(),
+        };
 
         self.emit(Insn::Br(test_block.llvm_block.as_val()));
 
@@ -272,6 +288,36 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
             _ => (),
         }
 
+        match self.upcast(source_iterator_ptr.clone(), "core::collections::Iterable", None)? {
+            Some(iterable_ptr) => {
+                let ident = match &iterable_ptr.ty {
+                    ComplexType::Basic(BasicType::Object(ident)) => ident,
+                    _ => unreachable!(),
+                };
+                let interface_id = self.cpl.type_provider.get_resolved_interface_id(ident);
+                let get_iterator_id = 0; // there's only one function (__get_iterator) in core::collections::Iterable<T>
+                let get_iterator_method_ptr =
+                    self.get_interface_method_ptr(&InterfaceInvocation::Instance(iterable_ptr.clone()), interface_id, get_iterator_id)?;
+
+                let get_iterator_method_impl = self
+                    .cpl
+                    .type_provider
+                    .get_function_by_name(
+                        &GenericIdentifier::from_name_with_args("core::collections::Iterable::__get_iterator", &ident.generic_args),
+                        &[iterable_ptr.ty.clone()],
+                    )
+                    .unwrap();
+                let result = self.call_function(get_iterator_method_ptr, &get_iterator_method_impl, &[iterable_ptr.clone()])?;
+
+                source_iterator_ptr = TypedValue::new(
+                    BasicType::Object(GenericIdentifier::from_name_with_args("core::collections::Iterator", &ident.generic_args))
+                        .to_complex(),
+                    result,
+                );
+            }
+            None => (),
+        }
+
         let iterator_ptr = match self.upcast(source_iterator_ptr.clone(), "core::collections::Iterator", None)? {
             Some(iterator_ptr) => iterator_ptr,
             None => {
@@ -308,7 +354,11 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         // If the value is null, then the loop exits and jumps out to `rotated_parent`.
         // Otherwise, if the value is non-null, the loop executes its block `loop_block`.
         let get_next_block = self.state.new_block(&mut self.builder);
-        let loop_block = self.state.new_block(&mut self.builder);
+        let mut loop_block = self.state.new_block(&mut self.builder);
+        loop_block.block_type = BlockType::Loop {
+            head: get_next_block.llvm_block.clone(),
+            after: rotated_parent.llvm_block.clone(),
+        };
 
         self.emit(Insn::Br(get_next_block.llvm_block.as_val()));
 
@@ -370,7 +420,12 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
     fn compile_indefinite_loop(&mut self, indef_loop: &Vec<Token<Statement>>) -> Result<()> {
         let rotated_parent = self.state.new_rotated_parent(&mut self.builder); // create a copy ("rotation") of the current parent block
 
-        let loop_block = self.state.new_block(&mut self.builder); // contains the body of the loop
+        let mut loop_block = self.state.new_block(&mut self.builder); // contains the body of the loop
+        loop_block.block_type = BlockType::Loop {
+            head: loop_block.llvm_block.clone(),
+            after: rotated_parent.llvm_block.clone(),
+        };
+
         let loop_block_llvm = loop_block.llvm_block.as_val();
 
         self.emit(Insn::Br(loop_block_llvm)); // jump to the loop block
@@ -458,5 +513,39 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         self.state.push_block(&self.builder, rotated_parent);
 
         Ok(())
+    }
+
+    fn compile_continue(&mut self) -> Result<()> {
+        for i in (0..self.state.block_stack.len()).rev() {
+            match &self.state.block_stack[i].block_type {
+                BlockType::Loop {
+                    head,
+                    ..
+                } => {
+                    self.emit(Insn::Br(head.as_val()));
+                    return Ok(());
+                }
+                _ => (),
+            }
+        }
+
+        Err(compiler_error!(self, "Cannot continue outside of a loop"))
+    }
+
+    fn compile_break(&mut self) -> Result<()> {
+        for i in (0..self.state.block_stack.len()).rev() {
+            match &self.state.block_stack[i].block_type {
+                BlockType::Loop {
+                    after,
+                    ..
+                } => {
+                    self.emit(Insn::Br(after.as_val()));
+                    return Ok(());
+                }
+                _ => (),
+            }
+        }
+
+        Err(compiler_error!(self, "Cannot break outside of a loop"))
     }
 }

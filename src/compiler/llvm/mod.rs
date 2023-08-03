@@ -32,8 +32,10 @@ pub enum Insn {
     Xor(OpaqueValue, OpaqueValue),
     Trunc(OpaqueValue, OpaqueType), // truncate par0 per the type of par1
     IAdd(OpaqueValue, OpaqueValue),
+    IAnd(OpaqueValue, OpaqueValue),
     ISub(OpaqueValue, OpaqueValue),
     IMul(OpaqueValue, OpaqueValue),
+    IOr(OpaqueValue, OpaqueValue),
     SDiv(OpaqueValue, OpaqueValue),
     SRem(OpaqueValue, OpaqueValue),
     UDiv(OpaqueValue, OpaqueValue),

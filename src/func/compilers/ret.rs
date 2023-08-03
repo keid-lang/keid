@@ -8,18 +8,18 @@ use crate::{
 use super::ExprCompiler;
 
 pub trait ReturnCompiler {
-    fn compile_return(&mut self, return_val: &Option<Token<Expr>>) -> Result<()>;
+    fn compile_return(&mut self, return_val: Option<&Token<Expr>>) -> Result<()>;
 }
 
 impl<'a> ReturnCompiler for FunctionCompiler<'a> {
-    fn compile_return(&mut self, return_val: &Option<Token<Expr>>) -> Result<()> {
+    fn compile_return(&mut self, return_val: Option<&Token<Expr>>) -> Result<()> {
         let return_type = self.resolve_type(&self.func.return_type)?;
         match return_val {
             Some(expr) => {
                 let compiled_expr = self.compile_expr(expr, Some(&return_type))?;
-                self.assert_assignable_to(&compiled_expr.ty, &return_type)?;
-
                 let casted = self.implicit_cast(compiled_expr, &return_type)?;
+
+                self.assert_assignable_to(&casted.ty, &return_type)?;
                 if return_type.is_struct(&self.cpl.type_provider) {
                     let preallocated_return = self.llvm_func.get_param(self.func.params.len() as u32);
                     self.copy(&casted, &TypedValue::new(return_type, preallocated_return))?;

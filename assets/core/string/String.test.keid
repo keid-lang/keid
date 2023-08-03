@@ -15,7 +15,7 @@ function testEmptyString() {
     test.assertEqual(s.chars.length, 0)
 }
 
-function testfromUtf8() {
+function testFromUtf8() {
     let chars = new uint8[65; 5] // 65 == 'A'
     let s = String.fromUtf8(chars)
     test.assertEqual(s, "AAAAA")
@@ -91,4 +91,101 @@ function testStringFromCStr() {
             test.assertEqual(myStringFromCStr, "Hello, I am a String.")
         }
     }
+}
+
+function testIndexOf() {
+    let a = "foobar"
+
+    test.assertNotNull(a.indexOf("b", 0))
+    test.assertEqual(a.indexOf("b", 0)!, 3)
+    test.assertNull(a.indexOf("z", 0))
+    test.assertEqual(a.indexOf("foo", 0)!, 0)
+    test.assertEqual(a.indexOf("bar", 0)!, 3)
+    test.assertEqual(a.indexOf("o", 0)!, 1)
+
+    test.assertNotNull(a.indexOf("b"))
+    test.assertEqual(a.indexOf("b")!, 3)
+    test.assertNull(a.indexOf("z"))
+    test.assertEqual(a.indexOf("foo")!, 0)
+    test.assertEqual(a.indexOf("bar")!, 3)
+    test.assertEqual(a.indexOf("o")!, 1)
+    test.assertEqual(a.indexOf("o", 2)!, 2)
+}
+
+function testSubstring() {
+    let a = "SOMETHING"
+    test.assertEqual(a.substring(0, 1), "S")
+    test.assertEqual(a.substring(1, 2), "O")
+    test.assertEqual(a.substring(a.length - 1, a.length), "G")
+    test.assertEqual(a.substring(0, 4), "SOME")
+    test.assertEqual(a.substringBefore(4), "SOME")
+    test.assertEqual(a.substring(4, 6), "TH")
+    test.assertEqual(a.substring(4, 7), "THI")
+    test.assertEqual(a.substring(4, 8), "THIN")
+    test.assertEqual(a.substring(4, 9), "THING")
+    test.assertEqual(a.substring(4, a.length), "THING")
+    test.assertEqual(a.substringAfter(4), "THING")
+}
+
+function testSplit() {
+    let a = "Hello my name is Foo"
+    let split = a.split(" ")
+
+    test.assertEqual(split.length, 5)
+    test.assertEqual(split.get(0), "Hello")
+    test.assertEqual(split.get(1), "my")
+    test.assertEqual(split.get(2), "name")
+    test.assertEqual(split.get(3), "is")
+    test.assertEqual(split.get(4), "Foo")
+    
+    let a2 = "Hello   my   NAME   is   Foo"
+    let split2 = a2.split("   ")
+
+    test.assertEqual(split2.length, 5)
+    test.assertEqual(split2.get(0), "Hello")
+    test.assertEqual(split2.get(1), "my")
+    test.assertEqual(split2.get(2), "NAME")
+    test.assertEqual(split2.get(3), "is")
+    test.assertEqual(split2.get(4), "Foo")
+
+    let b = "aaabbbaaaaabbb"
+    let split3 = b.split("bb")
+
+    test.assertEqual(split3.length, 3)
+    test.assertEqual(split3.get(0), "aaa")
+    test.assertEqual(split3.get(1), "baaaaa")
+    test.assertEqual(split3.get(2), "b")
+}
+
+function testTrim() {
+    let a = "hello"
+    let aTrim = a.trim()
+    test.assertEqual(a, aTrim)
+    test.assertEqual(aTrim, "hello")
+
+    let b = " hello"
+    let bTrim = b.trim()
+    test.assertNotEqual(b, bTrim)
+    test.assertEqual(bTrim, "hello")
+
+    let c = " \r  \n SAY HELLO   To\nME  "
+    let cTrim = c.trim()
+    test.assertNotEqual(c, cTrim)
+    test.assertEqual(cTrim, "SAY HELLO   To\nME")
+}
+
+function testStartsEndsWith() {
+    let a = "hellogoodbye"
+    test.assertTrue(a.startsWith("h"))
+    test.assertTrue(a.startsWith("hello"))
+    test.assertFalse(a.startsWith("ello"))
+    test.assertTrue(a.startsWith("hellogoodbye"))
+    test.assertFalse(a.startsWith("bye"))
+
+    test.assertTrue(a.endsWith("e"))
+    test.assertTrue(a.endsWith("bye"))
+    test.assertTrue(a.endsWith("goodbye"))
+    test.assertFalse(a.endsWith("goodby"))
+    test.assertTrue(a.endsWith("hellogoodbye"))
+    test.assertFalse(a.endsWith("hello"))
 }

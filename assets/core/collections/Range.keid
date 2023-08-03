@@ -7,6 +7,9 @@ public class Range {
     step: isize // -1 or +1
     current: usize
 
+    /// Creates a new `Range` starting at 0 inclusively and ending at `end` exclusively (i.e. [0..end)).
+    public static create(end: usize): Range => Range.create(0, end)
+
     public static create(start: usize, end: usize): Range {
         let step: isize = 1
         if start > end {

@@ -101,6 +101,10 @@ public class List<T> {
     }
 }
 
+implement <T> Iterable<T> for List<T> {
+    get iterator: Iterator<T> => ListIterator.create<T>(this)
+}
+
 implement <T: ToString + Default> ToString for List<T> {
     toString(): string => array.toString<T>(this.toArray<T>())
 }

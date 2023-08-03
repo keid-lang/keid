@@ -51,10 +51,7 @@ impl<'a> UnaryCompiler for FunctionCompiler<'a> {
                     let value_ptr = self.emit(Insn::GetElementPtr(expr.val, expr.ty.as_llvm_type(self.cpl), 0));
                     let value = TypedValueContainer(TypedValue::new(*inner.clone(), value_ptr)).load(self)?;
 
-                    TypedValue {
-                        ty: *inner.clone(),
-                        val: value,
-                    }
+                    value
                 }
                 _ => {
                     return Err(compiler_error!(

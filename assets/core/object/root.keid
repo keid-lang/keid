@@ -30,6 +30,8 @@ implement ToString for Bool {
 
 public struct Char {
     value: char
+
+    public isWhitespace(): bool => this.value == ' ' || this.value == '\n' || this.value == '\r' || this.value == '\t'
 }
 
 implement ToString for Char {

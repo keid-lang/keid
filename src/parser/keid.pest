@@ -38,9 +38,12 @@ keyword_default = @{ "default" }
 keyword_sizeof = @{ "sizeof" }
 keyword_unsafe = @{ "unsafe" }
 keyword_unreachable = @{ "unreachable" }
+keyword_continue = @{ "continue" }
+keyword_break = @{ "break" }
 
 integer = @{ "-"? ~ (("0x" ~ ('0'..'9' | 'a'..'f' | 'A'..'F')+) | ("0" | '1'..'9' ~ ('0'..'9')*)) }
 string = @{ "\"" ~ (!("\"") ~ ANY)* ~ "\"" }
+char = @{ "'" ~ ("\\"? ~ ANY) ~ "'" }
 boolean = @{ "true" | "false" }
 null = @{ "null" }
 nullable = { "?" }
@@ -193,7 +196,7 @@ operator = _{
 postfix_operator = _{
     op_null_assert ~ !("=")
 }
-logic_val = _{ reference_op | dereference_op | string | integer | match_expr | sizeof_expr | default_expr | specified_array | new_array | new_call | null | boolean | anonymous_struct | member | ("(" ~ logic_expr ~ ")") }
+logic_val = _{ reference_op | dereference_op | string | char | integer | match_expr | sizeof_expr | default_expr | specified_array | new_array | new_call | null | boolean | explicit_anonymous_struct | member | ("(" ~ logic_expr ~ ")") }
 logic_expr = { prefix_operator* ~ logic_val ~ postfix_operator* ~ ((operator ~ prefix_operator* ~ logic_val ~ postfix_operator*) | (op_as ~ variable_type))* }
 
 default_expr = { keyword_default ~ "(" ~ variable_type ~ ")" }
@@ -205,12 +208,13 @@ fixed_block = { keyword_fixed ~ let_statement ~ block }
 
 arrow_expr = { "=>" ~ expr }
 
+explicit_anonymous_struct = _{ "(" ~ anonymous_struct ~ ")" }
 anonymous_struct = { "{" ~ NEWLINE* ~ ((new_call_field | ident) ~ ("," | NEWLINE*))* ~ block_end }
 
 inner_match_catchall = { "_" }
 inner_match_enum = { ident ~ anonymous_struct_type }
 
-match_arg_expr = _{ string | integer | sizeof_expr | default_expr | specified_array | null | boolean | ident }
+match_arg_expr = _{ string | char | integer | sizeof_expr | default_expr | specified_array | null | boolean | ident }
 
 inner_match_arg = _{ (inner_match_catchall | inner_match_enum | match_arg_expr) ~ "=>" }
 inner_match_statement = { inner_match_arg ~ statement } // newline is implied by statement
@@ -218,9 +222,12 @@ inner_match_statement = { inner_match_arg ~ statement } // newline is implied by
 match_block = _{ block_start ~ inner_match_statement+ ~ block_end }
 match_expr = { keyword_match ~ expr ~ match_block }
 
-expr = _{ logic_expr | arrow_expr | reference_op | dereference_op | string | integer | match_expr | sizeof_expr | default_expr | specified_array | new_array | new_call | null | boolean | anonymous_struct | member }
-statement = _{ (try_statement | if_statement | match_expr | for_loop | while_loop | indefinite_loop | unsafe_block | fixed_block | block | assign_statement | import_statement | let_statement | return_statement | unreachable_statement | throw_statement | expr) ~ newline }
-block = { block_start ~ statement* ~ block_end }
+break_statement = { keyword_break }
+continue_statement = { keyword_continue }
+
+expr = _{ logic_expr | arrow_expr | reference_op | dereference_op | string | char | integer | match_expr | sizeof_expr | default_expr | specified_array | new_array | new_call | null | boolean | explicit_anonymous_struct | member }
+statement = _{ (try_statement | break_statement | continue_statement | if_statement | match_expr | for_loop | while_loop | indefinite_loop | unsafe_block | fixed_block | block | assign_statement | import_statement | let_statement | return_statement | unreachable_statement | throw_statement | expr) ~ newline }
+block = { (block_start ~ statement* ~ block_end) | ("{" ~ newline* ~ "}") }
 
 function_modifier = @{ "public" | "static" | "extern" | "unsafe" | "virtual" | "override" }
 function_modifiers = { function_modifier+ }

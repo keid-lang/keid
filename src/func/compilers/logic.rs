@@ -149,9 +149,54 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
 
         let (val, ty) = match &op {
             Operator::Equals | Operator::NotEquals => {
+                let predicate = match &op {
+                    Operator::Equals => IntPredicate::LLVMIntEQ,
+                    Operator::NotEquals => IntPredicate::LLVMIntNE,
+                    x => unreachable!("{:?}", x),
+                };
+
                 let (lhs_val, rhs_val) = match ((lhs.val, &lhs.ty), (rhs.val, &rhs.ty)) {
-                    ((_, ComplexType::Nullable(_)), (_, ComplexType::Nullable(_))) => {
-                        todo!("compare nullables")
+                    ((lhs_val, ComplexType::Nullable(lhs_type)), (rhs_val, ComplexType::Nullable(rhs_type))) => {
+                        let nullable_llvm_type = ComplexType::Nullable(lhs_type.clone()).as_llvm_type(self.cpl);
+                        let lhs_nullability_ptr = self.emit(Insn::GetElementPtr(lhs_val, nullable_llvm_type, 1));
+                        let lhs_nullability = self.emit(Insn::Load(lhs_nullability_ptr, self.cpl.context.get_i8_type()));
+                        let rhs_nullability_ptr = self.emit(Insn::GetElementPtr(rhs_val, nullable_llvm_type, 1));
+                        let rhs_nullability = self.emit(Insn::Load(rhs_nullability_ptr, self.cpl.context.get_i8_type()));
+                        let nullability_equal = self.emit(Insn::ICmp(predicate, lhs_nullability, rhs_nullability));
+                        let local_result_ptr = self.emit(Insn::Alloca(self.cpl.context.get_i1_type()));
+                        self.emit(Insn::Store(nullability_equal, local_result_ptr));
+
+                        let inner_equality_block = self.builder.create_block();
+                        let rotated_parent = self.builder.create_block();
+
+                        let const_zero = self.cpl.context.const_int(self.cpl.context.get_i8_type(), 0);
+                        let is_not_null = self.emit(Insn::ICmp(IntPredicate::LLVMIntEQ, lhs_nullability, const_zero));
+
+                        self.emit(Insn::CondBr(is_not_null, inner_equality_block.as_val(), rotated_parent.as_val()));
+
+                        {
+                            self.builder.append_block(&inner_equality_block);
+                            self.builder.use_block(&inner_equality_block);
+
+                            let lhs_value_ptr = self.emit(Insn::GetElementPtr(lhs_val, nullable_llvm_type, 0));
+                            let lhs_value = TypedValueContainer(TypedValue::new(*lhs_type.clone(), lhs_value_ptr)).load(self)?;
+                            let rhs_value_ptr = self.emit(Insn::GetElementPtr(rhs_val, nullable_llvm_type, 0));
+                            let rhs_value = TypedValueContainer(TypedValue::new(*rhs_type.clone(), rhs_value_ptr)).load(self)?;
+
+                            let result = self.compile_logic_expr(lhs_value, op, rhs_value)?;
+                            self.assert_assignable_to(&result.ty, &BasicType::Bool.to_complex())?;
+
+                            self.emit(Insn::Store(result.val, local_result_ptr));
+                            self.emit(Insn::Br(rotated_parent.as_val()));
+                        }
+
+                        {
+                            self.builder.append_block(&rotated_parent);
+                            self.builder.use_block(&rotated_parent);
+
+                            let local_result = self.emit(Insn::Load(local_result_ptr, self.cpl.context.get_i1_type()));
+                            return Ok(TypedValue::new(BasicType::Bool.to_complex(), local_result));
+                        }
                     }
                     ((nullable, ComplexType::Nullable(inner)), (_, ComplexType::Basic(BasicType::Null)))
                     | ((_, ComplexType::Basic(BasicType::Null)), (nullable, ComplexType::Nullable(inner))) => {
@@ -162,12 +207,6 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
                         (nullability, const_zero)
                     }
                     ((lhs_val, _), (rhs_val, _)) => (lhs_val, rhs_val),
-                };
-
-                let predicate = match &op {
-                    Operator::Equals => IntPredicate::LLVMIntEQ,
-                    Operator::NotEquals => IntPredicate::LLVMIntNE,
-                    x => unreachable!("{:?}", x),
                 };
 
                 (self.emit(Insn::ICmp(predicate, lhs_val, rhs_val)), BasicType::Bool.to_complex())
@@ -183,12 +222,11 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
             Operator::GreaterThanOrEquals => {
                 (self.emit(Insn::ICmp(IntPredicate::LLVMIntUGE, lhs.val, rhs.val)), BasicType::Bool.to_complex())
             }
+            Operator::BooleanAnd => (self.emit(Insn::IAnd(lhs.val, rhs.val)), BasicType::Bool.to_complex()),
+            Operator::BooleanOr => (self.emit(Insn::IOr(lhs.val, rhs.val)), BasicType::Bool.to_complex()),
             op => unimplemented!("not yet implemented: `{:?}`", op),
         };
 
-        Ok(TypedValue {
-            ty,
-            val,
-        })
+        Ok(TypedValue::new(ty, val))
     }
 }

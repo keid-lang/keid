@@ -10,7 +10,7 @@ function fail(msg: string) {
     throw assertionError(msg)
 }
 
-let DEBUG_LEVEL: uint32 = 0
+let DEBUG_LEVEL: uint32 = 1
 
 function pass(msg: string) {
     if DEBUG_LEVEL >= 1 {
@@ -24,9 +24,11 @@ function pass(msg: string) {
 function assert(cond: bool, msg: string) {
     if cond {
         pass(msg)
-    } else {
-        fail(msg)
+        return
     }
+
+    // TODO: make this an else
+    fail(msg)
 }
 
 public function assertTrue(cond: bool) {
@@ -48,6 +50,14 @@ public function assertNotEqual(a: string, b: string) {
 macro $DEFINE_INT_ASSERTION(#type, #operator, #name)
     public function assert#name(a: #type, b: #type) {
         assert(a #operator b, string.format(a.toString(), " #operator ", b.toString()))
+    }
+
+    public function assertNull(val: ?#type) {
+        assert(val == null, string.format("null == null"))
+    }
+
+    public function assertNotNull(val: ?#type) {
+        assert(val != null, string.format("#type != null"))
     }
 end macro
 

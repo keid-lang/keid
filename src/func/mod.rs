@@ -68,7 +68,7 @@ impl<'a> FunctionCompiler<'a> {
     pub fn compile(&mut self) {
         match self.compile_function_body() {
             Err(e) => self.state.errors.push(e),
-            _ => (),
+            _ => self.builder.finish(),
         }
     }
 
@@ -192,14 +192,7 @@ impl<'a> FunctionCompiler<'a> {
             if body.len() == 1 {
                 match body[0].token.clone() {
                     Statement::ArrowExpr(expr) => {
-                        let return_type = self.resolve_type(&self.func.return_type)?;
-                        let expr = self.compile_expr(&expr, Some(&return_type))?;
-
-                        self.assert_assignable_to(&expr.ty, &return_type)?;
-
-                        self.pop_block()?;
-                        self.pop_stack_frame()?;
-                        self.emit(Insn::Ret(expr.val));
+                        self.compile_return(Some(&expr))?;
 
                         return Ok(());
                     }
@@ -450,77 +443,6 @@ impl<'a> FunctionCompiler<'a> {
                 .to_string(),
             utils::iter_join(&evaluated_arguments),
         ))
-    }
-
-    fn resolve_instance_function(
-        &mut self,
-        fc: &FuncCall,
-        instance: &TypedValue,
-        args: &[Token<Expr>],
-    ) -> Result<(ResolvedFunctionNode, Vec<TypedValue>)> {
-        let generic_args = self.parse_generic_args(&fc.generic_args)?;
-        Ok(match &instance.ty {
-            ComplexType::Basic(BasicType::Object(ident)) => {
-                let func = GenericIdentifier::from_name_with_args(&format!("{}::{}", ident.name, fc.name.token.0), &generic_args);
-                match self.find_function(&func, args, Some(instance.clone()))? {
-                    Some(func) => func,
-                    None => {
-                        let resolved_interface_impls = self.cpl.type_provider.get_resolved_interface_impls(ident);
-                        for resolved_interface_impl in resolved_interface_impls {
-                            let (module_id, function_ids) = {
-                                let source_impl = self.cpl.type_provider.get_source_interface_impl(&resolved_interface_impl);
-                                (source_impl.module_id, source_impl.functions.clone())
-                            };
-                            for function_id in function_ids {
-                                let function_base_name =
-                                    self.cpl.type_provider.get_function_node(module_id, function_id).unwrap().base_name.clone();
-                                if function_base_name.contains(&format!("::{}#__impl#", fc.name.token.0)) {
-                                    match self.find_function(
-                                        &GenericIdentifier::from_name_with_args(
-                                            &function_base_name,
-                                            &resolved_interface_impl.generic_impls,
-                                        ),
-                                        args,
-                                        Some(instance.clone()),
-                                    )? {
-                                        Some(func) => return Ok(func),
-                                        None => (),
-                                    }
-                                }
-                            }
-                        }
-
-                        let mut similar_methods = Vec::new();
-                        let candidates = self.cpl.type_provider.get_functions_by_name(&func);
-                        for candidate in candidates {
-                            if let Ok(candidate) = candidate {
-                                similar_methods.push(format!(
-                                    "{}({}): {}",
-                                    candidate.callable_name,
-                                    utils::iter_join(&candidate.params),
-                                    candidate.return_type.to_string(),
-                                ));
-                            }
-                        }
-
-                        let evaluated_args = args
-                            .iter()
-                            .map(|arg| self.compile_expr(arg, None).map(|arg| arg.ty.to_string()))
-                            .collect::<Result<Vec<String>>>()?;
-                        self.loc(&fc.name.loc);
-                        return Err(compiler_error!(
-                            self,
-                            "No such method overload `{}({})` in type `{}` or derived interface implementations\n        hint: the following overloads exist:\n        {}",
-                            func.to_string(),
-                            utils::iter_join(&evaluated_args),
-                            ident.to_string(),
-                            similar_methods.join("\n        "),
-                        ));
-                    }
-                }
-            }
-            other => return Err(compiler_error!(self, "No such method in non-object type `{}::{}`", other.to_string(), fc.name.token.0,)),
-        })
     }
 
     fn add_call_site_attributes(&self, call_site: OpaqueValue, func: &ResolvedFunctionNode) {

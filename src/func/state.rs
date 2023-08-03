@@ -22,6 +22,10 @@ pub enum BlockType {
     Generic,
     Unsafe,
     Try(TryBlock),
+    Loop {
+        head: BuilderBlock,
+        after: BuilderBlock,
+    },
 }
 
 #[derive(Debug, Clone)]

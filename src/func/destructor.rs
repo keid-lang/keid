@@ -46,7 +46,7 @@ impl<'a> DestructorCompiler for FunctionCompiler<'a> {
                 let field_ptr = self.emit(Insn::GetElementPtr(this.val, this_type, 2 + i as u32)); // offset of 2 for (ref count) + (classinfo ptr)
                 let field = TypedValueContainer(TypedValue::new(field_type.clone(), field_ptr)).load(self)?;
 
-                self.try_unscope(&TypedValue::new(field_type.clone(), field))?;
+                self.try_unscope(&field)?;
             } else if matches!(
                 field_type,
                 ComplexType::Nullable(box ComplexType::Basic(BasicType::Object {

@@ -421,6 +421,8 @@ pub enum Statement {
     Unreachable,
     Throw(Token<Expr>),
     TryCatch(TryCatch),
+    Break,
+    Continue,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -532,6 +534,7 @@ pub enum Expr {
     Null,
     BoolLit(bool),
     StringLit(String),
+    CharLit(char),
     SignedIntLit(i64),
     EnumWithData(EnumWithDataExpr),
     FuncCall(FuncCall),

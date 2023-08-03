@@ -87,7 +87,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                             token: Identifier("element".to_owned()),
                         },
                     )?;
-                    return Ok(TypedValue::new(element_ptr.get_type(), element_ptr.load(self)?));
+                    return Ok(element_ptr.load(self)?);
                 }
             }
             _ => (),
@@ -315,10 +315,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
         let element_ptr = self.get_array_element_ptr(slice, index)?;
         let element = TypedValueContainer(TypedValue::new(element_type.clone(), element_ptr)).load(self)?;
 
-        Ok(TypedValue {
-            ty: element_type,
-            val: element,
-        })
+        Ok(element)
     }
 
     fn store_array_element(&mut self, slice: &TypedValue, value: &TypedValue, index: &TypedValue, was_null: bool) -> Result<()> {
@@ -355,7 +352,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                 self.emit(Insn::Store(local_val, dest_val_ptr));
 
                 let local_val = TypedValueContainer(TypedValue::new(*inner.clone(), casted_val_ptr)).load(self)?;
-                self.copy(&TypedValue::new(*inner.clone(), local_val), &TypedValue::new(*inner.clone(), dest_val_ptr))?;
+                self.copy(&local_val, &TypedValue::new(*inner.clone(), dest_val_ptr))?;
 
                 let nullable_val = self.emit(Insn::Load(casted_nullable_ptr, self.cpl.context.get_i8_type()));
                 self.emit(Insn::Store(nullable_val, dest_nullable_ptr));

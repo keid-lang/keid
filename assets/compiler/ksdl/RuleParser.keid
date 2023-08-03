@@ -1,0 +1,15 @@
+namespace keidc::ksdl
+
+import (
+    core::collections
+)
+
+public function parseKsdl(ksdl: string): List<Rule> {
+    let lines = ksdl.split("\n")
+    for line in lines {
+        std::io.println("Line: ", line.trim())
+    }
+
+    let rules = List.empty<Rule>()
+    return rules
+}

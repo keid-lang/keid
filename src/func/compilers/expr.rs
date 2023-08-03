@@ -47,10 +47,13 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
         Ok(match &expr.token {
             Expr::SignedIntLit(val) => self.compile_integer_literal_expr(*val, type_hint)?,
             Expr::StringLit(str) => self.compile_string_literal_expr(str)?,
+            Expr::CharLit(ch) => {
+                TypedValue::new(BasicType::Char.to_complex(), self.cpl.context.const_int(self.cpl.context.get_i64_type(), *ch as u64))
+            }
             Expr::Ident(ident) => {
                 let field_ref = self.resolve_static_field_reference(&Qualifier(vec![ident.clone()]))?;
                 let container = TypedValueContainer(field_ref);
-                TypedValue::new(container.get_type(), container.load(self)?)
+                container.load(self)?
             }
             Expr::Reference(expr) => {
                 let compiled_expr = self.compile_expr(expr, None)?;
@@ -213,23 +216,17 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                             match &next_member.value.token {
                                 Expr::Ident(field_name) => {
                                     let member = self.resolve_class_member_ptr(&instance, &class_impl, field_name)?;
-                                    let val = member.load(self)?;
-                                    current = TypedValue {
-                                        val,
-                                        ty: member.get_type(),
-                                    };
+                                    current = member.load(self)?;
                                 }
                                 Expr::Unary(unary) => match &unary.value.token {
                                     Expr::Ident(field_name) => {
                                         let member = self.resolve_class_member_ptr(&instance, &class_impl, field_name)?;
                                         let expr = member.load(self)?;
-                                        current = self.compile_unary_expr(
-                                            unary.op,
-                                            &TypedValue {
-                                                val: expr,
-                                                ty: member.get_type(),
-                                            },
-                                        )?;
+                                        current = self.compile_unary_expr(unary.op, &expr)?;
+                                    }
+                                    Expr::FuncCall(fc) => {
+                                        let call = self.compile_instance_func_call(fc, &instance)?;
+                                        current = self.compile_unary_expr(unary.op, &call)?;
                                     }
                                     x => unreachable!("{:?}", x),
                                 },
@@ -310,7 +307,13 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                     let cast_target = self.resolve_type(&cast_target.complex)?;
                     self.compile_cast(lhs, cast_target)?
                 } else {
-                    let rhs = self.compile_expr(&logic.rhs, Some(&lhs.ty))?;
+                    let mut rhs = self.compile_expr(&logic.rhs, Some(&lhs.ty))?;
+                    // We never want to implicitly cast "null" in a logical expression because it holds special significance in this scenario.
+                    // If we implicitly cast it to a nullable type, this will attempt to compare their nullability AND their inner equality should they both be non-null.
+                    // Performing an explicit null check should NOT trigger an inner equality check.
+                    if rhs.ty != BasicType::Null.to_complex() {
+                        rhs = self.implicit_cast(rhs, &lhs.ty)?;
+                    }
                     self.compile_logic_expr(lhs, logic.op, rhs)?
                 }
             }
@@ -339,7 +342,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                 self.compile_new_enum_member(&declaring_type, &enum_with_data.member.token.0, Some(enum_with_data.data.clone()))?
             }
             Expr::Match(mtch) => self.compile_match_expr(mtch)?,
-            x => unimplemented!("{:#?}", x),
+            _ => return Err(compiler_error!(self, "Unimplemented expression type")),
         })
     }
 
@@ -427,6 +430,9 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                     ..
                 }
                 | MatchExprBranchArg::Enum(member) => {
+                    if !matches!(value.ty, ComplexType::Basic(BasicType::Object(_))) {
+                        return Err(compiler_error!(self, "Expecting value of enum type but received `{}`", value.ty.to_string()));
+                    }
                     let resolved = self.resolve_enum_variant(&GenericIdentifier::from_complex_type(&value.ty), &member.token.0)?;
                     let test_variant_id_ptr = self.emit(Insn::GetElementPtr(value.val, value.ty.as_llvm_type(self.cpl), 0));
                     let test_variant_id = self.emit(Insn::Load(test_variant_id_ptr, self.cpl.context.get_i32_type()));
@@ -497,7 +503,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
 
         let loaded_result = match prealloc_result.ty {
             ComplexType::Basic(BasicType::Void) => prealloc_result.val,
-            _ => TypedValueContainer(prealloc_result.clone()).load(self)?,
+            _ => TypedValueContainer(prealloc_result.clone()).load(self)?.val,
         };
         Ok(TypedValue::new(prealloc_result.ty, loaded_result))
     }

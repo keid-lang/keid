@@ -355,14 +355,19 @@ impl TypeProvider {
     }
 
     pub fn has_any_function_by_name(&self, name: &str) -> bool {
+        self.get_all_functions_by_name(name).len() > 0
+    }
+
+    pub fn get_all_functions_by_name(&self, name: &str) -> Vec<&FunctionNode> {
+        let mut results = Vec::new();
         for functions in self.roots.iter().map(|root| &root.functions) {
             for function in functions {
                 if function.base_name == name {
-                    return true;
+                    results.push(function);
                 }
             }
         }
-        false
+        results
     }
 
     pub fn get_functions_by_name(&self, object_type: &GenericIdentifier) -> Vec<anyhow::Result<ResolvedFunctionNode>> {

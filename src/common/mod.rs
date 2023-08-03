@@ -75,7 +75,7 @@ pub trait ValueContainer {
     /// gets the type of the value
     fn get_type(&self) -> ComplexType;
     /// loads `self` and returns the value
-    fn load(&self, fc: &mut FunctionCompiler) -> Result<OpaqueValue>;
+    fn load(&self, fc: &mut FunctionCompiler) -> Result<TypedValue>;
     /// stores `val` into `self`
     fn store(&self, op: Operator, fc: &mut FunctionCompiler, val: TypedValue) -> Result<()>;
 }
@@ -84,11 +84,11 @@ pub trait ValueContainer {
 pub struct TypedValueContainer(pub TypedValue);
 
 impl ValueContainer for TypedValueContainer {
-    fn load(&self, fc: &mut FunctionCompiler) -> Result<OpaqueValue> {
+    fn load(&self, fc: &mut FunctionCompiler) -> Result<TypedValue> {
         if self.0.ty.is_struct(&fc.cpl.type_provider) {
-            Ok(self.0.val)
+            Ok(TypedValue::new(self.0.ty.clone(), self.0.val))
         } else {
-            Ok(fc.emit(Insn::Load(self.0.val, self.0.ty.as_llvm_type(fc.cpl))))
+            Ok(TypedValue::new(self.0.ty.clone(), fc.emit(Insn::Load(self.0.val, self.0.ty.as_llvm_type(fc.cpl)))))
         }
     }
 
@@ -112,9 +112,12 @@ impl AccessorValueContainer {
 }
 
 impl ValueContainer for AccessorValueContainer {
-    fn load(&self, fc: &mut FunctionCompiler) -> Result<OpaqueValue> {
+    fn load(&self, fc: &mut FunctionCompiler) -> Result<TypedValue> {
         let func_value = fc.get_function_ref(&self.0)?;
-        fc.call_function(func_value, &self.0, &[TypedValue::new(self.0.params[0].clone(), self.1)])
+        Ok(TypedValue::new(
+            self.0.return_type.clone(),
+            fc.call_function(func_value, &self.0, &[TypedValue::new(self.0.params[0].clone(), self.1)])?,
+        ))
     }
 
     fn store(&self, _: Operator, _: &mut FunctionCompiler, _: TypedValue) -> Result<()> {

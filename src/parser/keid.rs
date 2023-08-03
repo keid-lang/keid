@@ -60,6 +60,15 @@ fn parse_string_lit(str: Pair<Rule>) -> String {
     slice.to_owned()
 }
 
+fn parse_char_lit(str: Pair<Rule>) -> char {
+    let raw = str.as_str();
+    let slice = &raw[1..raw.len() - 1].replace("\\n", "\n").replace("\\t", "\t").replace("\\r", "\r");
+    if slice.len() != 1 {
+        panic!("invalid char constant: {}", raw);
+    }
+    slice.chars().next().unwrap()
+}
+
 fn parse_sint_lit(int: Pair<Rule>) -> Result<i64> {
     let mut radix = 10;
     let mut str = int.as_str().to_owned();
@@ -262,6 +271,7 @@ fn parse_expr(pair: Pair<Rule>) -> Result<Token<Expr>> {
         Rule::null => Expr::Null,
         Rule::boolean => Expr::BoolLit(pair.as_str() == "true"),
         Rule::string => Expr::StringLit(parse_string_lit(pair)),
+        Rule::char => Expr::CharLit(parse_char_lit(pair)),
         Rule::integer => Expr::SignedIntLit(parse_sint_lit(pair)?),
         Rule::enum_with_data_ref => Expr::EnumWithData(parse_enum_with_data(pair.into_inner())?),
         Rule::func_call => Expr::FuncCall(parse_func_call(pair.into_inner())?),
@@ -288,7 +298,7 @@ fn parse_subslice_expr(mut pairs: Pairs<Rule>) -> Result<SubsliceExpr> {
     let mut end = None;
     let mut crossed_separator = false;
     loop {
-       match pairs.next() {
+        match pairs.next() {
             Some(pair) => {
                 if pair.as_rule() == Rule::array_slice_separator {
                     crossed_separator = true;
@@ -299,9 +309,9 @@ fn parse_subslice_expr(mut pairs: Pairs<Rule>) -> Result<SubsliceExpr> {
                         start = Some(Box::new(parse_expr(pair)?));
                     }
                 }
-            },
+            }
             None => break,
-       }
+        }
     }
     Ok(SubsliceExpr {
         start,
@@ -613,6 +623,8 @@ fn parse_statement(pair: Pair<Rule>) -> Result<Token<Statement>> {
             Rule::unreachable_statement => Statement::Unreachable,
             Rule::throw_statement => Statement::Throw(parse_throw_statement(inner)?),
             Rule::try_statement => Statement::TryCatch(parse_try_catch_statement(inner)?),
+            Rule::continue_statement => Statement::Continue,
+            Rule::break_statement => Statement::Break,
             _ => Statement::Expr(parse_expr(pair)?),
         },
     ))

@@ -1,6 +1,8 @@
 namespace core::string
 
 import (
+    core::collections
+    core::error
     core::mem
     core::object
     core::ops
@@ -11,6 +13,8 @@ public class String {
 
     public get length: usize => this.chars.length
 
+    /// Gets the length of a NUL-terminated 7-bit ASCII encoded string.
+    /// Analogous to `strlen` in libc.
     static unsafe getCStrLength(cstr: Pointer<uint8>): usize {
         let currentPtr = cstr
         let size: usize = 0
@@ -24,6 +28,8 @@ public class String {
         }
     }
 
+    /// Returns a new string object by reading a NUL-terminated 7-bit ASCII encoded string.
+    /// This function should never be used on strings that are not 7-bit ASCII encoded.
     public static unsafe fromCStr(cstr: Pointer<uint8>): string {
         let len = string.getCStrLength(cstr)
         if len == 0 {
@@ -71,6 +77,112 @@ public class String {
         }
         return terminated
     }
+
+    /// Returns the character index of the `substr` within this string, or `null` if no match exists.
+    /// If `substr` is empty, then `0` is returned.
+    public indexOf(substr: string, from: usize): ?usize {
+        if substr.length == 0 {
+            return 0
+        }
+        if (from + substr.length) > this.length {
+            return null
+        }
+
+        let streak: usize = 0
+        for i in range.create(from, this.length) {
+            if this.chars[i] != substr.chars[streak] {
+                streak = 0
+            }
+            // TODO: change to "else"
+            if this.chars[i] == substr.chars[streak] {
+                streak += 1
+            }
+            if streak == substr.length {
+                return (i + 1) - streak
+            }
+        }
+
+        return null
+    }
+
+    /// Returns a new string containing the characters of this string from [start..end).
+    public substring(start: usize, end: usize): string {
+        if end <= start {
+            throw Error.create("substring `end` must be greater than `start`")
+        }
+        if end > this.length {
+            throw error.indexOutOfBounds(end)
+        }
+        let charsCopy = new char[default(char); end - start]
+        array.copy<char>(this.chars, start, charsCopy, 0, end - start)
+        return new string {
+            chars = charsCopy
+        }
+    }
+
+    /// Returns a substring containing the characters of this string only at and after `start`.
+    public substringAfter(start: usize): string => this.substring(start, this.length)
+
+    /// Returns a substring containing the first character (inclusive) of this string until the `end` index (exclusive).
+    public substringBefore(end: usize): string => this.substring(0, end)
+
+    /// Equivalent to `indexOf(substr, 0)`.
+    public indexOf(substr: string): ?usize => this.indexOf(substr, 0)
+
+    /// Splits the string on the given delimeter.
+    /// The returned List contains each substring separated by the delimeter.
+    /// If the string does not contain the delimeter, then the entire string is returned as the only element in the list.
+    public split(delim: string): List<string> {
+        let parts = List.empty<string>()
+
+        let prevCursor: usize = 0
+        loop {
+            let next = this.indexOf(delim, prevCursor)
+            if next == null {
+                if prevCursor < this.length {
+                    parts.push(this.substringAfter(prevCursor))
+                }
+                return parts
+            }
+
+            if prevCursor == next! {
+                prevCursor += delim.length
+                continue
+            }
+
+            parts.push(this.substring(prevCursor, next!))
+            prevCursor = next! + delim.length
+        }
+
+        unreachable
+    }
+
+    /// Returns a new substring with all whitespace characters at the start and end of this string removed.
+    public trim(): string {
+        let start: usize = 0
+        while this.chars[start].isWhitespace() {
+            start += 1
+        }
+
+        let end: usize = this.length - 1
+        while this.chars[end].isWhitespace() {
+            end -= 1
+        }
+
+        return this.substring(start, end + 1)
+    }
+
+    /// Returns true if the start of this string matches the substring entirely, otherwise false.
+    public startsWith(substr: string): bool {
+        let idx = this.indexOf(substr)
+        if idx == null {
+            return false
+        }
+        return idx == 0
+    }
+
+    /// Returns true if the end of this string matches the substring entirely, otherwise false.
+    public endsWith(substr: string): bool => this.indexOf(substr) == this.length - substr.length
 }
 
 implement ToString for String {

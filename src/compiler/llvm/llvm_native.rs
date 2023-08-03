@@ -931,12 +931,22 @@ impl InsnBuilder {
         unsafe {
             let current_block = LLVMGetInsertBlock(self.bdl);
             if !current_block.is_null() {
-                let first = LLVMGetFirstInstruction(current_block);
-                if first.is_null() {
+                if LLVMGetFirstInstruction(current_block).is_null() {
                     panic!("cannot call use_block if the previous block has no instructions");
                 }
             }
             LLVMPositionBuilderAtEnd(self.bdl, block.block);
+        }
+    }
+
+    pub fn finish(&self) {
+        unsafe {
+            let current_block = LLVMGetInsertBlock(self.bdl);
+            if !current_block.is_null() {
+                if LLVMGetFirstInstruction(current_block).is_null() {
+                    LLVMDeleteBasicBlock(current_block);
+                }
+            }
         }
     }
 
@@ -1006,6 +1016,8 @@ impl InsnBuilder {
                 Insn::Xor(lhs, rhs) => LLVMBuildXor(self.bdl, lhs.0, rhs.0, insn_name),
                 Insn::Trunc(val, cast) => LLVMBuildTrunc(self.bdl, val.0, cast.0, insn_name),
                 Insn::IAdd(lhs, rhs) => LLVMBuildAdd(self.bdl, lhs.0, rhs.0, insn_name),
+                Insn::IAnd(lhs, rhs) => LLVMBuildAnd(self.bdl, lhs.0, rhs.0, insn_name),
+                Insn::IOr(lhs, rhs) => LLVMBuildOr(self.bdl, lhs.0, rhs.0, insn_name),
                 Insn::ISub(lhs, rhs) => LLVMBuildSub(self.bdl, lhs.0, rhs.0, insn_name),
                 Insn::IMul(lhs, rhs) => LLVMBuildMul(self.bdl, lhs.0, rhs.0, insn_name),
                 Insn::SDiv(lhs, rhs) => LLVMBuildSDiv(self.bdl, lhs.0, rhs.0, insn_name),
