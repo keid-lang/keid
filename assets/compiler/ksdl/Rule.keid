@@ -1,0 +1,68 @@
+namespace keidc::ksdl
+
+import (
+    core::collections
+)
+
+public class RuleState {
+    moved: bool
+    skipWhitespace: bool
+    groups: List<ParserGroup>
+}
+
+public enum RuleResult {
+    Success {
+        data: ParsedRule
+    }
+    SoftFail
+    HardFail
+}
+
+public class Rule {
+    name: string
+    statements: List<ParserStatement>
+
+    public parse(text: string): RuleResult {
+        let reader = TokenReader.create(text)
+        return this.parse(reader)
+    }
+
+    public parse(reader: TokenReader): RuleResult {
+        let state = new RuleState {
+            moved = false
+            skipWhitespace = true
+            groups = List.empty<ParserGroup>()
+        }
+
+        let start = reader.cursor
+        for statement in this.statements {
+            if state.skipWhitespace {
+                while reader.currentCharacter == ' ' {
+                    reader.advance(1)
+                }
+            }
+            let result = statement.execute(reader, state)
+            match result {
+                Failure => {
+                    if state.moved {
+                        return RuleResult.HardFail
+                    }
+                    return RuleResult.SoftFail
+                }
+                _ => {}
+            }
+        }
+
+        let length = reader.cursor - start
+        return new RuleResult.Success {
+            data = new ParsedRule {
+                rule = this.name
+                token = new Token {
+                    start
+                    length
+                }
+                groups = state.groups
+            }
+        }
+    }
+}

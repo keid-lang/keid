@@ -140,7 +140,9 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                                 let expr = self.compile_expr(arg, Some(type_hint));
                                 match expr {
                                     Ok(expr) => match type_hint {
-                                        ComplexType::Basic(BasicType::Object(_)) => self.autobox_primitive(expr.clone()),
+                                        ComplexType::Basic(BasicType::Object(_)) => {
+                                            self.autobox_primitive(expr.clone())
+                                        }
                                         _ => self.implicit_cast(expr, &type_hint),
                                     },
                                     _ => expr,
@@ -254,20 +256,40 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
         self.compile_func_call(func_ref, &callable, &args)
     }
 
-    fn compile_instance_func_call(&mut self, fc: &FuncCall, instance: &TypedValue) -> Result<TypedValue> {
+    fn compile_instance_func_call(
+        &mut self,
+        fc: &FuncCall,
+        instance: &TypedValue,
+    ) -> Result<TypedValue> {
         let generic_args = self.parse_generic_args(&fc.generic_args)?;
         let ident = GenericIdentifier::from_complex_type(&instance.ty);
 
-        let (mut candidates, is_interface) = match self.cpl.type_provider.get_class_by_name(&ident) {
+        let (mut candidates, is_interface) = match self.cpl.type_provider.get_class_by_name(&ident)
+        {
             Some(class) => match class.class_type {
                 ClassType::Interface => (
                     {
-                        let interface = self.cpl.type_provider.get_class_node(class.module_id, class.source_id).unwrap();
+                        let interface = self
+                            .cpl
+                            .type_provider
+                            .get_class_node(class.module_id, class.source_id)
+                            .unwrap();
                         match interface.functions.iter().position(|id| {
-                            get_type_leaf(&self.cpl.type_provider.get_function_node(interface.module_id, *id).unwrap().base_name)
-                                == fc.name.token.0
+                            get_type_leaf(
+                                &self
+                                    .cpl
+                                    .type_provider
+                                    .get_function_node(interface.module_id, *id)
+                                    .unwrap()
+                                    .base_name,
+                            ) == fc.name.token.0
                         }) {
-                            Some(function_id) => vec![(class.source_id, function_id, interface.base_name.clone(), class.generic_impls)],
+                            Some(function_id) => vec![(
+                                self.cpl.type_provider.get_resolved_interface_id(&ident),
+                                function_id,
+                                interface.base_name.clone(),
+                                class.generic_impls,
+                            )],
                             None => vec![],
                         }
                     },
@@ -277,7 +299,13 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
             },
             None => match self.cpl.type_provider.get_enum_by_name(&ident) {
                 Some(_) => (vec![], false),
-                None => return Err(compiler_error!(self, "[ER3] Could not resolve type `{}`", ident.to_string())),
+                None => {
+                    return Err(compiler_error!(
+                        self,
+                        "[ER3] Could not resolve type `{}`",
+                        ident.to_string()
+                    ))
+                }
             },
         };
 
@@ -291,20 +319,35 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                     return Ok(TypedValue::new(func.return_type.clone(), res));
                 }
                 None => {
-                    let resolved_interface_impls = self.cpl.type_provider.get_resolved_interface_impls(&ident);
+                    let resolved_interface_impls =
+                        self.cpl.type_provider.get_resolved_interface_impls(&ident);
                     for resolved_interface_impl in &resolved_interface_impls {
-                        let interface_impl = self.cpl.type_provider.get_source_interface_impl(resolved_interface_impl);
-                        let interface = self.cpl.type_provider.get_impl_source_interface(interface_impl);
-                        for (i, function_id) in interface.functions.clone().into_iter().enumerate() {
-                            let function_name =
-                                self.cpl.type_provider.get_function_node(interface.module_id, function_id).unwrap().base_name.clone();
+                        let interface_impl = self
+                            .cpl
+                            .type_provider
+                            .get_source_interface_impl(resolved_interface_impl);
+                        let interface = self
+                            .cpl
+                            .type_provider
+                            .get_impl_source_interface(interface_impl);
+                        for (i, function_id) in interface.functions.clone().into_iter().enumerate()
+                        {
+                            let function_name = self
+                                .cpl
+                                .type_provider
+                                .get_function_node(interface.module_id, function_id)
+                                .unwrap()
+                                .base_name
+                                .clone();
                             let function_name = get_type_leaf(&function_name);
                             if function_name == fc.name.token.0 {
                                 candidates.push((
-                                    self.cpl.type_provider.get_resolved_interface_id(&GenericIdentifier::from_name_with_args(
-                                        &interface.base_name,
-                                        &resolved_interface_impl.interface_generic_impls,
-                                    )),
+                                    self.cpl.type_provider.get_resolved_interface_id(
+                                        &GenericIdentifier::from_name_with_args(
+                                            &interface.base_name,
+                                            &resolved_interface_impl.interface_generic_impls,
+                                        ),
+                                    ),
                                     i,
                                     interface.base_name.clone(),
                                     resolved_interface_impl.interface_generic_impls.clone(),
@@ -341,31 +384,66 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                             "{}({})",
                             similar_method.base_name,
                             utils::iter_join(
-                                &similar_method.params.iter().skip(1).map(|param| param.ty.to_string()).collect::<Vec<String>>()
+                                &similar_method
+                                    .params
+                                    .iter()
+                                    .skip(1)
+                                    .map(|param| param.ty.to_string())
+                                    .collect::<Vec<String>>()
                             )
                         )
                     })
                     .collect::<Vec<String>>();
 
-                Err(compiler_error!(self, "{}{}", err_text, similar_methods.join(", ")))
+                Err(compiler_error!(
+                    self,
+                    "{}{}",
+                    err_text,
+                    similar_methods.join(", ")
+                ))
             } else {
-                Err(compiler_error!(self, "No such instance method `{}::{}`", ident.to_string(), fc.name.token.0))
+                Err(compiler_error!(
+                    self,
+                    "No such instance method `{}::{}`",
+                    ident.to_string(),
+                    fc.name.token.0
+                ))
             }
         } else if candidates.len() > 1 {
-            Err(compiler_error!(self, "Ambiguous call to method `{}::{}`", ident.to_string(), fc.name.token.0))
+            Err(compiler_error!(
+                self,
+                "Ambiguous call to method `{}::{}`",
+                ident.to_string(),
+                fc.name.token.0
+            ))
         } else {
-            let (source_id, function_id, interface_name, interface_generic_impls) = candidates.remove(0);
-            let interface_func_ident =
-                GenericIdentifier::from_name_with_args(&format!("{}::{}", interface_name, fc.name.token.0), &interface_generic_impls);
-            let (interface_func_impl, evaluated_args) = match self.find_function(&interface_func_ident, &fc.args, Some(instance.clone()))? {
+            let (source_id, function_id, interface_name, interface_generic_impls) =
+                candidates.remove(0);
+            let interface_func_ident = GenericIdentifier::from_name_with_args(
+                &format!("{}::{}", interface_name, fc.name.token.0),
+                &interface_generic_impls,
+            );
+            let (interface_func_impl, evaluated_args) = match self.find_function(
+                &interface_func_ident,
+                &fc.args,
+                Some(instance.clone()),
+            )? {
                 Some(interface_func_impl) => interface_func_impl,
                 None => {
                     self.loc(&fc.name.loc);
-                    return Err(compiler_error!(self, "Could not find interface method overload `{}`", interface_func_ident.to_string()));
+                    return Err(compiler_error!(
+                        self,
+                        "Could not find interface method overload `{}`",
+                        interface_func_ident.to_string()
+                    ));
                 }
             };
 
-            let method_ptr = self.get_interface_method_ptr(&InterfaceInvocation::Instance(instance.clone()), source_id, function_id)?;
+            let method_ptr = self.get_interface_method_ptr(
+                &InterfaceInvocation::Instance(instance.clone()),
+                source_id,
+                function_id,
+            )?;
 
             Ok(self.compile_func_call(method_ptr, &interface_func_impl, &evaluated_args)?)
         }
@@ -718,7 +796,7 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
         if callable.module_id != usize::MAX
             && callable.external_name != "keid.check_unhandled_error"
             && callable.external_name != "keid.get_unhandled_error"
-            // && !Self::get_hidden_function_names().contains(&callable.callable_name.as_str())
+        // && !Self::get_hidden_function_names().contains(&callable.callable_name.as_str())
         {
             self.handle_unhandled_error(true)?;
         }
