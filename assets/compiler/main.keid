@@ -9,7 +9,7 @@ import (
 )
 
 public extern function main(): int32 {
-    let syntaxDefFile = File.open("/home/lbaizer/code/keid/keid/assets/compiler/syntax.def", FileOpenMode.ReadOnly)
+    let syntaxDefFile = File.open("/home/lucas/code/keid/keid/assets/compiler/syntax.def", FileOpenMode.ReadOnly)
     let syntaxDef = String.fromUtf8(syntaxDefFile.readAllBytes())
     syntaxDefFile.close()
 

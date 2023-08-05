@@ -266,8 +266,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         let error = self.compile_expr(expr, Some(&error_type))?;
         self.assert_assignable_to(&error.ty, &error_type)?;
 
-        let throw_error_callable =
-            ResolvedFunctionNode::externed("keid.throw_error", &[error_type], Varargs::None, BasicType::Void.to_complex());
+        let throw_error_callable = ResolvedFunctionNode::externed("keid.throw_error", &[error_type], Varargs::None, BasicType::Void.to_complex());
         let throw_error_callable_ref = self.get_function_ref(&throw_error_callable)?;
         self.call_function(throw_error_callable_ref, &throw_error_callable, &[error])?;
         self.handle_unhandled_error(false)?;
@@ -283,10 +282,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                 let iterator_type = self
                     .cpl
                     .type_provider
-                    .get_class_by_name(&GenericIdentifier::from_name_with_args(
-                        "core::collections::ArrayIterator",
-                        &[*element_type.clone()],
-                    ))
+                    .get_class_by_name(&GenericIdentifier::from_name_with_args("core::collections::ArrayIterator", &[*element_type.clone()]))
                     .unwrap();
                 // retrieving the classinfo pointer ensures that it gets included in the runtime metadata
                 self.cpl.class_info.get_abi_class_info_ptr(&self.cpl.context, &self.unit.mdl, &iterator_type);
@@ -301,8 +297,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                     .unwrap();
 
                 let create_ref = self.get_function_ref(&create_impl)?;
-                source_iterator_ptr =
-                    TypedValue::new(create_impl.return_type.clone(), self.call_function(create_ref, &create_impl, &[source_iterator_ptr])?);
+                source_iterator_ptr = TypedValue::new(create_impl.return_type.clone(), self.call_function(create_ref, &create_impl, &[source_iterator_ptr])?);
             }
             _ => (),
         }
@@ -329,8 +324,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                 let result = self.call_function(get_iterator_method_ptr, &get_iterator_method_impl, &[iterable_ptr.clone()])?;
 
                 source_iterator_ptr = TypedValue::new(
-                    BasicType::Object(GenericIdentifier::from_name_with_args("core::collections::Iterator", &ident.generic_args))
-                        .to_complex(),
+                    BasicType::Object(GenericIdentifier::from_name_with_args("core::collections::Iterator", &ident.generic_args)).to_complex(),
                     result,
                 );
             }
@@ -339,27 +333,19 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
 
         let iterator_ptr = match self.upcast(source_iterator_ptr.clone(), "core::collections::Iterator", None)? {
             Some(iterator_ptr) => iterator_ptr,
-            None => {
-                return Err(compiler_error!(
-                    self,
-                    "Type `{}` must be an instance of `core::collections::Iterator<T>`",
-                    source_iterator_ptr.ty.to_string()
-                ))
-            }
+            None => return Err(compiler_error!(self, "Type `{}` must be an instance of `core::collections::Iterator<T>`", source_iterator_ptr.ty.to_string())),
         };
 
-        let iterator_interface_impl =
-            self.cpl.type_provider.get_class_by_name(&GenericIdentifier::from_complex_type(&iterator_ptr.ty)).unwrap();
+        let iterator_interface_impl = self.cpl.type_provider.get_class_by_name(&GenericIdentifier::from_complex_type(&iterator_ptr.ty)).unwrap();
         let iterator_interface = self.cpl.type_provider.get_source_class(&iterator_interface_impl);
 
-        let interface_id = self.cpl.type_provider.get_resolved_interface_id(&GenericIdentifier::from_name_with_args(
-            &iterator_interface.base_name,
-            &iterator_interface_impl.generic_impls,
-        ));
+        let interface_id = self
+            .cpl
+            .type_provider
+            .get_resolved_interface_id(&GenericIdentifier::from_name_with_args(&iterator_interface.base_name, &iterator_interface_impl.generic_impls));
         let get_next_id = 0; // there's only one function (__get_next) in core::collections::Iterator<T>
 
-        let get_next_method_ptr =
-            self.get_interface_method_ptr(&InterfaceInvocation::Instance(iterator_ptr.clone()), interface_id, get_next_id)?;
+        let get_next_method_ptr = self.get_interface_method_ptr(&InterfaceInvocation::Instance(iterator_ptr.clone()), interface_id, get_next_id)?;
 
         let element_type = match &iterator_ptr.ty {
             ComplexType::Basic(BasicType::Object(ident)) => ident.generic_args[0].clone(),
@@ -502,13 +488,11 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
             self.state.push_block(&self.builder, catch_scope_block);
 
             let error_type = BasicType::Object(GenericIdentifier::from_name("core::error::Error")).to_complex();
-            let get_unhandled_error_callable =
-                ResolvedFunctionNode::externed("keid.get_unhandled_error", &[], Varargs::None, error_type.clone());
+            let get_unhandled_error_callable = ResolvedFunctionNode::externed("keid.get_unhandled_error", &[], Varargs::None, error_type.clone());
             let get_unhandled_error_ref = self.get_function_ref(&get_unhandled_error_callable)?;
             let unhandled_error = self.call_function(get_unhandled_error_ref, &get_unhandled_error_callable, &[])?;
 
-            let clear_unhandled_error_callable =
-                ResolvedFunctionNode::externed("keid.clear_unhandled_error", &[], Varargs::None, BasicType::Void.to_complex());
+            let clear_unhandled_error_callable = ResolvedFunctionNode::externed("keid.clear_unhandled_error", &[], Varargs::None, BasicType::Void.to_complex());
             let clear_unhandled_error_ref = self.get_function_ref(&clear_unhandled_error_callable)?;
             self.call_function(clear_unhandled_error_ref, &clear_unhandled_error_callable, &[])?;
 

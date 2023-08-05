@@ -54,8 +54,8 @@ impl ClassInfoStorage {
         for i in 0..self.classes.len() {
             let class_info = &self.classes[i];
             let base_name = type_provider.get_source_class(&class_info.class_impl).base_name.clone();
-            let resolved_interface_impls = type_provider
-                .get_resolved_interface_impls(&GenericIdentifier::from_name_with_args(&base_name, &class_info.class_impl.generic_impls));
+            let resolved_interface_impls =
+                type_provider.get_resolved_interface_impls(&GenericIdentifier::from_name_with_args(&base_name, &class_info.class_impl.generic_impls));
 
             for resolved_interface_impl in resolved_interface_impls {
                 let interface_impl = type_provider.get_source_interface_impl(&resolved_interface_impl);
@@ -68,11 +68,7 @@ impl ClassInfoStorage {
                 let interface_name_array = context.const_string(&interface_name_str);
                 let interface_name_var = format!("keid.interface_name.{}", interface_name_str);
                 let interface_name_global = self.module.get_global(&interface_name_var).unwrap_or_else(|| {
-                    self.module.create_global(
-                        context,
-                        &interface_name_var,
-                        context.get_array_type(context.get_i8_type(), interface_name_str.len() + 1),
-                    )
+                    self.module.create_global(context, &interface_name_var, context.get_array_type(context.get_i8_type(), interface_name_str.len() + 1))
                 });
                 self.module.initialize_global(interface_name_global, interface_name_array);
 
@@ -86,7 +82,7 @@ impl ClassInfoStorage {
                                 &resolved_interface_impl.interface_generic_impls,
                             )) as _,
                         ), // interface ID
-                        interface_name_global, // interface name
+                        interface_name_global,                                                          // interface name
                         context.const_get_element_ptr_dynamic(vtable_item_type, vtable, vtable_offset), // points to the start of this impl's functions in the vtable
                     ],
                 ));
@@ -107,8 +103,8 @@ impl ClassInfoStorage {
             let class_info = &self.classes[i];
             let base_name = type_provider.get_source_class(&class_info.class_impl).base_name.clone();
 
-            let resolved_interface_impls = type_provider
-                .get_resolved_interface_impls(&GenericIdentifier::from_name_with_args(&base_name, &class_info.class_impl.generic_impls));
+            let resolved_interface_impls =
+                type_provider.get_resolved_interface_impls(&GenericIdentifier::from_name_with_args(&base_name, &class_info.class_impl.generic_impls));
             for resolved_interface_impl in &resolved_interface_impls {
                 let interface_impl = type_provider.get_source_interface_impl(resolved_interface_impl);
 
@@ -121,16 +117,13 @@ impl ClassInfoStorage {
                 functions.dedup();
 
                 for source_function_id in functions {
-                    let source_function_name =
-                        type_provider.get_function_node(source_interface.module_id, source_function_id).unwrap().base_name.clone();
+                    let source_function_name = type_provider.get_function_node(source_interface.module_id, source_function_id).unwrap().base_name.clone();
                     for impl_function_id in &interface_impl.functions {
                         let node = type_provider.get_function_node(resolved_interface_impl.module_id, *impl_function_id).unwrap();
 
                         // only add the function if it has the correct name from the source interface
                         // this maintains the order of the functions regardless of implementation
-                        if node.base_name != source_function_name
-                            && !node.base_name.starts_with(&format!("{}#__impl#", source_function_name))
-                        {
+                        if node.base_name != source_function_name && !node.base_name.starts_with(&format!("{}#__impl#", source_function_name)) {
                             continue;
                         }
 
@@ -142,11 +135,7 @@ impl ClassInfoStorage {
                         let node_impl = node.create_impl(type_provider, &resolved_interface_impl.generic_impls).unwrap();
                         let externed_function = self
                             .module
-                            .add_function(
-                                &node_impl.external_name,
-                                context.get_function_type(&[], node.varargs, context.get_void_type()),
-                                0,
-                            )
+                            .add_function(&node_impl.external_name, context.get_function_type(&[], node.varargs, context.get_void_type()), 0)
                             .as_val()
                             .to_value();
                         context.set_linkage(externed_function, Linkage::LLVMExternalLinkage);
@@ -205,8 +194,7 @@ impl ClassInfoStorage {
         self.module.initialize_global(global_class_info, global_class_info_array);
 
         let vtable_value = context.create_const_array(vtable_item_type, &vtable_pointers);
-        let replacement_vtable =
-            self.module.create_global(context, "keid.vtable", context.get_array_type(vtable_item_type, vtable_pointers.len()));
+        let replacement_vtable = self.module.create_global(context, "keid.vtable", context.get_array_type(vtable_item_type, vtable_pointers.len()));
         context.replace_all_uses(vtable, replacement_vtable);
         self.module.initialize_global(replacement_vtable, vtable_value);
     }
@@ -227,17 +215,11 @@ impl ClassInfoStorage {
     pub fn get_abi_class_info_ptr(&mut self, context: &Context, module: &Module, class: &ResolvedClassNode) -> OpaqueValue {
         let classinfo_index = self.get_abi_class_info_offset(context, class);
         let info_array_type = context.get_abi_class_info_type();
-        context.const_get_element_ptr_dynamic(
-            info_array_type,
-            module.get_global("keid.classinfo").expect("missing keid.classinfo"),
-            classinfo_index,
-        )
+        context.const_get_element_ptr_dynamic(info_array_type, module.get_global("keid.classinfo").expect("missing keid.classinfo"), classinfo_index)
     }
 
     pub fn set_destructor(&mut self, module_id: usize, class_id: usize, destructor_ptr: OpaqueValue) {
-        if let Some(class) =
-            self.classes.iter_mut().find(|class| class.class_impl.module_id == module_id && class.class_impl.source_id == class_id)
-        {
+        if let Some(class) = self.classes.iter_mut().find(|class| class.class_impl.module_id == module_id && class.class_impl.source_id == class_id) {
             class.destructor_ptr = destructor_ptr;
         } else {
             panic!("no class found")

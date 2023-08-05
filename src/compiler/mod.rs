@@ -206,11 +206,7 @@ impl Compiler {
 
                 let import_map = {
                     let module = self.type_provider.get_module(self.units[unit_id].module_id);
-                    utils::get_import_map(
-                        &module.imports,
-                        &self.type_provider,
-                        Some(&self.type_provider.get_module_namespace(self.units[unit_id].module_id)),
-                    )
+                    utils::get_import_map(&module.imports, &self.type_provider, Some(&self.type_provider.get_module_namespace(self.units[unit_id].module_id)))
                 };
 
                 let unit = self.units[unit_id].clone();

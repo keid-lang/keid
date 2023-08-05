@@ -36,12 +36,8 @@ impl<'a> UnaryCompiler for FunctionCompiler<'a> {
             }
             Operator::NonNullAssertion => match &expr.ty {
                 ComplexType::Nullable(inner) => {
-                    let assert_impl = ResolvedFunctionNode::externed(
-                        "keid.assert_non_null",
-                        &[BasicType::Int8.to_complex()],
-                        Varargs::None,
-                        BasicType::Void.to_complex(),
-                    );
+                    let assert_impl =
+                        ResolvedFunctionNode::externed("keid.assert_non_null", &[BasicType::Int8.to_complex()], Varargs::None, BasicType::Void.to_complex());
                     let assert_func = self.get_function_ref(&assert_impl)?;
 
                     let nullability_ptr = self.emit(Insn::GetElementPtr(expr.val, expr.ty.as_llvm_type(self.cpl), 1));
@@ -53,13 +49,7 @@ impl<'a> UnaryCompiler for FunctionCompiler<'a> {
 
                     value
                 }
-                _ => {
-                    return Err(compiler_error!(
-                        self,
-                        "the null assertion operator cannot be used on non-nullable type `{}`",
-                        expr.ty.to_string()
-                    ))
-                }
+                _ => return Err(compiler_error!(self, "the null assertion operator cannot be used on non-nullable type `{}`", expr.ty.to_string())),
             },
             x => unimplemented!("unimplemented unary operator: {:#?}", x),
         })

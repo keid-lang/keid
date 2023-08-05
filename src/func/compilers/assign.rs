@@ -88,11 +88,8 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
 
                 match &previous_result.ty {
                     ComplexType::Basic(BasicType::Object(ident)) => {
-                        let class_impl = self
-                            .cpl
-                            .type_provider
-                            .get_class_by_name(ident)
-                            .ok_or_else(|| compiler_error!(self, "No such type `{}`", ident.to_string()))?;
+                        let class_impl =
+                            self.cpl.type_provider.get_class_by_name(ident).ok_or_else(|| compiler_error!(self, "No such type `{}`", ident.to_string()))?;
                         match &last_member.value.token {
                             Expr::Ident(field_name) => {
                                 let class_member = self.resolve_class_member_ptr(&previous_result, &class_impl, field_name)?;
@@ -121,13 +118,7 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                         self.loc(&rhs.loc);
                         self.store_array_element(&previous_result, &compiled_rhs, &index, false)?;
                     }
-                    _ => {
-                        return Err(compiler_error!(
-                            self,
-                            "[ER7] The `.` operator is forbidden on type `{}`",
-                            previous_result.ty.to_string()
-                        ))
-                    }
+                    _ => return Err(compiler_error!(self, "[ER7] The `.` operator is forbidden on type `{}`", previous_result.ty.to_string())),
                 }
             }
             Expr::Ident(ident) => match self.resolve_static_field_reference(&Qualifier(vec![ident.clone()])) {

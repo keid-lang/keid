@@ -1121,9 +1121,7 @@ fn parse_program<T: AsRef<Path>>(file_path: T, pair: Pair<Rule>) -> Result<KeidF
             Rule::type_decl => {
                 program.typedefs.push(parse_type_decl(pair.into_inner(), program.namespace.clone())?);
             }
-            Rule::interface_decl => {
-                program.classes.push(parse_class_decl(pair.into_inner(), program.namespace.clone(), ClassType::Interface)?)
-            }
+            Rule::interface_decl => program.classes.push(parse_class_decl(pair.into_inner(), program.namespace.clone(), ClassType::Interface)?),
             Rule::interface_impl => program.interface_impls.push(parse_interface_impl(pair.into_inner())?),
             Rule::let_statement => program.fields.push(parse_let(pair.into_inner())?),
             Rule::struct_decl => program.classes.push(parse_class_decl(pair.into_inner(), program.namespace.clone(), ClassType::Struct)?),

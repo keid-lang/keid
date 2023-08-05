@@ -20,12 +20,7 @@ impl Linker {
         for line in cmd_output.split('\n') {
             let line = line.trim();
             if line.starts_with("libraries: =") {
-                return Ok(line["libraries: =".len()..line.len()]
-                    .trim()
-                    .split(':')
-                    .filter(|dir| Path::new(dir).is_dir())
-                    .map(String::from)
-                    .collect());
+                return Ok(line["libraries: =".len()..line.len()].trim().split(':').filter(|dir| Path::new(dir).is_dir()).map(String::from).collect());
             }
         }
         panic!("failed to parse output")

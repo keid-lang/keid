@@ -172,9 +172,7 @@ impl TypeProvider {
     pub fn get_source_interface_impl(&self, resolved_interface_impl: &ResolvedInterfaceImplNode) -> &InterfaceImplNode {
         for root in &self.roots {
             for interface_impl in &root.interface_impls {
-                if resolved_interface_impl.interface_id == interface_impl.interface_id
-                    && resolved_interface_impl.target_name == interface_impl.target_name
-                {
+                if resolved_interface_impl.interface_id == interface_impl.interface_id && resolved_interface_impl.target_name == interface_impl.target_name {
                     return interface_impl;
                 }
             }
@@ -254,9 +252,7 @@ impl TypeProvider {
         let class_impls = self.class_impls.borrow();
         let mut impls = Vec::with_capacity(class_impls.len());
         for class_impl in class_impls.iter() {
-            impls.push(
-                self.get_class_node(class_impl.module_id, class_impl.class_id).unwrap().create_impl(self, &class_impl.generics).unwrap(),
-            );
+            impls.push(self.get_class_node(class_impl.module_id, class_impl.class_id).unwrap().create_impl(self, &class_impl.generics).unwrap());
         }
         impls
     }
@@ -399,11 +395,10 @@ impl TypeProvider {
                     }
 
                     for i in 0..args.len() {
-                        let function_param =
-                            match extract_type(self, function.params[i].ty.clone(), &function.generic_defs, &object_type.generic_args) {
-                                Ok(param) => param,
-                                Err(_) => return None,
-                            };
+                        let function_param = match extract_type(self, function.params[i].ty.clone(), &function.generic_defs, &object_type.generic_args) {
+                            Ok(param) => param,
+                            Err(_) => return None,
+                        };
                         if !self.is_assignable_to(&args[i], &function_param) {
                             return None;
                         }
@@ -447,12 +442,7 @@ impl TypeProvider {
                     for resolved_interface_impl in resolved_interface_impls {
                         let interface_impl = self.get_source_interface_impl(&resolved_interface_impl);
                         let interface = self.get_impl_source_interface(interface_impl);
-                        if parent_ident
-                            == &GenericIdentifier::from_name_with_args(
-                                &interface.base_name,
-                                &resolved_interface_impl.interface_generic_impls,
-                            )
-                        {
+                        if parent_ident == &GenericIdentifier::from_name_with_args(&interface.base_name, &resolved_interface_impl.interface_generic_impls) {
                             // the parent is an interface type that is implemented for the child class
                             return true;
                         }

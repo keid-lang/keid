@@ -18,9 +18,7 @@ impl<'a> DestructorCompiler for FunctionCompiler<'a> {
                 class
                     .fields
                     .iter()
-                    .map(|field| {
-                        crate::tree::extract_type(&self.cpl.type_provider, field.ty.clone(), &class.generic_defs, &self.func.generic_impls)
-                    })
+                    .map(|field| crate::tree::extract_type(&self.cpl.type_provider, field.ty.clone(), &class.generic_defs, &self.func.generic_impls))
                     .collect::<anyhow::Result<_>>()
                     .map_err(|e| compiler_error!(self, "{}", e))?,
                 class.destructor.clone(),

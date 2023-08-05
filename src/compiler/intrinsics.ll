@@ -33,7 +33,7 @@ source_filename = "intrinsics.ll"
 @find_interface_method_null_error = private unnamed_addr constant [85 x i8] c"NullValueError: attempted retrieval of interface method pointer from a null pointer\0A\00", align 1
 @illegal_ref_count_error = private unnamed_addr constant [43 x i8] c"InternalError: illegal reference count %i\0A\00", align 1
 @no_such_method_error = private unnamed_addr constant [104 x i8] c"NoSuchMethodError: attempted to invoke an invalid interface method (interface id = %i, method id = %i)\0A\00", align 1
-@index_out_of_bounds_error = private unnamed_addr constant [84 x i8] c"IndexOutOfBoundsError: attempted to access index %i of a collection with length %i\0A\00", align 1
+@index_out_of_bounds_error = private unnamed_addr constant [84 x i8] c"SliceIndexOutOfBoundsError: attempted to access index %i of a slice with length %i\0A\00", align 1
 @error_already_thrown_error = private unnamed_addr constant [100 x i8] c "ErrorAlreadyThrownError: attempted to throw error when current thread already is handling an error\0A\00", align 1
 @allocator = global ptr null, align 8
 @deallocator = global ptr null, align 8
@@ -57,8 +57,8 @@ block.main:
 }
 
 ; Utility function for throwing out-of-bounds errors.
-define void @keid.throw_out_of_bounds(i64 %index, i64 %length) {
-  call i32 @printf(ptr @index_out_of_bounds_error, i64 %index, i64 %length)
+define void @keid.throw_out_of_bounds(i64 %offset, i64 %length) {
+  call i32 @printf(ptr @index_out_of_bounds_error, i64 %offset, i64 %length)
   call void @"core::runtime::printStackFrames()"()
   call void @exit(i32 1)
   unreachable

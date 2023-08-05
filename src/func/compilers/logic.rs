@@ -99,22 +99,17 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
                 for resolved_interface_impl in resolved_interface_impls {
                     let source_interface_impl = self.cpl.type_provider.get_source_interface_impl(&resolved_interface_impl);
                     let rhs_type = BasicType::Object(rhs_ident.clone()).to_complex();
-                    if source_interface_impl.interface_name == operator_interface_name
-                        && resolved_interface_impl.interface_generic_impls[0] == rhs_type
-                    {
-                        let interface_id = self.cpl.type_provider.get_resolved_interface_id(&GenericIdentifier::from_name_with_args(
-                            &source_interface_impl.interface_name,
-                            &[rhs_type.clone()],
-                        ));
+                    if source_interface_impl.interface_name == operator_interface_name && resolved_interface_impl.interface_generic_impls[0] == rhs_type {
+                        let interface_id = self
+                            .cpl
+                            .type_provider
+                            .get_resolved_interface_id(&GenericIdentifier::from_name_with_args(&source_interface_impl.interface_name, &[rhs_type.clone()]));
 
                         let callable = self
                             .cpl
                             .type_provider
                             .get_function_by_name(
-                                &GenericIdentifier::from_name_with_args(
-                                    &format!("{}::{}", operator_interface_name, func_name),
-                                    &[rhs_type.clone()],
-                                ),
+                                &GenericIdentifier::from_name_with_args(&format!("{}::{}", operator_interface_name, func_name), &[rhs_type.clone()]),
                                 &[lhs.ty.clone(), rhs_type.clone()],
                             )
                             .unwrap();
@@ -137,21 +132,14 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
                     }
                 }
 
-                return Err(compiler_error!(
-                    self,
-                    "Type `{}` missing interface implementation for `{}`",
-                    lhs_ident.to_string(),
-                    operator_interface_name
-                ));
+                return Err(compiler_error!(self, "Type `{}` missing interface implementation for `{}`", lhs_ident.to_string(), operator_interface_name));
             }
             _ => (),
         }
 
         let is_signed = if matches!(&lhs.ty, ComplexType::Basic(is_int!())) && matches!(&rhs.ty, ComplexType::Basic(is_int!())) {
-            let lhs_signed =
-                matches!(&lhs.ty, ComplexType::Basic(BasicType::Int8 | BasicType::Int16 | BasicType::Int32 | BasicType::Int64));
-            let rhs_signed =
-                matches!(&rhs.ty, ComplexType::Basic(BasicType::Int8 | BasicType::Int16 | BasicType::Int32 | BasicType::Int64));
+            let lhs_signed = matches!(&lhs.ty, ComplexType::Basic(BasicType::Int8 | BasicType::Int16 | BasicType::Int32 | BasicType::Int64));
+            let rhs_signed = matches!(&rhs.ty, ComplexType::Basic(BasicType::Int8 | BasicType::Int16 | BasicType::Int32 | BasicType::Int64));
             if rhs_signed != lhs_signed {
                 return Err(compiler_error!(self, "Cannot compare integers of type `{}` and `{}`", lhs.ty.to_string(), rhs.ty.to_string()));
             }
@@ -217,8 +205,7 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
                     }
                     ((nullable, ComplexType::Nullable(inner)), (_, ComplexType::Basic(BasicType::Null)))
                     | ((_, ComplexType::Basic(BasicType::Null)), (nullable, ComplexType::Nullable(inner))) => {
-                        let nullability_ptr =
-                            self.emit(Insn::GetElementPtr(nullable, ComplexType::Nullable(inner.clone()).as_llvm_type(self.cpl), 1));
+                        let nullability_ptr = self.emit(Insn::GetElementPtr(nullable, ComplexType::Nullable(inner.clone()).as_llvm_type(self.cpl), 1));
                         let nullability = self.emit(Insn::Load(nullability_ptr, self.cpl.context.get_i8_type()));
                         let const_zero = self.cpl.context.const_int(self.cpl.context.get_i8_type(), 0);
                         (nullability, const_zero)

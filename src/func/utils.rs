@@ -149,12 +149,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
             ScopeChange::Inside => "keid.scope",
             ScopeChange::Outside => "keid.unscope",
         };
-        let scope_impl = ResolvedFunctionNode::externed(
-            func_name,
-            &[BasicType::Void.to_complex().to_reference()],
-            Varargs::None,
-            BasicType::Void.to_complex(),
-        );
+        let scope_impl = ResolvedFunctionNode::externed(func_name, &[BasicType::Void.to_complex().to_reference()], Varargs::None, BasicType::Void.to_complex());
         let scope_func = self.get_function_ref(&scope_impl)?;
         self.emit(Insn::Call(scope_func, scope_impl.as_llvm_type(self.cpl), vec![object_val]));
 
@@ -249,19 +244,17 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
 
         let offset_ptr = self.emit(Insn::GetElementPtr(slice.val, slice.ty.as_llvm_type(self.cpl), 0));
         let offset = self.emit(Insn::Load(offset_ptr, BasicType::USize.as_llvm_type(self.cpl)));
-        let offset_index = self.emit(Insn::IAdd(offset, index.val));
         let length_ptr = self.emit(Insn::GetElementPtr(slice.val, slice.ty.as_llvm_type(self.cpl), 1));
         let length = self.emit(Insn::Load(length_ptr, BasicType::USize.as_llvm_type(self.cpl)));
 
         let const_zero = self.cpl.context.const_int(self.cpl.context.get_isize_type(), 0);
-
-        let is_below_bounds = self.emit(Insn::ICmp(IntPredicate::LLVMIntULT, offset_index, const_zero));
+        let is_below_bounds = self.emit(Insn::ICmp(IntPredicate::LLVMIntULT, index.val, const_zero));
         self.emit(Insn::CondBr(is_below_bounds, error_block.as_val(), check_block.as_val()));
 
         self.builder.append_block(&check_block);
         self.builder.use_block(&check_block);
 
-        let is_above_bounds = self.emit(Insn::ICmp(IntPredicate::LLVMIntUGE, offset_index, length));
+        let is_above_bounds = self.emit(Insn::ICmp(IntPredicate::LLVMIntUGE, index.val, length));
         self.emit(Insn::CondBr(is_above_bounds, error_block.as_val(), load_block.as_val()));
 
         {
@@ -293,6 +286,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
             let data_ptr = self.emit(Insn::GetElementPtr(metadata, array_data_type, 1));
             let data = self.emit(Insn::Load(data_ptr, self.cpl.context.get_pointer_type(data_type)));
 
+            let offset_index = self.emit(Insn::IAdd(offset, index.val));
             let element_ptr = self.emit(Insn::GetElementPtrDynamic(data, data_type, offset_index));
 
             self.emit(Insn::Br(rotated_parent_block.as_val()));
@@ -375,9 +369,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
 
                 let metadata_val = self.emit(Insn::Load(
                     casted_metadata_ptr,
-                    self.cpl.context.get_pointer_type(
-                        self.cpl.context.get_abi_array_data_type(element_type.as_llvm_type(self.cpl), &element_type.to_string()),
-                    ),
+                    self.cpl.context.get_pointer_type(self.cpl.context.get_abi_array_data_type(element_type.as_llvm_type(self.cpl), &element_type.to_string())),
                 ));
                 self.emit(Insn::Store(metadata_val, dest_metadata_ptr));
             }
@@ -399,10 +391,8 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                         self.assert_assignable_to(&src.ty, &dest.ty)?;
 
                         let src_classinfo_ptr = self.emit(Insn::GetElementPtr(casted.val, casted.ty.as_llvm_type(self.cpl), 0));
-                        let src_classinfo = self.emit(Insn::Load(
-                            src_classinfo_ptr,
-                            self.cpl.context.get_pointer_type(self.cpl.context.get_abi_class_info_type()),
-                        ));
+                        let src_classinfo =
+                            self.emit(Insn::Load(src_classinfo_ptr, self.cpl.context.get_pointer_type(self.cpl.context.get_abi_class_info_type())));
 
                         let dest_classinfo_ptr = self.emit(Insn::GetElementPtr(dest.val, dest.ty.as_llvm_type(self.cpl), 0));
                         self.emit(Insn::Store(src_classinfo, dest_classinfo_ptr));
@@ -478,13 +468,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
         let base_type = match &src.ty {
             ComplexType::Basic(BasicType::Object(ident)) => ident,
             ComplexType::Basic(
-                BasicType::Bool
-                | BasicType::Char
-                | BasicType::Float32
-                | BasicType::Float64
-                | BasicType::Int8
-                | BasicType::Int16
-                | BasicType::Int32,
+                BasicType::Bool | BasicType::Char | BasicType::Float32 | BasicType::Float64 | BasicType::Int8 | BasicType::Int16 | BasicType::Int32,
             ) => {
                 if parent == "core::object::Object" {
                     return Ok(Some(self.autobox_primitive(src)?));
@@ -519,11 +503,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                 } else {
                     // if no generic args were specified, return the first generic implementation
                     return Ok(Some(TypedValue {
-                        ty: BasicType::Object(GenericIdentifier::from_name_with_args(
-                            parent,
-                            &resolved_interface_impl.interface_generic_impls,
-                        ))
-                        .to_complex(),
+                        ty: BasicType::Object(GenericIdentifier::from_name_with_args(parent, &resolved_interface_impl.interface_generic_impls)).to_complex(),
                         val: src.val,
                     }));
                 }
@@ -578,8 +558,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
 
         let rotated_parent = self.state.new_rotated_parent(&mut self.builder);
         if check {
-            let check_unhandled_error_callable =
-                ResolvedFunctionNode::externed("keid.check_unhandled_error", &[], Varargs::None, BasicType::Bool.to_complex());
+            let check_unhandled_error_callable = ResolvedFunctionNode::externed("keid.check_unhandled_error", &[], Varargs::None, BasicType::Bool.to_complex());
             let check_unhandled_error_ref = self.get_function_ref(&check_unhandled_error_callable)?;
             let check_unhandled_error_val = self.call_function(check_unhandled_error_ref, &check_unhandled_error_callable, &[])?;
 
@@ -617,12 +596,8 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
     }
 
     fn heap_allocate(&mut self, ty: OpaqueType, count: Option<OpaqueValue>) -> Result<OpaqueValue> {
-        let malloc_func = ResolvedFunctionNode::externed(
-            "keid_malloc",
-            &[BasicType::USize.to_complex()],
-            Varargs::None,
-            BasicType::Void.to_complex().to_reference(),
-        );
+        let malloc_func =
+            ResolvedFunctionNode::externed("keid_malloc", &[BasicType::USize.to_complex()], Varargs::None, BasicType::Void.to_complex().to_reference());
 
         let size = self.cpl.context.target.get_type_size(ty);
         let mut size_const = self.cpl.context.const_int(self.cpl.context.get_i64_type(), size);
@@ -644,8 +619,7 @@ pub fn get_import_map_with(imports: &[ImportNode], all_type_names: Vec<&String>)
     map.insert("range".to_owned(), "core::collections::Range".to_owned());
     map.insert("object".to_owned(), "core::object::Object".to_owned());
     for node in imports {
-        let types: Vec<String> =
-            all_type_names.iter().filter(|type_name| get_type_namespace(type_name) == node.module).map(|str| str.to_string()).collect();
+        let types: Vec<String> = all_type_names.iter().filter(|type_name| get_type_namespace(type_name) == node.module).map(|str| str.to_string()).collect();
         for item in &types {
             map.try_insert(get_type_leaf(item).to_owned(), item.to_string()).unwrap();
         }
@@ -661,8 +635,7 @@ pub struct ImportedMember {
 }
 
 pub fn lookup_import_map(map: &[ImportedMember], key: &str) -> Vec<String> {
-    let mut imports: Vec<String> =
-        map.iter().filter(|member| member.local_name == key).map(|member| member.absolute_name.clone()).collect();
+    let mut imports: Vec<String> = map.iter().filter(|member| member.local_name == key).map(|member| member.absolute_name.clone()).collect();
     imports.push(key.to_owned());
     imports
 }
@@ -723,17 +696,8 @@ pub fn get_import_map(imports: &[ImportNode], type_provider: &TypeProvider, from
         }
     }
 
-    let default_modules = vec![
-        "core::array",
-        "core::collections",
-        "core::error",
-        "core::mem",
-        "core::object",
-        "core::ops",
-        "core::runtime",
-        "core::string",
-        "core::test",
-    ];
+    let default_modules =
+        vec!["core::array", "core::collections", "core::error", "core::mem", "core::object", "core::ops", "core::runtime", "core::string", "core::test"];
     for default_module in default_modules {
         // let types = type_provider.get_namespace_members(default_module);
         let top_namespace_name = &default_module[default_module.rfind("::").map(|i| i + 2).unwrap_or(0)..];

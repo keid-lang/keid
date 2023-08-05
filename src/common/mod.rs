@@ -114,10 +114,7 @@ impl AccessorValueContainer {
 impl ValueContainer for AccessorValueContainer {
     fn load(&self, fc: &mut FunctionCompiler) -> Result<TypedValue> {
         let func_value = fc.get_function_ref(&self.0)?;
-        Ok(TypedValue::new(
-            self.0.return_type.clone(),
-            fc.call_function(func_value, &self.0, &[TypedValue::new(self.0.params[0].clone(), self.1)])?,
-        ))
+        Ok(TypedValue::new(self.0.return_type.clone(), fc.call_function(func_value, &self.0, &[TypedValue::new(self.0.params[0].clone(), self.1)])?))
     }
 
     fn store(&self, _: Operator, _: &mut FunctionCompiler, _: TypedValue) -> Result<()> {
