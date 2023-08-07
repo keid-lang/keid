@@ -7,7 +7,7 @@ import (
 public enum StatementResult {
     /// Returned by statements when they match with a token result.
     Match {
-        data: ParsedRule
+        data: List<RuleMatch>
     }
     /// Returned by statements which don't perform matching operations, e.g. `move`.
     /// A matchless result is always considered successful.
@@ -59,7 +59,7 @@ implement ParserStatement for SubruleStatement {
         let ruleResult = this.subrule.parse(reader)
         match ruleResult {
             Success { data, } => return new StatementResult.Match {
-                data
+                data = List.from<RuleMatch>(data)
             }
             _ => return StatementResult.Failure
         }
@@ -68,12 +68,14 @@ implement ParserStatement for SubruleStatement {
 
 public class OptionalStatement {
     statement: ParserStatement
+
+    public static create(statement: ParserStatement): OptionalStatement => new OptionalStatement { statement, }
 }
 
 implement ParserStatement for OptionalStatement {
     execute(reader: TokenReader, state: RuleState): StatementResult {
         return match this.statement.execute(reader, state) {
-            Success { data, } => new StatementResult.Success { data, }
+            Match { data, } => new StatementResult.Match { data, }
             _ => StatementResult.Matchless
         }
     }
@@ -111,14 +113,99 @@ implement ParserStatement for GroupStatement {
         let result = this.value.execute(reader, state)
         match result {
             Match { data, } => {
-                state.groups.push(new ParserGroup {
+                for group in state.groups {
+                    if group.variable == this.groupName {
+                        group.values.extend(data)
+                        return result
+                    }
+                }
+                state.groups.push(new RuleMatchGroup {
                     variable = this.groupName
-                    value = data
+                    values = data
                 })
             }
             _ => {}
         }
 
         return result
+    }
+}
+
+public class CharRangeStatement {
+    start: char
+    end: char
+
+    public static create(start: char, end: char): CharRangeStatement => new CharRangeStatement { start, end, }
+}
+
+implement ParserStatement for CharRangeStatement {
+    execute(reader: TokenReader, _: RuleState): StatementResult {
+        let currentChar = reader.currentText.chars[0]
+        if currentChar >= this.start && currentChar <= this.end {
+            reader.advance(1)
+            return StatementResult.Matchless
+        }
+        return StatementResult.Failure
+    }
+}
+
+public class RepeatedStatement {
+    child: ParserStatement
+    optional: bool
+
+    public static create(child: ParserStatement, optional: bool): RepeatedStatement => new RepeatedStatement { child, optional, }
+}
+
+implement ParserStatement for RepeatedStatement {
+    execute(reader: TokenReader, state: RuleState): StatementResult {
+        let matches = List.empty<RuleMatch>()
+        if !this.optional {
+            match this.child.execute(reader, state) {
+                Failure => return StatementResult.Failure
+                Match { data, } => {
+                    matches.extend(data)
+                }
+                _ => {}
+            }
+        }
+
+        loop {
+            match this.child.execute(reader, state) {
+                Failure => break
+                Match { data, } => {
+                    matches.extend(data)
+                }
+                _ => {}
+            }
+        }
+
+        return new StatementResult.Match {
+            data = matches
+        }
+    }
+}
+
+public class CompoundStatement {
+    statements: List<ParserStatement>
+    select: ?usize
+
+    public static create(statements: List<ParserStatement>, select: ?usize): CompoundStatement => new CompoundStatement { statements, select, }
+}
+
+implement ParserStatement for CompoundStatement {
+    execute(reader: TokenReader, state: RuleState): StatementResult {
+        let results = List.empty<StatementResult>
+        for statement in this.statements {
+            let st = statement.execute(reader, state)
+            match st {
+                Failure => return StatementResult.Failure
+                _ => {}
+            }
+            results.push(st)
+        }
+        if this.select != null {
+            return results[this.select! - 1]
+        }
+        return StatementResult.Matchless
     }
 }

@@ -7,12 +7,12 @@ import (
 public class RuleState {
     moved: bool
     skipWhitespace: bool
-    groups: List<ParserGroup>
+    groups: List<RuleMatchGroup>
 }
 
 public enum RuleResult {
     Success {
-        data: ParsedRule
+        data: RuleMatch
     }
     SoftFail
     HardFail
@@ -31,9 +31,14 @@ public class Rule {
         let state = new RuleState {
             moved = false
             skipWhitespace = true
-            groups = List.empty<ParserGroup>()
+            groups = List.empty<RuleMatchGroup>()
         }
 
+        if state.skipWhitespace {
+            while reader.currentCharacter == ' ' {
+                reader.advance(1)
+            }
+        }
         let start = reader.cursor
         for statement in this.statements {
             if state.skipWhitespace {
@@ -41,12 +46,15 @@ public class Rule {
                     reader.advance(1)
                 }
             }
+            std::io.println("executing ", this.name, " on: '", reader.currentText, "'")
             let result = statement.execute(reader, state)
             match result {
                 Failure => {
                     if state.moved {
+                        std::io.println("Hard failed parsing rule ", this.name)
                         return RuleResult.HardFail
                     }
+                    std::io.println("Soft failed parsing rule ", this.name)
                     return RuleResult.SoftFail
                 }
                 _ => {}
@@ -55,7 +63,7 @@ public class Rule {
 
         let length = reader.cursor - start
         return new RuleResult.Success {
-            data = new ParsedRule {
+            data = new RuleMatch {
                 rule = this.name
                 token = new Token {
                     start

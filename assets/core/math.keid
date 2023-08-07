@@ -1,0 +1,15 @@
+namespace core::math
+
+public function pow<T>(value: T, pow: T): T {
+    if pow == 0 {
+        return 1
+    }
+    if pow == 1 {
+        return value
+    }
+    let total: T = 1
+    for _ in range.create(pow) {
+        total *= value
+    }
+    return total
+}

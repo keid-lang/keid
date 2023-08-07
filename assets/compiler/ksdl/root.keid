@@ -3,6 +3,7 @@ namespace keidc::ksdl
 import (
     core::collections
     core::error
+    core::object
     core::string
 )
 
@@ -23,17 +24,35 @@ implement ToString for Token {
     toString(): string => string.format(this.start.toString(), "+", this.length.toString())
 }
 
-public class ParserGroup {
+public class RuleMatchGroup {
     variable: string
-    value: ParsedRule
+    values: List<RuleMatch>
 }
 
-public class ParsedRule {
+public class RuleMatch {
     rule: string
     token: Token
-    groups: List<ParserGroup>
+    groups: List<RuleMatchGroup>
 }
 
-implement ToString for ParsedRule {
-    toString(): string => string.format("[", this.rule, "] @ ", this.token.toString())
+implement ToString for RuleMatch {
+    toString(): string {
+        let sb = StringBuilder.empty()
+        sb.append("RULE ")
+        sb.append(this.rule)
+        sb.append(" at ")
+        sb.append(this.token.toString())
+        sb.append("; Groups: ")
+        for group in this.groups {
+            sb.append(group.variable)
+            sb.append(" = ")
+            sb.append(group.values.length.toString())
+            sb.append("[")
+            for value in group.values {
+                sb.append(value.toString())
+            }
+            sb.append("], ")
+        }
+        return sb.toString()
+    }
 }

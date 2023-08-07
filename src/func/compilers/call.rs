@@ -116,7 +116,7 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                 () => {{
                     match self.resolve_type(candidate.params.last().unwrap())? {
                         ComplexType::Array(element_type) => *element_type,
-                        _ => unreachable!(),
+                        x => unreachable!("{:#?}, candidate = {:#?}", x, candidate),
                     }
                 }};
             }

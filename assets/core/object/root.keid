@@ -40,6 +40,10 @@ implement ToString for Char {
     }
 }
 
+public interface StringConvert {
+    static fromString(val: string): This
+}
+
 macro $IMPL_INT_TYPE(#wrapper, #primitive)
     public struct #wrapper {
         value: #primitive
@@ -60,6 +64,30 @@ macro $IMPL_INT_TYPE(#wrapper, #primitive)
             }
 
             return sb.toString()
+        }
+    }
+
+    implement StringConvert for #wrapper {
+        public static fromString(val: string): #wrapper {
+            let value: #primitive = 0
+            for i in range.create(val.length) {
+                let ch = val.chars[val.length - i - 1]
+                let digit = match ch {
+                    '0' => 0
+                    '1' => 1
+                    '2' => 2
+                    '3' => 3
+                    '4' => 4
+                    '5' => 5
+                    '6' => 6
+                    '7' => 7
+                    '8' => 8
+                    '9' => 9
+                    _ => throw core::error::Error.create("invalid integer digit: ", ch.toString())
+                }
+                value += math.pow<#primitive>(digit, i + 1)
+            }
+            return value
         }
     }
 end macro

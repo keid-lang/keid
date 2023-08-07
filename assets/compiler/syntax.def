@@ -2,10 +2,6 @@
 // The parser for this file can be found in `parser.keid`.
 // See "syntax.def.README.md" for documentation regarding the format of this file.
 
-RULE Newline
-    OR(LITERAL \r\n, LITERAL \n)
-END RULE
-
 RULE Identifier
     OR(RANGE A-Z, RANGE a-z, LITERAL _)
     OPTIONAL REPEATED OR(RANGE A-Z, RANGE a-z, LITERAL _, RANGE 0-9)
@@ -15,19 +11,30 @@ RULE TypeModifier
     LITERAL public
 END RULE
 
+RULE GenericDecl
+    $name = RULE Identifier
+END RULE
+
+RULE GenericDecls
+    LITERAL <
+    MOVE
+    $decls = RULE GenericDecl
+    $decls = OPTIONAL REPEATED COMPOUND(LITERAL COMMA, RULE GenericDecl) SELECT 2
+    LITERAL >
+END RULE
+
 RULE ClassDecl
     $modifiers = OPTIONAL REPEATED RULE TypeModifier
     LITERAL class
     MOVE
     $name = RULE Identifier
+    $generics = OPTIONAL RULE GenericDecls
+    LITERAL {
 END RULE
 
 RULE Namespace
     RULE Identifier
-    OPTIONAL REPEATED COMPOUND
-        LITERAL ::
-        RULE Identifier
-    END COMPOUND
+    OPTIONAL REPEATED COMPOUND(LITERAL ::, RULE Identifier)
 END RULE
 
 RULE NamespaceStatement
@@ -45,13 +52,13 @@ END RULE
 RULE RootStatement
     MOVE
     $st = OR(RULE ImportStatement, RULE ClassDecl)
-    RULE Newline
+    LITERAL NEWLINE
 END RULE
 
 RULE Program
-    OPTIONAL REPEATED RULE Newline
+    OPTIONAL REPEATED LITERAL NEWLINE
     $ns = RULE NamespaceStatement
-    OPTIONAL REPEATED RULE Newline
+    OPTIONAL REPEATED LITERAL NEWLINE
     $st = OPTIONAL REPEATED RULE RootStatement
-    OPTIONAL REPEATED RULE Newline
+    OPTIONAL REPEATED LITERAL NEWLINE
 END RULE

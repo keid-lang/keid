@@ -108,7 +108,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
         let scope_block = self.builder.create_block();
         let rotated_parent_block = self.builder.create_block();
 
-        let (object_val, rotate) = match &object.ty {
+        let (_object_val, rotate) = match &object.ty {
             ComplexType::Nullable(box ComplexType::Basic(BasicType::Object(ref ident))) => {
                 let nullability_ptr = self.emit(Insn::GetElementPtr(object.val, object.ty.as_llvm_type(self.cpl), 1)); // nullable type nullability
                 let nullability = self.emit(Insn::Load(nullability_ptr, self.cpl.context.get_i8_type()));
@@ -155,8 +155,9 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
             Varargs::None,
             BasicType::Void.to_complex(),
         );
-        let scope_func = self.get_function_ref(&scope_impl)?;
-        self.emit(Insn::Call(scope_func, scope_impl.as_llvm_type(self.cpl), vec![object_val]));
+        let _scope_func = self.get_function_ref(&scope_impl)?;
+        // TODO: fix this
+        // self.emit(Insn::Call(scope_func, scope_impl.as_llvm_type(self.cpl), vec![object_val]));
 
         if rotate {
             self.emit(Insn::Br(rotated_parent_block.as_val()));
@@ -727,6 +728,7 @@ pub fn get_import_map(imports: &[ImportNode], type_provider: &TypeProvider, from
         "core::array",
         "core::collections",
         "core::error",
+        "core::math",
         "core::mem",
         "core::object",
         "core::ops",

@@ -20,7 +20,7 @@ public class List<T> {
         }
     }
 
-    public static from<T>(...elements: T): List<T> {
+    public static from<T>(...elements: [T]): List<T> {
         let list = List.withCapacity<T>(elements.length)
         for element in elements {
             list.push(element)
@@ -61,6 +61,13 @@ public class List<T> {
             // TODO: type check mem.scope(Pointer.cast<T, void>(this.storage.offset(this.length as isize)))
         }
         this.length += 1
+    }
+
+    public extend(other: List<T>) {
+        this.ensureCapacity(this.length + other.length)
+        for val in other {
+            this.push(val)
+        }
     }
 
     public remove(index: usize) {

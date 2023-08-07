@@ -70,9 +70,45 @@ public class KsdlParser {
     parseStatement(line: string): ParserStatement {
         if line == "MOVE" {
             return new MoveStatement {}
+        } else if line.startsWith("COMPOUND") {
+            let inside = line.substring(line.indexOf("(")! + 1, line.indexOf(")")!).trim()
+            let parts = inside.split(",")
+            let options = List.withCapacity<ParserStatement>(parts.length)
+            for part in parts {
+                options.push(this.parseStatement(part.trim()))
+            }
+            let remaining = line.substringAfter(line.indexOf(")")! + 1).trim()
+            if remaining.startsWith("SELECT") {
+                remaining = remaining.substringAfter(7).trim()
+            }
+            return CompoundStatement.create(options)
+        } else if line.startsWith("REPEATED") {
+            let statement = this.parseStatement(line.substringAfter(9).trim())
+            return RepeatedStatement.create(statement, false)
+        } else if line.startsWith("OPTIONAL REPEATED") {
+            let statement = this.parseStatement(line.substringAfter(18).trim())
+            return RepeatedStatement.create(statement, true)
+        } else if line.startsWith("OPTIONAL") {
+            let statement = this.parseStatement(line.substringAfter(9).trim())
+            return OptionalStatement.create(statement)
         } else if line.startsWith("LITERAL") {
             let literal = line.substringAfter(8).trim()
+            if literal == "NEWLINE" {
+                literal = "\n"
+            } else if literal == "COMMA" {
+                literal = ","
+            } else if literal == "SPACE" {
+                literal = " "
+            }
             return StringLiteralStatement.create(literal)
+        } else if line.startsWith("RANGE") {
+            let range = line.substringAfter(6).trim()
+            if range.length != 3 || range.chars[1] != '-' {
+                throw Error.create(string.format("malformed range: ", range))
+            }
+            let first = range.chars[0]
+            let last = range.chars[2]
+            return CharRangeStatement.create(first, last)
         } else if line.startsWith("RULE") {
             let ruleName = line.substringAfter(5).trim()
             let rule = this.getRule(ruleName)
@@ -82,13 +118,13 @@ public class KsdlParser {
             let statement = this.parseStatement(line.substringAfter(line.indexOf("=")! + 1).trim())
             return GroupStatement.create(groupName, statement)
         } else if line.startsWith("OR") {
-            let inside = line.substring(line.indexOf("(")! + 1, line.indexOf(")")!).trim()
-            let parts = inside.split(",")
-            let options = List.withCapacity<ParserStatement>(parts.length)
-            // for part in parts {
-            //     options.push(this.parseStatement(part.trim()))
-            // }
-            return OrStatement.create(options)
+            let inside2 = line.substring(line.indexOf("(")! + 1, line.indexOf(")")!).trim()
+            let parts2 = inside2.split(",")
+            let options2 = List.withCapacity<ParserStatement>(parts2.length)
+            for part2 in parts2 {
+                options2.push(this.parseStatement(part2.trim()))
+            }
+            return OrStatement.create(options2)
         }
         throw Error.create(string.format("Invalid KSDL: ", line))
     }
