@@ -3,6 +3,7 @@ namespace keidc::ksdl
 import (
     core::collections
     core::error
+    core::object
 )
 
 class LineReader {
@@ -42,6 +43,8 @@ public class KsdlParser {
 
             if line.startsWith("RULE") {
                 this.rules.push(this.parseRule(reader))
+            } else if !line.startsWith("//") {
+                throw Error.create(string.format("Invalid KSDL: ", line))
             }
 
             reader.next()
@@ -78,10 +81,12 @@ public class KsdlParser {
                 options.push(this.parseStatement(part.trim()))
             }
             let remaining = line.substringAfter(line.indexOf(")")! + 1).trim()
+            let select: ?usize = null
             if remaining.startsWith("SELECT") {
                 remaining = remaining.substringAfter(7).trim()
+                select = remaining.parse<usize>()
             }
-            return CompoundStatement.create(options)
+            return CompoundStatement.create(options, select)
         } else if line.startsWith("REPEATED") {
             let statement = this.parseStatement(line.substringAfter(9).trim())
             return RepeatedStatement.create(statement, false)

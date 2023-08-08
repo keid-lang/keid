@@ -1,10 +1,4 @@
-use crate::{
-    common::types::BasicType,
-    common::Result,
-    compiler::llvm::{BuilderBlock, Insn},
-    compiler_error,
-    func::*,
-};
+use crate::{common::types::BasicType, common::Result, compiler::llvm::Insn, compiler_error, func::*};
 
 use super::{AssignmentCompiler, CallCompiler, ExprCompiler, ReturnCompiler};
 
@@ -43,10 +37,8 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                     // popping the block will generate keid.unscope() calls
                     // thus, `compile_return` needs to be compiled after it (the return instruction must be the last)
                     // `compile_return` expects that there be an active block though
-                    // to fix this, we first clone the top-level block's locals
-                    let cloned_locals = self.state.get_current_block().locals.clone();
 
-                    // then we generate all the keid.unscope() calls
+                    // we generate all the keid.unscope() calls
                     let block_vars: Vec<Vec<LocalVar>> = self.state.block_stack.iter().map(|block| block.locals.clone()).collect();
                     for vars in block_vars {
                         for var in vars {
@@ -60,19 +52,10 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                         }
                     }
 
-                    // pop the cloned block without keid.scope() by popping the stack directly
-                    let block_type = self.state.block_stack.pop().unwrap().block_type;
-
-                    // create a new block and put all the locals in it
-                    self.state.block_stack.push(ScopeBlock {
-                        locals: cloned_locals,
-                        llvm_block: BuilderBlock::null(),
-                        block_type,
-                    });
-
                     // compile the return statement
                     let res = self.compile_return(return_val.as_ref());
                     returns = true;
+
                     // pop the cloned block without keid.scope() by popping the stack directly
                     self.state.block_stack.pop();
                     res
@@ -143,20 +126,16 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         self.emit(Insn::Br(new_block.as_val())); // unconditionally break to the new block
 
         self.builder.append_block(&new_block);
-        self.builder.use_block(&new_block);
 
-        self.state.block_stack.push(ScopeBlock {
-            locals: Vec::new(),
-            llvm_block: new_block,
-            block_type,
-        });
+        self.state.block_stack.push(ScopeBlock::new(block_type));
         let result = self.compile_block(block);
         if !result {
             self.pop_block().unwrap();
             self.emit(Insn::Br(rotated_parent_block.as_val())); // unconditionally break to the rotated parent block
-            self.builder.append_block(&rotated_parent_block);
-            self.builder.use_block(&rotated_parent_block);
         }
+
+        // TODO: move these back into the above if statement if required
+        self.builder.append_block(&rotated_parent_block);
 
         result
     }
@@ -165,25 +144,24 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         let mut blocks = Vec::new();
 
         for conditional in &if_chain.conditionals {
-            let test_block = self.state.new_block(&mut self.builder);
-            let if_block = self.state.new_block(&mut self.builder);
+            let test_block = self.builder.create_block();
+            let if_block = self.builder.create_block();
             blocks.push((&conditional.test, test_block, if_block, &conditional.body));
         }
 
-        let rotated_parent = self.state.new_rotated_parent(&mut self.builder);
+        let rotated_parent = self.builder.create_block();
         let else_block = if if_chain.fallback.is_some() {
-            Some(self.state.new_block(&mut self.builder))
+            Some(self.builder.create_block())
         } else {
             None
         };
 
-        self.emit(Insn::Br(blocks[0].1.llvm_block.as_val()));
+        self.emit(Insn::Br(blocks[0].1.as_val()));
 
         while !blocks.is_empty() {
             let (test, test_block, then_block, body) = blocks.remove(0);
 
-            self.builder.append_block(&test_block.llvm_block);
-            self.builder.use_block(&test_block.llvm_block);
+            self.builder.append_block(&test_block);
 
             let compiled_test = self.compile_expr(&test, Some(&BasicType::Bool.to_complex()))?;
             self.assert_assignable_to(&compiled_test.ty, &BasicType::Bool.to_complex())?;
@@ -198,65 +176,59 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                 blocks[0].1.clone()
             };
 
-            self.emit(Insn::CondBr(compiled_test.val, then_block.llvm_block.as_val(), else_block.llvm_block.as_val()));
+            self.emit(Insn::CondBr(compiled_test.val, then_block.as_val(), else_block.as_val()));
 
-            self.builder.append_block(&then_block.llvm_block); // append the rotated parent block
-            self.state.push_block(&self.builder, then_block);
+            self.builder.append_block(&then_block); // append the `then` block
+            self.state.push_block(ScopeBlock::new(BlockType::Generic)); // the `then` block has its own scope
 
             if !self.compile_block(body) {
                 self.pop_block()?;
-                self.emit(Insn::Br(rotated_parent.llvm_block.as_val()));
+                self.emit(Insn::Br(rotated_parent.as_val()));
             }
         }
 
         if let Some(else_block) = else_block {
-            self.builder.append_block(&else_block.llvm_block); // append the else parent block
-            self.state.push_block(&self.builder, else_block);
+            self.builder.append_block(&else_block); // append the else parent block
+            self.state.push_block(ScopeBlock::new(BlockType::Generic)); // the `else` block has its own scope
 
             if !self.compile_block(if_chain.fallback.as_ref().unwrap()) {
                 self.pop_block()?;
-                self.emit(Insn::Br(rotated_parent.llvm_block.as_val()));
+                self.emit(Insn::Br(rotated_parent.as_val()));
             }
-
-            self.state.block_stack.pop(); // pop the else block off the stack
         }
 
         // append the rotated parent block
-        self.builder.append_block(&rotated_parent.llvm_block);
-        self.state.push_block(&self.builder, rotated_parent);
+        self.builder.append_block(&rotated_parent);
 
         Ok(())
     }
 
     fn compile_while_loop(&mut self, while_loop: &WhileLoop) -> Result<()> {
-        let rotated_parent = self.state.new_rotated_parent(&mut self.builder); // create a copy ("rotation") of the current parent block
-        let test_block = self.state.new_rotated_parent(&mut self.builder);
-        let mut loop_block = self.state.new_rotated_parent(&mut self.builder);
-        loop_block.block_type = BlockType::Loop {
-            head: test_block.llvm_block.clone(),
-            after: rotated_parent.llvm_block.clone(),
-        };
+        let rotated_parent = self.builder.create_block(); // create a copy ("rotation") of the current parent block
+        let test_block = self.builder.create_block();
+        let loop_block = self.builder.create_block();
 
-        self.emit(Insn::Br(test_block.llvm_block.as_val()));
+        self.emit(Insn::Br(test_block.as_val()));
 
-        self.builder.append_block(&test_block.llvm_block);
-        self.builder.use_block(&test_block.llvm_block);
+        self.builder.append_block(&test_block);
 
         let test_expr = self.compile_expr(&while_loop.condition, Some(&BasicType::Bool.to_complex()))?;
         self.assert_assignable_to(&test_expr.ty, &BasicType::Bool.to_complex())?;
 
-        self.emit(Insn::CondBr(test_expr.val, loop_block.llvm_block.as_val(), rotated_parent.llvm_block.as_val()));
+        self.emit(Insn::CondBr(test_expr.val, loop_block.as_val(), rotated_parent.as_val()));
 
-        self.builder.append_block(&loop_block.llvm_block);
-        self.builder.use_block(&loop_block.llvm_block);
+        self.builder.append_block(&loop_block);
+        self.state.push_block(ScopeBlock::new(BlockType::Loop {
+            head: test_block.clone(),
+            after: rotated_parent.clone(),
+        }));
 
         self.compile_block(&while_loop.block);
         self.pop_block()?; // pop `loop_block` and all of its variables
 
-        self.emit(Insn::Br(test_block.llvm_block.as_val())); // after the main body and unscope calls, go back to the top of the loop
+        self.emit(Insn::Br(test_block.as_val())); // after the main body and unscope calls, go back to the top of the loop
 
-        self.builder.append_block(&rotated_parent.llvm_block); // append the rotated parent block
-        self.state.push_block(&self.builder, rotated_parent);
+        self.builder.append_block(&rotated_parent); // append the rotated parent block
 
         Ok(())
     }
@@ -367,22 +339,17 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         };
         let nullable_element_type = ComplexType::Nullable(Box::new(element_type.clone()));
 
-        let rotated_parent = self.state.new_rotated_parent(&mut self.builder); // create a copy ("rotation") of the current parent block
+        let rotated_parent = self.builder.create_block();
 
         // GET NEXT BLOCK -- this block calls __get_next and checks if it is null.
         // If the value is null, then the loop exits and jumps out to `rotated_parent`.
         // Otherwise, if the value is non-null, the loop executes its block `loop_block`.
-        let get_next_block = self.state.new_block(&mut self.builder);
-        let mut loop_block = self.state.new_block(&mut self.builder);
-        loop_block.block_type = BlockType::Loop {
-            head: get_next_block.llvm_block.clone(),
-            after: rotated_parent.llvm_block.clone(),
-        };
+        let get_next_block = self.builder.create_block();
+        let loop_block = self.builder.create_block();
 
-        self.emit(Insn::Br(get_next_block.llvm_block.as_val()));
+        self.emit(Insn::Br(get_next_block.as_val()));
 
-        self.builder.append_block(&get_next_block.llvm_block);
-        self.builder.use_block(&get_next_block.llvm_block);
+        self.builder.append_block(&get_next_block);
 
         let get_next_method_impl = self
             .cpl
@@ -400,11 +367,14 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         let const_zero = self.cpl.context.const_int(self.cpl.context.get_i8_type(), 0);
         let is_null = self.emit(Insn::ICmp(IntPredicate::LLVMIntEQ, nullability, const_zero));
 
-        self.emit(Insn::CondBr(is_null, rotated_parent.llvm_block.as_val(), loop_block.llvm_block.as_val()));
+        self.emit(Insn::CondBr(is_null, rotated_parent.as_val(), loop_block.as_val()));
 
         // "loop_block" is a psuedo-block that just jumps back to the `get_next_block`
-        self.builder.append_block(&loop_block.llvm_block);
-        self.state.push_block(&self.builder, loop_block);
+        self.builder.append_block(&loop_block);
+        self.state.push_block(ScopeBlock::new(BlockType::Loop {
+            head: get_next_block.clone(),
+            after: rotated_parent.clone(),
+        }));
 
         let value_ptr = self.emit(Insn::GetElementPtr(next_element, nullable_element_type.as_llvm_type(self.cpl), 0)); // nullable type value
 
@@ -417,56 +387,42 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         });
 
         // compile the `loop_block`
-        let footer_block = self.builder.create_block();
-
         self.compile_block(&for_loop.block);
         self.pop_block()?; // pop `loop_block` and all of its variables
 
         self.try_unscope(&source_iterator_ptr)?;
-        self.emit(Insn::Br(footer_block.as_val())); // after the main body and unscope calls, break to the `footer_block`
+        self.emit(Insn::Br(get_next_block.as_val())); // after the main body and unscope calls, break to the `get_next_block`
 
-        self.builder.append_block(&footer_block);
-        self.builder.use_block(&footer_block); // switch to the `footer_block` so we can loop it back up to the `get_next_block`
-        self.emit(Insn::Br(get_next_block.llvm_block.as_val()));
-
-        self.state.block_stack.pop(); // pop the parent block
-        self.builder.append_block(&rotated_parent.llvm_block); // append the rotated parent block
-        self.state.push_block(&self.builder, rotated_parent);
+        self.builder.append_block(&rotated_parent); // append the rotated parent block
 
         Ok(())
     }
 
     fn compile_indefinite_loop(&mut self, indef_loop: &Vec<Token<Statement>>) -> Result<()> {
-        let rotated_parent = self.state.new_rotated_parent(&mut self.builder); // create a copy ("rotation") of the current parent block
-
-        let mut loop_block = self.state.new_block(&mut self.builder); // contains the body of the loop
-        loop_block.block_type = BlockType::Loop {
-            head: loop_block.llvm_block.clone(),
-            after: rotated_parent.llvm_block.clone(),
-        };
-
-        let loop_block_llvm = loop_block.llvm_block.as_val();
+        let rotated_parent = self.builder.create_block(); // create a copy ("rotation") of the current parent block
+        let loop_block = self.builder.create_block(); // contains the body of the loop
+        let loop_block_llvm = loop_block.as_val();
 
         self.emit(Insn::Br(loop_block_llvm)); // jump to the loop block
 
-        self.builder.append_block(&loop_block.llvm_block);
-        self.state.push_block(&self.builder, loop_block);
+        self.builder.append_block(&loop_block);
+        self.state.push_block(ScopeBlock::new(BlockType::Loop {
+            head: loop_block.clone(),
+            after: rotated_parent.clone(),
+        }));
 
         self.compile_block(indef_loop); // compile the contents of the loop
         self.pop_block()?; // pop the loop block
 
         self.emit(Insn::Br(loop_block_llvm)); // jump to the top of the loop block
 
-        self.state.block_stack.pop(); // pop the parent block
-        self.builder.append_block(&rotated_parent.llvm_block); // append the rotated parent block
-        self.state.push_block(&self.builder, rotated_parent);
+        self.builder.append_block(&rotated_parent); // append the rotated parent block
 
         Ok(())
     }
 
     fn compile_try_catch(&mut self, try_catch: &TryCatch) -> Result<()> {
-        let rotated_parent = self.state.new_rotated_parent(&mut self.builder);
-
+        let rotated_parent = self.builder.create_block();
         let try_block = self.builder.create_block();
         let catch_block = self.builder.create_block();
 
@@ -474,32 +430,21 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
 
         // try block
         {
-            let try_scope_block = ScopeBlock {
-                llvm_block: try_block,
-                locals: Vec::new(),
-                block_type: BlockType::Try(TryBlock {
-                    catch_block: catch_block.clone(),
-                }),
-            };
-
-            self.builder.append_block(&try_scope_block.llvm_block);
-            self.state.push_block(&self.builder, try_scope_block);
+            self.builder.append_block(&try_block);
+            self.state.push_block(ScopeBlock::new(BlockType::Try(TryBlock {
+                catch_block: catch_block.clone(),
+            })));
 
             // compile the contents of the try block
             self.compile_block(&try_catch.try_block);
             self.pop_block()?; // pop the try block
 
-            self.emit(Insn::Br(rotated_parent.llvm_block.as_val())); // jump to after the catch block
+            self.emit(Insn::Br(rotated_parent.as_val())); // jump to after the catch block
         }
         // catch block
         {
-            let catch_scope_block = ScopeBlock {
-                llvm_block: catch_block,
-                locals: Vec::new(),
-                block_type: BlockType::Generic,
-            };
-            self.builder.append_block(&catch_scope_block.llvm_block);
-            self.state.push_block(&self.builder, catch_scope_block);
+            self.builder.append_block(&catch_block);
+            self.state.push_block(ScopeBlock::new(BlockType::Generic));
 
             let error_type = BasicType::Object(GenericIdentifier::from_name("core::error::Error")).to_complex();
             let get_unhandled_error_callable =
@@ -524,12 +469,10 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
             self.compile_block(&try_catch.catch_block);
             self.pop_block()?; // pop the catch block
 
-            self.emit(Insn::Br(rotated_parent.llvm_block.as_val())); // jump to after the catch block
+            self.emit(Insn::Br(rotated_parent.as_val())); // jump to after the catch block
         }
 
-        self.state.block_stack.pop(); // pop the parent block
-        self.builder.append_block(&rotated_parent.llvm_block); // append the rotated parent block
-        self.state.push_block(&self.builder, rotated_parent);
+        self.builder.append_block(&rotated_parent); // append the rotated parent block
 
         Ok(())
     }

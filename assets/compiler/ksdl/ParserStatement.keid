@@ -194,7 +194,7 @@ public class CompoundStatement {
 
 implement ParserStatement for CompoundStatement {
     execute(reader: TokenReader, state: RuleState): StatementResult {
-        let results = List.empty<StatementResult>
+        let results = List.empty<StatementResult>()
         for statement in this.statements {
             let st = statement.execute(reader, state)
             match st {
@@ -204,7 +204,7 @@ implement ParserStatement for CompoundStatement {
             results.push(st)
         }
         if this.select != null {
-            return results[this.select! - 1]
+            return results.get(this.select! - 1)
         }
         return StatementResult.Matchless
     }

@@ -19,7 +19,7 @@ RULE GenericDecls
     LITERAL <
     MOVE
     $decls = RULE GenericDecl
-    $decls = OPTIONAL REPEATED COMPOUND(LITERAL COMMA, RULE GenericDecl) SELECT 2
+    OPTIONAL REPEATED COMPOUND(LITERAL COMMA, $decls = RULE GenericDecl)
     LITERAL >
 END RULE
 

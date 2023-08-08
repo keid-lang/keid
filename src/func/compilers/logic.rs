@@ -189,7 +189,6 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
 
                         {
                             self.builder.append_block(&inner_equality_block);
-                            self.builder.use_block(&inner_equality_block);
 
                             let lhs_value_ptr = self.emit(Insn::GetElementPtr(lhs_val, nullable_llvm_type, 0));
                             let lhs_value = TypedValueContainer(TypedValue::new(*lhs_type.clone(), lhs_value_ptr)).load(self)?;
@@ -205,7 +204,6 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
 
                         {
                             self.builder.append_block(&rotated_parent);
-                            self.builder.use_block(&rotated_parent);
 
                             let local_result = self.emit(Insn::Load(local_result_ptr, self.cpl.context.get_i1_type()));
 

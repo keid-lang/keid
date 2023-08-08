@@ -87,7 +87,7 @@ pub struct OpaqueType(LLVMTypeRef);
 #[derive(Clone, Copy, Debug)]
 pub struct OpaqueFunctionType(LLVMTypeRef);
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct OpaqueValue(LLVMValueRef);
+pub struct OpaqueValue(pub LLVMValueRef);
 #[derive(Clone, Copy, Debug)]
 pub struct OpaqueFunctionValue(LLVMValueRef);
 #[derive(Clone, Copy, Debug)]
@@ -924,21 +924,6 @@ impl InsnBuilder {
         }
     }
 
-    pub fn use_block(&self, block: &BuilderBlock) {
-        if get_eval_only() {
-            return;
-        }
-        unsafe {
-            let current_block = LLVMGetInsertBlock(self.bdl);
-            if !current_block.is_null() {
-                if LLVMGetFirstInstruction(current_block).is_null() {
-                    panic!("cannot call use_block if the previous block has no instructions");
-                }
-            }
-            LLVMPositionBuilderAtEnd(self.bdl, block.block);
-        }
-    }
-
     pub fn finish(&self) {
         unsafe {
             let current_block = LLVMGetInsertBlock(self.bdl);
@@ -966,6 +951,8 @@ impl InsnBuilder {
                     self.emit(Insn::Br(block.as_val()), 0, 0);
                 }
             }
+
+            LLVMPositionBuilderAtEnd(self.bdl, block.block);
         }
     }
 

@@ -119,7 +119,6 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                 self.emit(Insn::CondBr(is_null, rotated_parent_block.as_val(), scope_block.as_val()));
 
                 self.builder.append_block(&scope_block);
-                self.builder.use_block(&scope_block);
 
                 let object_ptr = self.emit(Insn::GetElementPtr(object.val, object.ty.as_llvm_type(self.cpl), 0)); // nullable type value
                 (self.emit(Insn::Load(object_ptr, BasicType::Object(ident.clone()).as_llvm_type(self.cpl))), true)
@@ -161,9 +160,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
 
         if rotate {
             self.emit(Insn::Br(rotated_parent_block.as_val()));
-
             self.builder.append_block(&rotated_parent_block);
-            self.builder.use_block(&rotated_parent_block);
         }
 
         Ok(true)
@@ -260,14 +257,12 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
         self.emit(Insn::CondBr(is_below_bounds, error_block.as_val(), check_block.as_val()));
 
         self.builder.append_block(&check_block);
-        self.builder.use_block(&check_block);
 
         let is_above_bounds = self.emit(Insn::ICmp(IntPredicate::LLVMIntUGE, offset_index, length));
         self.emit(Insn::CondBr(is_above_bounds, error_block.as_val(), load_block.as_val()));
 
         {
             self.builder.append_block(&error_block);
-            self.builder.use_block(&error_block);
 
             let throw_out_of_bounds = ResolvedFunctionNode::externed(
                 "keid.throw_out_of_bounds",
@@ -283,7 +278,6 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
 
         let element_ptr = {
             self.builder.append_block(&load_block);
-            self.builder.use_block(&load_block);
 
             let array_data_type = self.cpl.context.get_abi_array_data_type(element_type.as_llvm_type(self.cpl), &element_type.to_string());
 
@@ -302,7 +296,6 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
         };
 
         self.builder.append_block(&rotated_parent_block);
-        self.builder.use_block(&rotated_parent_block);
 
         Ok(element_ptr)
     }
@@ -577,7 +570,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
             _ => None,
         });
 
-        let rotated_parent = self.state.new_rotated_parent(&mut self.builder);
+        let rotated_parent = self.builder.create_block();
         if check {
             let check_unhandled_error_callable =
                 ResolvedFunctionNode::externed("keid.check_unhandled_error", &[], Varargs::None, BasicType::Bool.to_complex());
@@ -586,10 +579,9 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
 
             let return_block = self.builder.create_block();
 
-            self.emit(Insn::CondBr(check_unhandled_error_val, return_block.as_val(), rotated_parent.llvm_block.as_val()));
+            self.emit(Insn::CondBr(check_unhandled_error_val, return_block.as_val(), rotated_parent.as_val()));
 
             self.builder.append_block(&return_block);
-            self.builder.use_block(&return_block);
         }
 
         if let Some(catch_block) = catch_block {
@@ -600,9 +592,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
             self.return_null()?;
         }
 
-        self.state.block_stack.pop();
-        self.builder.append_block(&rotated_parent.llvm_block);
-        self.state.push_block(&self.builder, rotated_parent);
+        self.builder.append_block(&rotated_parent);
 
         Ok(())
     }

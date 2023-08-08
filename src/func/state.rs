@@ -1,6 +1,6 @@
 use crate::{
     common::CompilerError,
-    compiler::llvm::{BuilderBlock, InsnBuilder, OpaqueFunctionValue},
+    compiler::llvm::{BuilderBlock, OpaqueFunctionValue},
     tree::ast::TokenLocation,
 };
 
@@ -31,8 +31,16 @@ pub enum BlockType {
 #[derive(Debug, Clone)]
 pub struct ScopeBlock {
     pub locals: Vec<LocalVar>,
-    pub llvm_block: BuilderBlock,
     pub block_type: BlockType,
+}
+
+impl ScopeBlock {
+    pub fn new(block_type: BlockType) -> ScopeBlock {
+        ScopeBlock {
+            locals: Vec::new(),
+            block_type,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -54,25 +62,7 @@ impl FunctionCompilerState {
         }
     }
 
-    pub fn new_block(&mut self, bdl: &mut InsnBuilder) -> ScopeBlock {
-        ScopeBlock {
-            llvm_block: bdl.create_block(),
-            locals: Vec::new(),
-            block_type: BlockType::Generic,
-        }
-    }
-
-    pub fn new_rotated_parent(&mut self, bdl: &mut InsnBuilder) -> ScopeBlock {
-        let current_block = self.get_current_block();
-        ScopeBlock {
-            llvm_block: bdl.create_block(),
-            locals: current_block.locals.clone(),
-            block_type: current_block.block_type.clone(),
-        }
-    }
-
-    pub fn push_block(&mut self, bdl: &InsnBuilder, block: ScopeBlock) {
-        bdl.use_block(&block.llvm_block);
+    pub fn push_block(&mut self, block: ScopeBlock) {
         self.block_stack.push(block);
     }
 

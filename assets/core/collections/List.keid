@@ -5,6 +5,7 @@ import (
     core::string
     core::mem
     core::object
+    core::ops
 )
 
 public class List<T> {
@@ -99,6 +100,17 @@ public class List<T> {
         }
     }
 
+    public set(index: usize, element: T) {
+        if index >= this.length {
+            throw error.indexOutOfBounds(index)
+        }
+
+        unsafe {
+            // TODO: manually take a reference to the element
+            deref this.storage.offset(index as isize) = element
+        }
+    }
+
     public contains(value: T): bool {
         for i in range.create(0, this.length) {
             if this.get(i) == value {
@@ -123,6 +135,20 @@ implement <T> Iterable<T> for List<T> {
 
 implement <T: ToString + Default> ToString for List<T> {
     toString(): string => array.toString<T>(this.toArray<T>())
+}
+
+implement <T> Index<usize> for List<T> {
+    type Element = T
+
+    index(key: usize): Element => this.get(key)
+}
+
+implement <T> IndexAssign<usize> for List<T> {
+    type Element = T
+
+    indexAssign(key: usize, element: Element) {
+        this.set(key, element)
+    }
 }
 
 public class ListIterator<T> {

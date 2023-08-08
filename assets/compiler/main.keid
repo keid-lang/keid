@@ -26,7 +26,7 @@ public extern function main(): int32 {
     }
 
     let programRule = parser.getRule("Program")
-    let parseResult = programRule.parse("namespace foo::bar\n\npublic class Foo<T1, T2, T3> {\n}\n")
+    let parseResult = programRule.parse("namespace foo::bar\n\npublic class Foo<T1,T2> {\n}\n")
     match parseResult {
         Success { data, } => {
             std::io.println(data.toString())

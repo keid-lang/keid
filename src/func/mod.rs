@@ -115,9 +115,9 @@ impl<'a> FunctionCompiler<'a> {
     }
 
     fn initialize_body(&mut self) {
-        let root_block = self.state.new_block(&mut self.builder);
-        self.builder.append_block(&root_block.llvm_block);
-        self.state.push_block(&self.builder, root_block);
+        let root_block = self.builder.create_block();
+        self.builder.append_block(&root_block);
+        self.state.push_block(ScopeBlock::new(BlockType::Generic));
         self.initialize_local_vars().unwrap();
     }
 
