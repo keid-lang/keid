@@ -1,0 +1,39 @@
+namespace keidc::ast
+
+import (
+    core::collections
+    core::string
+    keidc::ksdl
+)
+
+public class AstToken<T> {
+    node: T
+    loc: TokenLocation
+}
+
+/// Represents a simple single identifier like "foo".
+// public type AstIdentifier    = AstToken<string>
+
+/// Represents a fully qualified (i.e. potentially with namespace) path. 
+// public type AstPathQualifier = AstToken<string>
+
+public class AstGenericDecl {
+    name: AstToken<string>
+}
+
+public class AstClass {
+    name: AstToken<string>
+    generics: ?List<AstGenericDecl>
+}
+
+public class AstKeidProgram {
+    namespace: AstToken<string>
+    // imports: List<AstToken<string>>
+    classes: List<AstClass>
+}
+
+implement ToString for AstKeidProgram {
+    toString(): string {
+        return string.format("AstKeidProgram(namespace=", this.namespace.node, ")")
+    }
+}

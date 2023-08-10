@@ -4,11 +4,26 @@ public class TokenReader {
     sourceText: string
     currentText: string
     cursor: usize
+    isSkipWhitespace: bool
 
     public static create(source: string): TokenReader => new TokenReader {
         sourceText = source
         currentText = source
         cursor = 0
+        isSkipWhitespace = true
+    }
+
+    public skipWhitespace() {
+        if this.isSkipWhitespace {
+            while this.currentCharacter == ' ' {
+                this.advance(1)
+            }
+        }
+    }
+
+    public startsWith(text: string): bool {
+        this.skipWhitespace()
+        return this.currentText.startsWith(text)
     }
 
     public advance(length: usize) {

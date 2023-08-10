@@ -7,20 +7,20 @@ import (
     core::string
 )
 
-public class Token {
+public class TokenLocation {
     /// The index of the first character of the token, relative to the start of the entire program input.
     start: usize
     /// The length of the matched token.
     length: usize
 
-    public static create(start: usize, length: usize): Token => new Token { start, length, }
+    public static create(start: usize, length: usize): TokenLocation => new TokenLocation { start, length, }
 
     public getText(program: string): string {
         return program.substring(this.start, this.start + this.length)
     }
 }
 
-implement ToString for Token {
+implement ToString for TokenLocation {
     toString(): string => string.format(this.start.toString(), "+", this.length.toString())
 }
 
@@ -31,8 +31,26 @@ public class RuleMatchGroup {
 
 public class RuleMatch {
     rule: string
-    token: Token
+    token: TokenLocation
     groups: List<RuleMatchGroup>
+
+    public getGroup(variable: string): List<RuleMatch>  {
+        for group in this.groups {
+            if group.variable == variable {
+                return group.values
+            }
+        }
+
+        throw Error.create(string.format("no such group with variable name '", variable, "'"))
+    }
+
+    public getGroupValue(variable: string): RuleMatch {
+        let group = this.getGroup(variable)
+        if group.length != 1 {
+            throw Error.create(string.format("group '", variable, "' in rule '", this.rule, "' does not have only one match"))
+        }
+        return group.get(0)
+    }
 }
 
 implement ToString for RuleMatch {

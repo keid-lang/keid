@@ -2,6 +2,7 @@ namespace keidc::ksdl
 
 import (
     core::collections
+    core::object
 )
 
 public class RuleState {
@@ -12,7 +13,7 @@ public class RuleState {
 
 public enum RuleResult {
     Success {
-        data: RuleMatch
+        match: RuleMatch
     }
     SoftFail
     HardFail
@@ -21,6 +22,7 @@ public enum RuleResult {
 public class Rule {
     name: string
     statements: List<ParserStatement>
+    isContiguous: bool
 
     public parse(text: string): RuleResult {
         let reader = TokenReader.create(text)
@@ -30,31 +32,20 @@ public class Rule {
     public parse(reader: TokenReader): RuleResult {
         let state = new RuleState {
             moved = false
-            skipWhitespace = true
             groups = List.empty<RuleMatchGroup>()
         }
 
-        if state.skipWhitespace {
-            while reader.currentCharacter == ' ' {
-                reader.advance(1)
-            }
-        }
         let start = reader.cursor
         for statement in this.statements {
-            if state.skipWhitespace {
-                while reader.currentCharacter == ' ' {
-                    reader.advance(1)
-                }
-            }
-            std::io.println("executing ", this.name, " on: '", reader.currentText, "'")
+            reader.skipWhitespace()
+            reader.isSkipWhitespace = !this.isContiguous
             let result = statement.execute(reader, state)
             match result {
                 Failure => {
                     if state.moved {
-                        std::io.println("Hard failed parsing rule ", this.name)
+                        std::io.println("HardFail: ", this.name)
                         return RuleResult.HardFail
                     }
-                    std::io.println("Soft failed parsing rule ", this.name)
                     return RuleResult.SoftFail
                 }
                 _ => {}
@@ -63,9 +54,9 @@ public class Rule {
 
         let length = reader.cursor - start
         return new RuleResult.Success {
-            data = new RuleMatch {
+            match = new RuleMatch {
                 rule = this.name
-                token = new Token {
+                token = new TokenLocation {
                     start
                     length
                 }

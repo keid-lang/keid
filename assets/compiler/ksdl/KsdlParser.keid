@@ -21,12 +21,19 @@ class LineReader {
     public get line: string => this.lines[this.num].trim()
 }
 
+public class Alias {
+    name: string
+    statement: ParserStatement
+}
+
 public class KsdlParser {
     rules: List<Rule>
+    aliases: List<Alias>
 
     public static fromKsdl(ksdl: string): KsdlParser {
         let parser = new KsdlParser {
             rules = List.empty<Rule>()
+            aliases = List.empty<Alias>()
         }
         parser.parseKsdl(ksdl)
         return parser
@@ -42,20 +49,55 @@ public class KsdlParser {
             let line = reader.line
 
             if line.startsWith("RULE") {
-                this.rules.push(this.parseRule(reader))
-            } else if !line.startsWith("//") {
-                throw Error.create(string.format("Invalid KSDL: ", line))
+                let isContiguous = false
+                let name = line.substringAfter(5).trim()
+                let sep = name.indexOf(" ")
+                if sep != null {
+                    let after = name.substringAfter(sep! + 1).trim()
+                    if after == "CONTIGUOUS" {
+                        isContiguous = true
+                    } else {
+                        throw Error.create("invalid rule modifier: " + after)
+                    }
+                    name = name.substringBefore(sep!).trim()
+                }
+                this.rules.push(new Rule {
+                    name
+                    statements = List.empty<ParserStatement>()
+                    isContiguous
+                })
+            } else if line.startsWith("ALIAS") {
+                let after = line.substringAfter(6).trim()
+                let sep2 = after.indexOf(" ")
+                let name2 = after.substringBefore(sep2!).trim()
+                let statement = this.parseStatement(after.substringAfter(sep2! + 1).trim())
+                this.aliases.push(new Alias {
+                    name = name2
+                    statement
+                })
+            }
+            reader.next()
+        }
+        reader.num = 0
+
+        while !reader.isFinished {
+            // TODO: why does this conflict with the first declaration of `line`?
+            let line2 = reader.line
+
+            if line2.startsWith("RULE") {
+                let name = line2.substringAfter(5).trim()
+                let sep = name.indexOf(" ")
+                if sep != null {
+                    name = name.substringBefore(sep!)
+                }
+                this.parseRule(this.getRule(name), reader)
             }
 
             reader.next()
         }
     }
 
-    parseRule(reader: LineReader): Rule {
-        let rule = new Rule {
-            name = reader.line.substringAfter(5).trim()
-            statements = List.empty<ParserStatement>()
-        }
+    parseRule(rule: Rule, reader: LineReader): Rule {
         reader.next()
         while !reader.isFinished {
             let line = reader.line
@@ -80,13 +122,7 @@ public class KsdlParser {
             for part in parts {
                 options.push(this.parseStatement(part.trim()))
             }
-            let remaining = line.substringAfter(line.indexOf(")")! + 1).trim()
-            let select: ?usize = null
-            if remaining.startsWith("SELECT") {
-                remaining = remaining.substringAfter(7).trim()
-                select = remaining.parse<usize>()
-            }
-            return CompoundStatement.create(options, select)
+            return CompoundStatement.create(options)
         } else if line.startsWith("REPEATED") {
             let statement = this.parseStatement(line.substringAfter(9).trim())
             return RepeatedStatement.create(statement, false)
@@ -118,20 +154,36 @@ public class KsdlParser {
             let ruleName = line.substringAfter(5).trim()
             let rule = this.getRule(ruleName)
             return SubruleStatement.create(rule)
+        } else if line.startsWith("ALIAS") {
+            let aliasName = line.substringAfter(6).trim()
+            return this.getAlias(aliasName)
         } else if line.startsWith("$") {
             let groupName = line.substring(1, line.indexOf("=")!).trim()
             let statement = this.parseStatement(line.substringAfter(line.indexOf("=")! + 1).trim())
             return GroupStatement.create(groupName, statement)
         } else if line.startsWith("OR") {
-            let inside2 = line.substring(line.indexOf("(")! + 1, line.indexOf(")")!).trim()
-            let parts2 = inside2.split(",")
-            let options2 = List.withCapacity<ParserStatement>(parts2.length)
-            for part2 in parts2 {
-                options2.push(this.parseStatement(part2.trim()))
+            let inside = line.substring(line.indexOf("(")! + 1, line.indexOf(")")!).trim()
+            let parts = inside.split(",")
+            let options = List.withCapacity<ParserStatement>(parts.length)
+            for part in parts {
+                options.push(this.parseStatement(part.trim()))
             }
-            return OrStatement.create(options2)
+            return OrStatement.create(options)
+        } else if line.startsWith("UNTIL") {
+            let statement = this.parseStatement(line.substringAfter(6).trim())
+            return UntilStatement.create(statement)
         }
         throw Error.create(string.format("Invalid KSDL: ", line))
+    }
+
+    public getAlias(name: string): ParserStatement {
+        for alias in this.aliases {
+            if alias.name == name {
+                return alias.statement
+            }
+        }
+
+        throw Error.create(string.format("no such alias: ", name))
     }
 
     public getRule(name: string): Rule {

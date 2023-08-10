@@ -2,10 +2,61 @@
 // The parser for this file can be found in `parser.keid`.
 // See "syntax.def.README.md" for documentation regarding the format of this file.
 
-RULE Identifier
+RULE HexInteger CONTIGUOUS
+    LITERAL 0x
+    MOVE
+    REPEATED OR(RANGE 0-9, RANGE a-f, RANGE A-F)
+END RULE
+
+RULE DecimalInteger CONTIGUOUS
+    COMPOUND(RANGE 1-9, OPTIONAL REPEATED RANGE 0-9)
+END RULE
+
+RULE Integer CONTIGUOUS
+    $sign = OPTIONAL OR(LITERAL +, LITERAL -)
+    $value = OR(RULE HexInteger, RULE DecimalInteger)
+END RULE
+
+RULE String
+    LITERAL "
+    UNTIL LITERAL "
+END RULE
+
+RULE Char
+    LITERAL '
+    UNTIL LITERAL '
+END RULE
+
+RULE Bool
+    OR(LITERAL true, LITERAL false)
+END RULE
+
+RULE Null
+    LITERAL null
+END RULE
+
+RULE Identifier CONTIGUOUS
     OR(RANGE A-Z, RANGE a-z, LITERAL _)
     OPTIONAL REPEATED OR(RANGE A-Z, RANGE a-z, LITERAL _, RANGE 0-9)
 END RULE
+
+RULE ArrayType
+    LITERAL [
+    $elementType = ALIAS ValueType
+    LITERAL ]
+END RULE
+
+RULE NullableType
+    LITERAL ?
+    $elementType = ALIAS ValueType
+END RULE
+
+RULE BasicType
+    $path = RULE PathQualifier
+    $generics = OPTIONAL RULE GenericArgs
+END RULE
+
+ALIAS ValueType OR(RULE ArrayType, RULE NullableType, RULE BasicType)
 
 RULE TypeModifier
     LITERAL public
@@ -23,6 +74,14 @@ RULE GenericDecls
     LITERAL >
 END RULE
 
+RULE GenericArgs
+    LITERAL <
+    MOVE
+    $args = ALIAS ValueType
+    OPTIONAL REPEATED COMPOUND(LITERAL COMMA, $args = ALIAS ValueType)   
+    LITERAL >
+END RULE
+
 RULE ClassDecl
     $modifiers = OPTIONAL REPEATED RULE TypeModifier
     LITERAL class
@@ -32,7 +91,7 @@ RULE ClassDecl
     LITERAL {
 END RULE
 
-RULE Namespace
+RULE PathQualifier
     RULE Identifier
     OPTIONAL REPEATED COMPOUND(LITERAL ::, RULE Identifier)
 END RULE
@@ -40,13 +99,17 @@ END RULE
 RULE NamespaceStatement
     LITERAL namespace
     MOVE
-    $ns = RULE Namespace
+    $namespace = RULE PathQualifier
 END RULE
 
 RULE ImportStatement
     LITERAL import
     MOVE
-    $ns = RULE Namespace
+    LITERAL (
+    REPEATED LITERAL NEWLINE
+    $modules = RULE PathQualifier
+    OPTIONAL REPEATED COMPOUND(REPEATED LITERAL NEWLINE, $modules = RULE PathQualifier)
+    LITERAL )
 END RULE
 
 RULE RootStatement
@@ -57,8 +120,7 @@ END RULE
 
 RULE Program
     OPTIONAL REPEATED LITERAL NEWLINE
-    $ns = RULE NamespaceStatement
+    $namespace = RULE NamespaceStatement
     OPTIONAL REPEATED LITERAL NEWLINE
-    $st = OPTIONAL REPEATED RULE RootStatement
-    OPTIONAL REPEATED LITERAL NEWLINE
+    OPTIONAL REPEATED COMPOUND($statements = OPTIONAL REPEATED RULE RootStatement, REPEATED LITERAL NEWLINE)
 END RULE

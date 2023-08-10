@@ -36,11 +36,9 @@ END RULE
 
 `COMPOUND(STATEMENT A, STATEMENT B, ...)` matches two values consecutively. This is often useful in conjunction with `OPTIONAL`, `REPEATED`, etc. By default, `COMPOUND` statements return no matching result, and thus cannot be used at the right-hand side of a matching operation.
 
-`COMPOUND(STATEMENT A, STATEMENT B, ...) SELECT N` performs a normal compound match, but yields the matched value of the `Nth` inner `STATEMENT`, with `STATEMENT A` being `N = 1`, `STATEMENT B` being `N = 2`, etc.
-
 ### Group
 
-`$varname = STATEMENT` stores the result from `STATEMENT` into the associated group `$varname`. Repeatedly storing statements into the same group name is an appending (i.e. not overwriting) operation. All groups can hold multiple match results.
+`$varname = STATEMENT` stores the result from `STATEMENT` into the associated group `$varname`. Repeatedly storing statements into the same group name is an appending (i.e. not overwriting) operation. All groups can hold multiple match results. Group statements can also be used within OR, COMPOUND, etc.
 
 ### Move
 

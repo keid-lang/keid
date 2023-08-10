@@ -1,0 +1,56 @@
+namespace keidc::parser
+
+import (
+    core::collections
+    core::error
+    keidc::ast
+    keidc::ksdl
+    std::fs
+)
+
+class ParserState {
+    source: string
+}
+
+function parsePathQualifier(state: ParserState, match: RuleMatch): AstToken<string> {
+    return new AstToken<string> {
+        node = match.token.getText(state.source)
+        loc = match.token
+    }
+}
+
+function parseProgram(state: ParserState, match: RuleMatch): AstKeidProgram {
+    let namespaceMatch = match.getGroupValue("namespace").getGroupValue("namespace")
+    let namespace = parsePathQualifier(state, namespaceMatch)
+    // let imports = List.empty<AstToken<string>>()
+    let classes = List.empty<AstClass>()
+
+    return new AstKeidProgram {
+        namespace
+        // imports
+        classes
+    }
+}
+
+public function parseKeidSource(programText: string): AstKeidProgram {
+    let syntaxDefFile = File.open("../keid/assets/compiler/syntax.def", FileOpenMode.ReadOnly)
+    let syntaxDef = string.fromUtf8(syntaxDefFile.readAllBytes())
+    syntaxDefFile.close()
+
+    let parser = KsdlParser.fromKsdl(syntaxDef)
+    let programRule = parser.getRule("Program")
+    let parseResult = programRule.parse(programText)
+    match parseResult {
+        Success { match, } => {
+            std::io.println(match.toString())
+
+            let state = new ParserState {
+                source = programText
+            }
+            return parseProgram(state, match)
+        }
+        _ => {}
+    }
+
+    throw Error.create("Parse failure!")
+}

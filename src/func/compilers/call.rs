@@ -512,7 +512,11 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
     fn compile_new_call(&mut self, nc: &NewCall) -> Result<TypedValue> {
         self.loc(&nc.ty.loc);
 
-        let class_instance = self.instantiate_object(self.resolve_type(&nc.ty.complex).unwrap())?;
+        let ty = match self.resolve_type(&nc.ty.complex) {
+            Ok(ty) => ty,
+            Err(e) => return Err(compiler_error!(&self, "{}", e)),
+        };
+        let class_instance = self.instantiate_object(ty)?;
         match &class_instance.ty {
             ComplexType::Basic(BasicType::Object(ident)) => {
                 let class_impl = self.cpl.type_provider.get_class_by_name(ident).unwrap();
