@@ -132,10 +132,8 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         if !result {
             self.pop_block().unwrap();
             self.emit(Insn::Br(rotated_parent_block.as_val())); // unconditionally break to the rotated parent block
+            self.builder.append_block(&rotated_parent_block);
         }
-
-        // TODO: move these back into the above if statement if required
-        self.builder.append_block(&rotated_parent_block);
 
         result
     }

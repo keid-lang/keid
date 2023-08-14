@@ -34,6 +34,16 @@ public class RuleMatch {
     token: TokenLocation
     groups: List<RuleMatchGroup>
 
+    public hasGroup(variable: string): bool {
+        for group in this.groups {
+            if group.variable == variable {
+                return true
+            }
+        }
+
+        return false
+    }
+
     public getGroup(variable: string): List<RuleMatch>  {
         for group in this.groups {
             if group.variable == variable {

@@ -157,8 +157,7 @@ impl<'a> FunctionCompiler<'a> {
 
     fn pop_stack_frame(&mut self) -> Result<()> {
         if !Self::get_hidden_function_names().contains(&self.func.callable_name.as_str()) {
-            let pop_stack_frame_impl =
-                self.cpl.type_provider.get_function_by_name(&GenericIdentifier::from_name("core::runtime::popStackFrame"), &[]).unwrap();
+            let pop_stack_frame_impl = self.cpl.type_provider.get_function_by_name(&GenericIdentifier::from_name("core::runtime::popStackFrame"), &[]).unwrap();
             let pop_stack_frame_ref = self.get_function_ref(&pop_stack_frame_impl)?;
             self.call_function(pop_stack_frame_ref, &pop_stack_frame_impl, &[])?;
         }
@@ -175,10 +174,7 @@ impl<'a> FunctionCompiler<'a> {
             if source_defs[i].name == arg.to_string() {
                 panic!("recursive context generics: {} = {:#?}\n\nfunc: {:#?}", source_defs[i].name, arg, self.func);
             }
-            self.cpl
-                .type_provider
-                .context_generics
-                .insert(BasicType::Object(GenericIdentifier::from_name(&source_defs[i].name)).to_complex(), arg);
+            self.cpl.type_provider.context_generics.insert(BasicType::Object(GenericIdentifier::from_name(&source_defs[i].name)).to_complex(), arg);
         }
 
         let source = self.get_source_function();
@@ -273,11 +269,7 @@ impl<'a> FunctionCompiler<'a> {
         ))
     }
 
-    fn resolve_interface_impl_function(
-        &self,
-        mut callable: ResolvedFunctionNode,
-        interface_impl: &InterfaceImplNode,
-    ) -> Result<ResolvedFunctionNode> {
+    fn resolve_interface_impl_function(&self, mut callable: ResolvedFunctionNode, interface_impl: &InterfaceImplNode) -> Result<ResolvedFunctionNode> {
         let mut generics = Vec::with_capacity(interface_impl.associated_types.len());
         let mut values = Vec::with_capacity(interface_impl.associated_types.len());
         for assoc in &interface_impl.associated_types {
@@ -294,8 +286,8 @@ impl<'a> FunctionCompiler<'a> {
             .map(|ty| crate::tree::extract_type(&self.cpl.type_provider, ty, &generics, &values))
             .collect::<anyhow::Result<_>>()
             .map_err(|e| compiler_error!(self, "{}", e))?;
-        callable.return_type = crate::tree::extract_type(&self.cpl.type_provider, callable.return_type, &generics, &values)
-            .map_err(|e| compiler_error!(self, "{}", e))?;
+        callable.return_type =
+            crate::tree::extract_type(&self.cpl.type_provider, callable.return_type, &generics, &values).map_err(|e| compiler_error!(self, "{}", e))?;
 
         Ok(callable)
     }
@@ -305,27 +297,29 @@ impl<'a> FunctionCompiler<'a> {
             return Ok(generic.clone());
         }
 
-        match ty {
-            ComplexType::Basic(BasicType::Object(ident)) => {
+        match ty.get_root_type() {
+            BasicType::Object(ident) => {
                 for absolute_name in utils::lookup_import_map(import_map, &ident.name) {
                     let generic_args = ident.generic_args.iter().map(|arg| self.resolve_type(arg)).collect::<Result<Vec<ComplexType>>>()?;
 
                     let abs_obj_type = GenericIdentifier::from_name_with_args(&absolute_name, &generic_args);
                     match self.cpl.type_provider.get_class_by_name(&abs_obj_type) {
-                        Some(class_type) => return Ok(class_type.as_complex_type(self.cpl.type_provider.get_source_class(&class_type))),
+                        Some(class_type) => {
+                            return Ok(ty.clone().replace_root(class_type.as_complex_type(self.cpl.type_provider.get_source_class(&class_type))))
+                        }
                         None => {
                             match self.cpl.type_provider.get_typedef_by_name(&abs_obj_type) {
-                                Some(typedef) => return Ok(typedef.target_type),
+                                Some(typedef) => return Ok(ty.clone().replace_root(typedef.target_type)),
                                 None => {
                                     match self.cpl.type_provider.get_enum_by_name(&abs_obj_type) {
                                         Some(enum_type) => {
-                                            return Ok(enum_type.as_complex_type(self.cpl.type_provider.get_source_enum(&enum_type)))
+                                            return Ok(ty.clone().replace_root(enum_type.as_complex_type(self.cpl.type_provider.get_source_enum(&enum_type))))
                                         }
                                         None => {
                                             // if a generic type with the same name exists, then substitute the generic type with the actual type
                                             let source = self.get_source_function();
                                             if let Some(pos) = source.generic_defs.iter().position(|def| def.name == absolute_name) {
-                                                return Ok(self.func.generic_impls[pos].clone());
+                                                return Ok(ty.clone().replace_root(self.func.generic_impls[pos].clone()));
                                             }
                                         }
                                     }
@@ -361,8 +355,7 @@ impl<'a> FunctionCompiler<'a> {
         for i in 0..fields.len() {
             let field = &fields[i];
             if field.name == field_name.token.0 {
-                let element_ptr =
-                    self.emit(Insn::GetElementPtr(class_instance.val, type_root.as_llvm_type(self.cpl), field_offset + i as u32));
+                let element_ptr = self.emit(Insn::GetElementPtr(class_instance.val, type_root.as_llvm_type(self.cpl), field_offset + i as u32));
                 return Ok(Box::new(TypedValueContainer(TypedValue::new(field.ty.clone(), element_ptr))));
             }
         }
@@ -372,17 +365,13 @@ impl<'a> FunctionCompiler<'a> {
             for accessor in &class.accessors {
                 if accessor.name == field_name.token.0 {
                     let getter = self.cpl.type_provider.get_function_node(type_root.module_id, accessor.function_id).unwrap();
-                    break 'getter_block getter
-                        .create_impl(&self.cpl.type_provider, &type_root.generic_impls)
-                        .map_err(|e| compiler_error!(self, "{}", e))?;
+                    break 'getter_block getter.create_impl(&self.cpl.type_provider, &type_root.generic_impls).map_err(|e| compiler_error!(self, "{}", e))?;
                 }
             }
 
             let source_type = self.cpl.type_provider.get_source_class(type_root);
-            let resolved_interface_impls = self
-                .cpl
-                .type_provider
-                .get_resolved_interface_impls(&GenericIdentifier::from_name_with_args(&source_type.base_name, &type_root.generic_impls));
+            let resolved_interface_impls =
+                self.cpl.type_provider.get_resolved_interface_impls(&GenericIdentifier::from_name_with_args(&source_type.base_name, &type_root.generic_impls));
             for resolved_interface_impl in resolved_interface_impls {
                 let interface_impl = self.cpl.type_provider.get_source_interface_impl(&resolved_interface_impl);
                 for accessor in &interface_impl.accessors {
@@ -394,12 +383,7 @@ impl<'a> FunctionCompiler<'a> {
                     }
                 }
             }
-            return Err(compiler_error!(
-                self,
-                "No such field or `get` accessor `{}` in type `{}`",
-                field_name.token.0,
-                type_root.full_name,
-            ));
+            return Err(compiler_error!(self, "No such field or accessor `{}.{}`", type_root.full_name, field_name.token.0));
         };
 
         Ok(Box::new(AccessorValueContainer::new(getter_impl, class_instance.val)))
@@ -433,14 +417,12 @@ impl<'a> FunctionCompiler<'a> {
             }
         }
 
-        let evaluated_arguments =
-            args.iter().map(|arg| self.compile_expr(arg, None).map(|arg| arg.ty.to_string())).collect::<Result<Vec<String>>>()?;
+        let evaluated_arguments = args.iter().map(|arg| self.compile_expr(arg, None).map(|arg| arg.ty.to_string())).collect::<Result<Vec<String>>>()?;
         self.loc(&sfc.call.name.loc);
         Err(compiler_error!(
             self,
             "No such function overload `{}({})`",
-            GenericIdentifier::from_name_with_args(&format!("{}::{}", sfc.owner.to_string(), sfc.call.name.token.0), &generic_args)
-                .to_string(),
+            GenericIdentifier::from_name_with_args(&format!("{}::{}", sfc.owner.to_string(), sfc.call.name.token.0), &generic_args).to_string(),
             utils::iter_join(&evaluated_arguments),
         ))
     }

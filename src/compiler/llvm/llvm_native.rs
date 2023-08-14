@@ -783,7 +783,7 @@ impl Module {
         }
     }
 
-    pub fn to_object_code(&self, module_name: &str, target: &LLVMTargetData) -> Result<LLVMArray> {
+    pub fn verify(&self, module_name: &str) {
         unsafe {
             let mut error_message: *mut _ = std::ptr::null_mut();
             if LLVMVerifyModule(self.mdl, LLVMVerifierFailureAction::LLVMReturnStatusAction, &mut error_message) != 0 {
@@ -792,19 +792,17 @@ impl Module {
                 eprintln!("[Module `{}`] Error during module verification: {}", module_name, error);
                 LLVMDisposeMessage(error_message);
             }
+        }
+    }
 
+    pub fn to_object_code(&self, target: &LLVMTargetData) -> Result<LLVMArray> {
+        unsafe {
             let pm = PassManager::new(0);
             pm.run(self.mdl);
 
+            let mut error_message: *mut _ = std::ptr::null_mut();
             let mut buf: LLVMMemoryBufferRef = std::ptr::null_mut();
-            if LLVMTargetMachineEmitToMemoryBuffer(
-                target.machine,
-                self.mdl,
-                LLVMCodeGenFileType::LLVMObjectFile,
-                &mut error_message,
-                &mut buf,
-            ) != 0
-            {
+            if LLVMTargetMachineEmitToMemoryBuffer(target.machine, self.mdl, LLVMCodeGenFileType::LLVMObjectFile, &mut error_message, &mut buf) != 0 {
                 return Err(anyhow!("error while emitting to memory buffer"));
             }
 
@@ -989,9 +987,7 @@ impl InsnBuilder {
                     let args = args.as_mut_slice();
                     LLVMBuildCall2(self.bdl, ty.0, func.0, args.as_mut_ptr(), args.len() as u32, insn_name)
                 }
-                Insn::GetElementPtr(struct_ref, value_type, value_idx) => {
-                    LLVMBuildStructGEP2(self.bdl, value_type.0, struct_ref.0, value_idx, insn_name)
-                }
+                Insn::GetElementPtr(struct_ref, value_type, value_idx) => LLVMBuildStructGEP2(self.bdl, value_type.0, struct_ref.0, value_idx, insn_name),
                 Insn::GetElementPtrDynamic(struct_ref, value_type, value_idx) => {
                     let indices = &mut [value_idx.0];
                     LLVMBuildInBoundsGEP2(self.bdl, value_type.0, struct_ref.0, indices.as_mut_ptr(), 1, insn_name)

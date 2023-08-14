@@ -26,14 +26,28 @@ public class AstClass {
     generics: ?List<AstGenericDecl>
 }
 
+implement ToString for AstClass {
+    toString(): string {
+        return string.format("AstClass(name=", this.name.node, ")")
+    }
+}
+
 public class AstKeidProgram {
     namespace: AstToken<string>
-    // imports: List<AstToken<string>>
+    imports: List<AstToken<string>>
     classes: List<AstClass>
 }
 
 implement ToString for AstKeidProgram {
     toString(): string {
-        return string.format("AstKeidProgram(namespace=", this.namespace.node, ")")
+        let sb = StringBuilder.empty()
+        sb.append("AstKeidProgram(namespace=")
+        sb.append(this.namespace.node)
+        sb.append(", classes=[")
+        for class in this.classes {
+            sb.append(class.toString())
+        }
+        sb.append("])")
+        return sb.toString()
     }
 }

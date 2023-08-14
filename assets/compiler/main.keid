@@ -6,6 +6,7 @@ import (
     std::fs
     std::os
     keidc::ksdl
+    keidc::ast
 )
 
 public extern function main(): int32 {

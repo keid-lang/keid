@@ -12,22 +12,55 @@ class ParserState {
     source: string
 }
 
-function parsePathQualifier(state: ParserState, match: RuleMatch): AstToken<string> {
+function parseString(state: ParserState, match: RuleMatch): AstToken<string> {
     return new AstToken<string> {
         node = match.token.getText(state.source)
         loc = match.token
     }
 }
 
+function parseGenericDecls(state: ParserState, match: RuleMatch): List<AstGenericDecl> {
+    let decls = List.empty<AstGenericDecl>()
+    for decl in match.getGroup("decls") {
+        let declName = decl.getGroupValue("name")
+        decls.push(new AstGenericDecl {
+            name = parseString(state, declName)
+        })
+    }
+    return decls
+}
+
+function parseClass(state: ParserState, match: RuleMatch): AstClass {
+    let name = parseString(state, match.getGroupValue("name"))
+    let generics: ?List<AstGenericDecl> = null
+    if match.hasGroup("generics") {
+        generics = parseGenericDecls(state, match.getGroupValue("generics"))
+    }
+
+    return new AstClass {
+        name
+        generics
+    }
+}
+
 function parseProgram(state: ParserState, match: RuleMatch): AstKeidProgram {
     let namespaceMatch = match.getGroupValue("namespace").getGroupValue("namespace")
-    let namespace = parsePathQualifier(state, namespaceMatch)
-    // let imports = List.empty<AstToken<string>>()
+    let namespace = parseString(state, namespaceMatch)
+    let imports = List.empty<AstToken<string>>()
     let classes = List.empty<AstClass>()
+
+    for statementMatch in match.getGroup("statements") {
+        let statement = statementMatch.getGroupValue("st")
+        if statement.rule == "ImportStatement" {
+
+        } else if statement.rule == "ClassDecl" {
+            classes.push(parseClass(state, statement))
+        }
+    }
 
     return new AstKeidProgram {
         namespace
-        // imports
+        imports
         classes
     }
 }

@@ -470,7 +470,11 @@ impl Compiler {
                 });
             }
 
+            println!("verify: {}", unit.path_name);
+            unit.mdl.verify(&utils::path_to_module_name(root, &unit.path_name));
+
             if target.is_llvm_ir() {
+                println!("to_llvm_ir: {}", unit.path_name);
                 let ir = unit.mdl.to_llvm_ir();
                 artifacts.push(CompilationArtifact {
                     kind: CompilationArtifactType::LlvmIr,
@@ -478,7 +482,8 @@ impl Compiler {
                     data: ir.into_bytes(),
                 })
             } else {
-                let code = unit.mdl.to_object_code(&utils::path_to_module_name(root, &unit.path_name), target).unwrap();
+                println!("to_object_code: {}", unit.path_name);
+                let code = unit.mdl.to_object_code(target).unwrap();
                 artifacts.push(CompilationArtifact {
                     kind: CompilationArtifactType::NativeObject,
                     name: name.to_owned(),
