@@ -21,14 +21,40 @@ public class AstGenericDecl {
     name: AstToken<string>
 }
 
+public enum KeidModifier {
+    Public
+    Static
+    Extern
+}
+
+implement ToString for KeidModifier {
+    toString(): string {
+        return match this {
+            Public => "public"
+            Static => "static"
+            Extern => "extern"
+        } 
+    }
+}
+
 public class AstClass {
+    modifiers: List<AstToken<KeidModifier>>
     name: AstToken<string>
     generics: ?List<AstGenericDecl>
 }
 
 implement ToString for AstClass {
     toString(): string {
-        return string.format("AstClass(name=", this.name.node, ")")
+        let sb = StringBuilder.empty()
+        sb.append("AstClass(name=")
+        sb.append(this.name.node)
+        sb.append(", modifiers=[")
+        for modifier in this.modifiers {
+            sb.append(modifier.node.toString())
+            sb.append(", ")
+        }
+        sb.append("])")
+        return sb.toString()
     }
 }
 
@@ -43,9 +69,15 @@ implement ToString for AstKeidProgram {
         let sb = StringBuilder.empty()
         sb.append("AstKeidProgram(namespace=")
         sb.append(this.namespace.node)
-        sb.append(", classes=[")
+        sb.append(", imports=[")
+        for import in this.imports {
+            sb.append(import.node)
+            sb.append(", ")
+        }
+        sb.append("], classes=[")
         for class in this.classes {
             sb.append(class.toString())
+            sb.append(", ")
         }
         sb.append("])")
         return sb.toString()

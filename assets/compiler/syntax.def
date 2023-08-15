@@ -58,8 +58,8 @@ END RULE
 
 ALIAS ValueType OR(RULE ArrayType, RULE NullableType, RULE BasicType)
 
-RULE TypeModifier
-    LITERAL public
+RULE Modifier
+    OR(LITERAL public, LITERAL static, LITERAL extern)
 END RULE
 
 RULE GenericDecl
@@ -83,7 +83,7 @@ RULE GenericArgs
 END RULE
 
 RULE ClassDecl
-    $modifiers = OPTIONAL REPEATED RULE TypeModifier
+    $modifiers = OPTIONAL REPEATED RULE Modifier
     LITERAL class
     MOVE
     $name = RULE Identifier

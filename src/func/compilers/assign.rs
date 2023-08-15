@@ -185,7 +185,7 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                 let initial_ref = self.compile_expr(initial_value, None)?;
                 let var_type = initial_ref.ty.clone();
                 if var_type == BasicType::Void.to_complex() {
-                    return Err(compiler_error!(self, "Ilegal variable type `void`"));
+                    return Err(compiler_error!(self, "Illegal variable type `void`"));
                 }
                 (initial_ref, var_type)
             }
