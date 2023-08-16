@@ -308,9 +308,7 @@ impl Compiler {
                         .type_provider
                         .get_all_resolved_classes()
                         .iter()
-                        .map(|class_impl| {
-                            let source = self.type_provider.get_source_class(class_impl);
-                            let class = GenericIdentifier::from_name_with_args(&source.base_name, &class_impl.generic_impls);
+                        .map(|class| {
                             self.type_provider
                                 .get_resolved_interface_impls(&class)
                                 .iter()
@@ -318,7 +316,7 @@ impl Compiler {
                                     let interface_impl = self.type_provider.get_source_interface_impl(resolved_interface_impl);
                                     let mut all_functions = interface_impl.functions.clone();
                                     all_functions.extend(interface_impl.accessors.iter().map(|accessor| accessor.function_id));
-                                    (interface_impl.module_id, all_functions, class_impl.generic_impls.clone())
+                                    (interface_impl.module_id, all_functions, class.generic_args.clone())
                                 })
                                 .collect()
                         })
@@ -367,18 +365,15 @@ impl Compiler {
                     .class_info
                     .classes
                     .iter()
-                    .filter(|cls| cls.class_impl.class_type != ClassType::Struct)
-                    .map(|cls| {
-                        let source = self.type_provider.get_source_class(&cls.class_impl);
-                        (source.base_name.clone(), cls.class_impl.generic_impls.clone())
-                    })
+                    .filter(|cls| cls.data.class_type != ClassType::Struct && cls.data.class_type != ClassType::Enum)
+                    .map(|cls| cls.data.ident.clone())
                     .collect();
-                for (class_name, generic_impls) in class_names {
-                    let instance_type = BasicType::Object(GenericIdentifier::from_name_with_args(&class_name, &generic_impls)).to_complex();
+                for ident in class_names {
+                    let instance_type = BasicType::Object(ident.clone()).to_complex();
                     let mut destructor_impl = self
                         .type_provider
                         .get_function_by_name(
-                            &GenericIdentifier::from_name_with_args(&format!("{}::keid.destructor", class_name), &generic_impls),
+                            &GenericIdentifier::from_name_with_args(&format!("{}::keid.destructor", &ident.name), &ident.generic_args),
                             &[instance_type.clone()],
                         )
                         .unwrap();
@@ -403,10 +398,6 @@ impl Compiler {
                 },
             )
             .unwrap();
-
-            let string_class = self.type_provider.get_class_by_name(&GenericIdentifier::from_name("core::string::String")).unwrap();
-            let string_classinfo_offset = self.class_info.get_abi_class_info_offset(&self.context, &string_class).to_string();
-            let processed_intrinsics = processed_intrinsics.replace("$STRING_CLASSINFO_OFFSET", &string_classinfo_offset);
 
             let intrinsics_module = self.context.parse_llvm_ir(&processed_intrinsics, "intrinsics.ll");
             self.units.push(CompilationUnit {

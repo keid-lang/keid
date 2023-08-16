@@ -22,7 +22,13 @@ impl<'a> ArrayCompiler for FunctionCompiler<'a> {
 
         let array_llvm_type = self.cpl.context.get_abi_array_data_type(element_type.as_llvm_type(self.cpl), &element_type.to_string());
         let data_ptr = self.heap_allocate(element_type.as_llvm_type(self.cpl), Some(length.val))?;
-        self.emit(Insn::Memset(data_ptr, self.cpl.context.const_null(element_type.as_llvm_type(self.cpl)), length.val));
+
+        let const_element_size = self
+            .cpl
+            .context
+            .const_int(self.cpl.context.get_isize_type(), self.cpl.context.target.get_type_size(element_type.as_llvm_type(&self.cpl)));
+        let byte_size = self.emit(Insn::IMul(const_element_size, length.val));
+        self.emit(Insn::Memset(data_ptr, self.cpl.context.const_int(self.cpl.context.get_i8_type(), 0), byte_size));
 
         let metadata_ptr = self.heap_allocate(array_llvm_type, None)?;
 

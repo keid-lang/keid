@@ -206,10 +206,30 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                                     _ => class_impl,
                                 },
                                 None => match self.cpl.type_provider.get_enum_by_name(ident) {
-                                    Some(_) => match &next_member.value.token {
+                                    Some(resolved_enum) => match &next_member.value.token {
                                         Expr::FuncCall(fc) => {
                                             current = self.compile_instance_func_call(fc, &instance)?;
                                             continue;
+                                        }
+                                        Expr::Ident(field_name) => {
+                                            if field_name.token.0 == "variant" {
+                                                let length_ptr = self.emit(Insn::GetElementPtr(
+                                                    current.val,
+                                                    self.cpl.context.get_abi_enum_type_any_element(&self.cpl, &resolved_enum),
+                                                    1,
+                                                ));
+
+                                                let length = self.emit(Insn::Load(length_ptr, self.cpl.context.get_i32_type()));
+                                                current = TypedValue::new(BasicType::UInt32.to_complex(), length);
+                                                continue;
+                                            } else {
+                                                return Err(compiler_error!(
+                                                    self,
+                                                    "No such field `{}` in type `{}`",
+                                                    field_name.token.0,
+                                                    current.ty.to_string()
+                                                ));
+                                            }
                                         }
                                         x => unreachable!("{:?}", x),
                                     },
@@ -438,7 +458,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                         return Err(compiler_error!(self, "Expecting value of enum type but received `{}`", value.ty.to_string()));
                     }
                     let resolved = self.resolve_enum_variant(&GenericIdentifier::from_complex_type(&value.ty), &member.token.0)?;
-                    let test_variant_id_ptr = self.emit(Insn::GetElementPtr(value.val, value.ty.as_llvm_type(self.cpl), 0));
+                    let test_variant_id_ptr = self.emit(Insn::GetElementPtr(value.val, value.ty.as_llvm_type(self.cpl), 1));
                     let test_variant_id = self.emit(Insn::Load(test_variant_id_ptr, self.cpl.context.get_i32_type()));
                     let real_variant_id_const = self.cpl.context.const_int(self.cpl.context.get_i32_type(), resolved.variant_id as _);
                     let are_equal = self.emit(Insn::ICmp(LLVMIntPredicate::LLVMIntEQ, test_variant_id, real_variant_id_const));
@@ -470,7 +490,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                         self.cpl.context.get_abi_enum_type_specific_element(self.cpl, &resolved.enum_impl, resolved.variant_id);
                     let enum_ptr = self.emit(Insn::BitCast(value.val, self.cpl.context.get_pointer_type(specific_variant_type)));
                     for (i, field) in resolved.data_type.unwrap().into_iter().enumerate() {
-                        let field_ptr = self.emit(Insn::GetElementPtr(enum_ptr, specific_variant_type, (i + 1) as u32));
+                        let field_ptr = self.emit(Insn::GetElementPtr(enum_ptr, specific_variant_type, (i + 2) as u32)); // ID 2 to offset the classinfo and variant ID
                         self.state.get_current_block_mut().locals.push(LocalVar {
                             name: field.name,
                             value: TypedValue::new(field.ty, field_ptr),
@@ -596,8 +616,17 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
         let any_variant_type = self.cpl.context.get_abi_enum_type_any_element(self.cpl, &resolved.enum_impl);
         let enum_ptr = self.emit(Insn::Alloca(any_variant_type));
 
+        // store the classinfo pointer
+        let class_info_global = self.cpl.class_info.get_abi_class_info_ptr(
+            &self.cpl.context,
+            &self.unit.mdl,
+            &ClassInfoData::from_resolved_enum(&self.cpl.type_provider, &resolved.enum_impl),
+        );
+        let class_info_local = self.emit(Insn::GetElementPtr(enum_ptr, any_variant_type, 0));
+        self.emit(Insn::Store(class_info_global, class_info_local));
+
         let variant_id_const = self.cpl.context.const_int(self.cpl.context.get_i32_type(), resolved.variant_id as _);
-        let variant_id_ptr = self.emit(Insn::GetElementPtr(enum_ptr, any_variant_type, 0));
+        let variant_id_ptr = self.emit(Insn::GetElementPtr(enum_ptr, any_variant_type, 1));
 
         self.emit(Insn::Store(variant_id_const, variant_id_ptr));
 
@@ -623,7 +652,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                     let field_ptr = self.emit(Insn::GetElementPtr(
                         enum_ptr,
                         specific_variant_type,
-                        (1 + field_offset) as u32, // offset 1 to accomodate for the variant ID
+                        (2 + field_offset) as u32, // offset 2 to accomodate for the classinfo pointer and variant ID
                     ));
                     let arg_value = match &field.value {
                         Some(expr) => self.compile_expr(expr, Some(&corresponding_field.ty))?,

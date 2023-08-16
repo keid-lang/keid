@@ -4,7 +4,7 @@ use super::llvm::{Context, Linkage, Module, OpaqueValue};
 use crate::{
     common::{GenericIdentifier, TypeProvider},
     func::utils,
-    tree::{ClassType, GenericNode, ResolvedClassNode},
+    tree::{ClassType, GenericNode, ResolvedClassNode, ResolvedEnumNode},
 };
 
 pub struct VirtualMethodInfo {
@@ -12,8 +12,38 @@ pub struct VirtualMethodInfo {
     pub func_ptr: OpaqueValue,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClassInfoData {
+    pub module_id: usize,
+    pub source_id: usize,
+    pub ident: GenericIdentifier,
+    pub class_type: ClassType,
+}
+
+impl ClassInfoData {
+    pub fn from_resolved_class(type_provider: &TypeProvider, class: &ResolvedClassNode) -> ClassInfoData {
+        let base_name = type_provider.get_source_class(class).base_name.clone();
+        ClassInfoData {
+            module_id: class.module_id,
+            source_id: class.source_id,
+            ident: GenericIdentifier::from_name_with_args(&base_name, &class.generic_impls),
+            class_type: class.class_type,
+        }
+    }
+
+    pub fn from_resolved_enum(type_provider: &TypeProvider, class: &ResolvedEnumNode) -> ClassInfoData {
+        let base_name = type_provider.get_source_enum(class).base_name.clone();
+        ClassInfoData {
+            module_id: class.module_id,
+            source_id: class.source_id,
+            ident: GenericIdentifier::from_name_with_args(&base_name, &class.generic_impls),
+            class_type: ClassType::Enum,
+        }
+    }
+}
+
 pub struct ClassInfo {
-    pub class_impl: ResolvedClassNode,
+    pub data: ClassInfoData,
     pub destructor_ptr: OpaqueValue,
     pub virtual_methods: Vec<VirtualMethodInfo>,
 }
@@ -24,6 +54,7 @@ pub struct ClassInfoStorage {
 }
 
 const TYPE_STRUCT: i32 = 0x01;
+const TYPE_ENUM: i32 = 0x02;
 
 impl ClassInfoStorage {
     pub fn new(context: &mut Context) -> ClassInfoStorage {
@@ -53,9 +84,7 @@ impl ClassInfoStorage {
         let mut vtable_offset = 0;
         for i in 0..self.classes.len() {
             let class_info = &self.classes[i];
-            let base_name = type_provider.get_source_class(&class_info.class_impl).base_name.clone();
-            let resolved_interface_impls = type_provider
-                .get_resolved_interface_impls(&GenericIdentifier::from_name_with_args(&base_name, &class_info.class_impl.generic_impls));
+            let resolved_interface_impls = type_provider.get_resolved_interface_impls(&class_info.data.ident);
 
             for resolved_interface_impl in resolved_interface_impls {
                 let interface_impl = type_provider.get_source_interface_impl(&resolved_interface_impl);
@@ -105,10 +134,8 @@ impl ClassInfoStorage {
         let mut interface_impl_offset = 0;
         for i in 0..self.classes.len() {
             let class_info = &self.classes[i];
-            let base_name = type_provider.get_source_class(&class_info.class_impl).base_name.clone();
 
-            let resolved_interface_impls = type_provider
-                .get_resolved_interface_impls(&GenericIdentifier::from_name_with_args(&base_name, &class_info.class_impl.generic_impls));
+            let resolved_interface_impls = type_provider.get_resolved_interface_impls(&class_info.data.ident);
             for resolved_interface_impl in &resolved_interface_impls {
                 let interface_impl = type_provider.get_source_interface_impl(resolved_interface_impl);
 
@@ -171,7 +198,7 @@ impl ClassInfoStorage {
             // };
             let vtable_pointer = context.const_null_ptr(vtable_item_type); // there are no class-level virtual methods currently
 
-            let class_name_str = class_info.class_impl.full_name.clone();
+            let class_name_str = class_info.data.ident.to_string();
             let class_name_array = context.const_string(&class_name_str);
             let class_name_global = self.module.create_global(
                 context,
@@ -181,8 +208,10 @@ impl ClassInfoStorage {
             self.module.initialize_global(class_name_global, class_name_array);
 
             let mut class_bitflags = 0;
-            if class_info.class_impl.class_type == ClassType::Struct {
+            if class_info.data.class_type == ClassType::Struct {
                 class_bitflags |= TYPE_STRUCT;
+            } else if class_info.data.class_type == ClassType::Enum {
+                class_bitflags |= TYPE_ENUM;
             }
             let class_bitflags = context.const_int(context.get_i32_type(), class_bitflags as _);
 
@@ -211,11 +240,11 @@ impl ClassInfoStorage {
         self.module.initialize_global(replacement_vtable, vtable_value);
     }
 
-    pub fn get_abi_class_info_offset(&mut self, context: &Context, class: &ResolvedClassNode) -> usize {
-        self.classes.iter().position(|cls| &cls.class_impl == class).unwrap_or_else(|| {
+    pub fn get_abi_class_info_offset(&mut self, context: &Context, data: &ClassInfoData) -> usize {
+        self.classes.iter().position(|cls| &cls.data == data).unwrap_or_else(|| {
             let new_index = self.classes.len();
             self.classes.push(ClassInfo {
-                class_impl: class.clone(),
+                data: data.clone(),
                 destructor_ptr: context.const_null_ptr(context.get_void_type()),
                 virtual_methods: Vec::new(),
             });
@@ -224,8 +253,8 @@ impl ClassInfoStorage {
         })
     }
 
-    pub fn get_abi_class_info_ptr(&mut self, context: &Context, module: &Module, class: &ResolvedClassNode) -> OpaqueValue {
-        let classinfo_index = self.get_abi_class_info_offset(context, class);
+    pub fn get_abi_class_info_ptr(&mut self, context: &Context, module: &Module, data: &ClassInfoData) -> OpaqueValue {
+        let classinfo_index = self.get_abi_class_info_offset(context, data);
         let info_array_type = context.get_abi_class_info_type();
         context.const_get_element_ptr_dynamic(
             info_array_type,
@@ -235,9 +264,7 @@ impl ClassInfoStorage {
     }
 
     pub fn set_destructor(&mut self, module_id: usize, class_id: usize, destructor_ptr: OpaqueValue) {
-        if let Some(class) =
-            self.classes.iter_mut().find(|class| class.class_impl.module_id == module_id && class.class_impl.source_id == class_id)
-        {
+        if let Some(class) = self.classes.iter_mut().find(|class| class.data.module_id == module_id && class.data.source_id == class_id) {
             class.destructor_ptr = destructor_ptr;
         } else {
             panic!("no class found")

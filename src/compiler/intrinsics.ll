@@ -171,8 +171,11 @@ block.class_info_is_not_null:
   %class_bitflags_ptr = getelementptr inbounds %KeidAbiClassInfo, ptr %class_info_ptr, i32 0, i32 5
   %class_bitflags = load i32, ptr %class_bitflags_ptr, align 4
   %bitflags_and_type_struct = and i32 %class_bitflags, 1 ; (flags & 0x01) == 0x01, where 0x01 is TYPE_STRUCT
+  %bitflags_and_type_enum   = and i32 %class_bitflags, 2 ; (flags & 0x02) == 0x02, where 0x02 is TYPE_ENUM
   %is_struct = icmp eq i32 %bitflags_and_type_struct, 1
-  ret i1 %is_struct
+  %is_enum =   icmp eq i32 %bitflags_and_type_enum,   2
+  %is_struct_or_enum = or i1 %is_struct, %is_enum
+  ret i1 %is_struct_or_enum
 
 block.class_info_is_null:
   ; call i32 @printf(ptr @missing_class_info_error)

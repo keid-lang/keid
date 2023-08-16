@@ -124,7 +124,7 @@ impl IntoOpaqueType for BasicType {
                         cpl.context.get_pointer_type(cpl.context.get_abi_class_data_type(cpl, &class_impl))
                     }
                     ClassType::Struct => cpl.context.get_abi_class_data_type(cpl, &class_impl),
-                    ClassType::Enum => panic!("enum value must be a BasicType::Enum"),
+                    ClassType::Enum => unreachable!(),
                 },
                 None => match cpl.type_provider.get_enum_by_name(identifier) {
                     Some(enum_impl) => cpl.context.get_abi_enum_type_any_element(cpl, &enum_impl),

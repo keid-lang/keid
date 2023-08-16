@@ -14,10 +14,10 @@ public extern function main(): int32 {
     let programText = String.fromUtf8(programFile.readAllBytes())
     programFile.close()
 
-    let ast = keidc::parser.parseKeidSource(programText)
-    std::io.println("AST: ", ast.toString())
+    // let ast = keidc::parser.parseKeidSource(programText)
+    // std::io.println("AST: ", ast.toString())
 
-    os.exit(0)
+    // os.exit(0)
 
     // core::array tests
     core::array::test.testArrayLength()
@@ -60,21 +60,23 @@ public extern function main(): int32 {
     // core::object::Class tests
     core::object::test.testClassFromInstance()
 
-    let bt2 = new ComplexType.Nullable {
-        element = new ComplexType.Array {
-            element = new ComplexType.Basic {
-                type = new BasicType.Object {
-                    ident = new QualifiedIdent {
-                        name = "keidc::Test"
-                        generics = List.empty<ComplexType>()
-                    }
-                }
+    let bt5 = new BasicType.Object {
+        ident = new QualifiedIdent {
+            name = "keidc::Test"
+            generics = List.empty<ComplexType>()
+        }
+    }
+    test.assertEqual(bt5.toString(), "keidc::Test")
+
+    let bt4 = new ComplexType.Basic {
+        type = new BasicType.Object {
+            ident = new QualifiedIdent {
+                name = "keidc::Test"
+                generics = List.empty<ComplexType>()
             }
         }
     }
-
-    // TODO: fix
-    // test.assertEqual(bt2.toString(), "?[keidc::Test]")
+    test.assertEqual(bt4.toString(), "keidc::Test")
 
     std::io.println("Successfully ran all tests.")
 

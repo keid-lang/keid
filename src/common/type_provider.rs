@@ -10,7 +10,7 @@ use crate::tree;
 use crate::tree::ast::*;
 use crate::tree::*;
 use crate::{compiler::llvm::OpaqueFunctionValue, compiler_error_loc};
-use std::cell::RefCell;
+use std::{cell::RefCell, collections::HashSet};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
@@ -75,18 +75,12 @@ struct QueuedFile {
     module_id: usize,
 }
 
-struct CachedClassImpl {
-    pub module_id: usize,
-    pub class_id: usize,
-    pub generics: Vec<ComplexType>,
-}
-
 pub struct TypeProvider {
     pub context_generics: HashMap<ComplexType, ComplexType>,
     queued_files: Vec<QueuedFile>,
     pub roots: Vec<KeidModuleNode>,
     compiled_functions: HashMap<String, OpaqueFunctionValue>,
-    class_impls: RefCell<Vec<CachedClassImpl>>,
+    class_impls: RefCell<HashSet<GenericIdentifier>>,
     resolved_interfaces: RefCell<Vec<GenericIdentifier>>,
 }
 
@@ -97,7 +91,7 @@ impl TypeProvider {
             roots: Vec::new(),
             compiled_functions: HashMap::new(),
             context_generics: HashMap::new(),
-            class_impls: RefCell::new(Vec::new()),
+            class_impls: RefCell::new(HashSet::new()),
             resolved_interfaces: RefCell::new(Vec::new()),
         }
     }
@@ -250,15 +244,9 @@ impl TypeProvider {
         &self.roots[module_id]
     }
 
-    pub fn get_all_resolved_classes<'a>(&self) -> Vec<ResolvedClassNode> {
+    pub fn get_all_resolved_classes(&self) -> HashSet<GenericIdentifier> {
         let class_impls = self.class_impls.borrow();
-        let mut impls = Vec::with_capacity(class_impls.len());
-        for class_impl in class_impls.iter() {
-            impls.push(
-                self.get_class_node(class_impl.module_id, class_impl.class_id).unwrap().create_impl(self, &class_impl.generics).unwrap(),
-            );
-        }
-        impls
+        class_impls.clone()
     }
 
     pub fn get_class_node(&self, module_id: usize, class_id: usize) -> Option<&ClassNode> {
@@ -295,11 +283,7 @@ impl TypeProvider {
 
                     {
                         let mut class_impls = self.class_impls.borrow_mut();
-                        class_impls.push(CachedClassImpl {
-                            module_id: class.module_id,
-                            class_id: class.id,
-                            generics: object_type.generic_args.clone(),
-                        });
+                        class_impls.insert(object_type.clone());
                     }
 
                     return Some(class.create_impl(self, &object_type.generic_args).unwrap());
@@ -328,6 +312,11 @@ impl TypeProvider {
                 if enm.base_name == declaring_type.name {
                     if enm.generic_defs.len() != declaring_type.generic_args.len() {
                         return None;
+                    }
+
+                    {
+                        let mut class_impls = self.class_impls.borrow_mut();
+                        class_impls.insert(declaring_type.clone());
                     }
 
                     return Some(enm.create_impl(self, &declaring_type.generic_args).unwrap());
@@ -434,15 +423,6 @@ impl TypeProvider {
                         return true;
                     }
 
-                    let child_class = match self.get_class_by_name(child_ident) {
-                        Some(class) => class,
-                        None => match self.get_enum_by_name(child_ident) {
-                            Some(_) => return false,
-                            None => {
-                                panic!("class does not exist: {:?} (parent = {:?})", child_ident, parent.to_string())
-                            }
-                        },
-                    };
                     let resolved_interface_impls = self.get_resolved_interface_impls(child_ident);
                     for resolved_interface_impl in resolved_interface_impls {
                         let interface_impl = self.get_source_interface_impl(&resolved_interface_impl);
@@ -458,6 +438,15 @@ impl TypeProvider {
                         }
                     }
 
+                    let child_class = match self.get_class_by_name(child_ident) {
+                        Some(class) => class,
+                        None => match self.get_enum_by_name(child_ident) {
+                            Some(_) => return false,
+                            None => {
+                                panic!("class does not exist: {:?} (parent = {:?})", child_ident, parent.to_string())
+                            }
+                        },
+                    };
                     let source_class = self.get_source_class(&child_class);
                     match &source_class.superclass {
                         Some(superclass) => {

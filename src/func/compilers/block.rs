@@ -259,7 +259,11 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                     ))
                     .unwrap();
                 // retrieving the classinfo pointer ensures that it gets included in the runtime metadata
-                self.cpl.class_info.get_abi_class_info_ptr(&self.cpl.context, &self.unit.mdl, &iterator_type);
+                self.cpl.class_info.get_abi_class_info_ptr(
+                    &self.cpl.context,
+                    &self.unit.mdl,
+                    &ClassInfoData::from_resolved_class(&self.cpl.type_provider, &iterator_type),
+                );
 
                 let create_impl = self
                     .cpl
