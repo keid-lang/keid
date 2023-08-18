@@ -9,6 +9,18 @@ import (
     a::b::c::d::e::f
 )
 
-public class Foo<A, B, C, D> {
+public class FooClass<A, B, C, D> {
+
+}
+
+public struct FooStruct {
+
+}
+
+public interface FooInterface {
+
+}
+
+public notenum FooEnum {
 
 }

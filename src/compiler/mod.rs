@@ -157,8 +157,14 @@ impl Compiler {
     }
 
     pub fn add_function(&self, mdl: &Module, external_name: &str, func: &ResolvedFunctionNode) -> Function {
+        let is_interface = func.external_name.contains("#__impl#");
         let function = mdl.add_function(external_name, func.as_llvm_type(self), 0);
         for i in 0..func.params.len() {
+            if is_interface && i == 0 {
+                // interface functions always take a direct pointer to the object instance
+                // TODO: should instance struct functions (interface or otherwise) by pass-by-reference for their own instance? Probably!
+                continue;
+            }
             if func.params[i].is_struct(&self.type_provider)
                 && (!func.params[i].to_string().starts_with("core::mem::Pointer")
                     || (func.module_id != usize::MAX && {

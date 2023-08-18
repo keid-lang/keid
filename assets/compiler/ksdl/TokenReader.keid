@@ -15,21 +15,33 @@ public class TokenReader {
 
     public skipWhitespace() {
         if this.isSkipWhitespace {
+            // TODO: make boolean operators short-circuiting
+            if this.isFinished {
+                return
+            }
             while this.currentCharacter == ' ' {
                 this.advance(1)
+                if this.isFinished {
+                    return
+                }
             }
         }
     }
 
     public startsWith(text: string): bool {
         this.skipWhitespace()
+        if this.isFinished {
+            return false
+        }
         return this.currentText.startsWith(text)
     }
 
     public advance(length: usize) {
         this.cursor += length
-        this.currentText = this.currentText.substringAfter(length)
+        this.currentText = this.sourceText.substringAfter(this.cursor)
     }
+
+    public get isFinished: bool => this.currentText.length == 0
 
     public get currentCharacter: char => this.currentText.chars[0]
 }

@@ -37,7 +37,26 @@ implement ToString for KeidModifier {
     }
 }
 
+public enum AstClassType {
+    Class
+    Struct
+    Interface
+    Enum
+}
+
+implement ToString for AstClassType {
+    toString(): string {
+        return match this {
+            Class => "class"
+            Struct => "struct"
+            Interface => "interface"
+            Enum => "enum"
+        }
+    }
+}
+
 public class AstClass {
+    type: AstToken<AstClassType>
     modifiers: List<AstToken<KeidModifier>>
     name: AstToken<string>
     generics: ?List<AstGenericDecl>
@@ -46,7 +65,9 @@ public class AstClass {
 implement ToString for AstClass {
     toString(): string {
         let sb = StringBuilder.empty()
-        sb.append("AstClass(name=")
+        sb.append("AstClass(type=")
+        sb.append(this.type.node.toString())
+        sb.append(", name=")
         sb.append(this.name.node)
         sb.append(", modifiers=[")
         for modifier in this.modifiers {

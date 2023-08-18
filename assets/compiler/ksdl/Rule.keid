@@ -16,18 +16,17 @@ public enum RuleResult {
         match: RuleMatch
     }
     SoftFail
-    HardFail
+    HardFail {
+        rule: Rule
+        statement: ParserStatement
+        result: StatementResult
+    }
 }
 
 public class Rule {
     name: string
     statements: List<ParserStatement>
     isContiguous: bool
-
-    public parse(text: string): RuleResult {
-        let reader = TokenReader.create(text)
-        return this.parse(reader)
-    }
 
     public parse(reader: TokenReader): RuleResult {
         let state = new RuleState {
@@ -48,10 +47,15 @@ public class Rule {
                 Failure => {
                     if state.moved {
                         std::io.println("HardFail: ", this.name)
-                        return RuleResult.HardFail
+                        return new RuleResult.HardFail {
+                            rule = this
+                            statement
+                            result
+                        }
                     }
                     return RuleResult.SoftFail
                 }
+                ImmediateFailure { rule, statement, result, } => return new RuleResult.HardFail { rule, statement, result, }
                 _ => {}
             }
         }

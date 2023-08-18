@@ -82,13 +82,18 @@ RULE GenericArgs
     LITERAL >
 END RULE
 
+RULE ClassDeclType
+    OR(LITERAL class, LITERAL struct, LITERAL interface, LITERAL enum)
+END RULE
+
 RULE ClassDecl
     $modifiers = OPTIONAL REPEATED RULE Modifier
-    LITERAL class
+    $type = RULE ClassDeclType
     MOVE
     $name = RULE Identifier
     $generics = OPTIONAL RULE GenericDecls
     LITERAL {
+    UNTIL LITERAL }
 END RULE
 
 RULE PathQualifier
@@ -112,15 +117,12 @@ RULE ImportStatement
     LITERAL )
 END RULE
 
-RULE RootStatement
-    MOVE
-    $st = OR(RULE ImportStatement, RULE ClassDecl)
-    LITERAL NEWLINE
-END RULE
+ALIAS RootStatement OR(RULE ImportStatement, RULE ClassDecl)
 
 RULE Program
+    MOVE
     OPTIONAL REPEATED LITERAL NEWLINE
     $namespace = RULE NamespaceStatement
     OPTIONAL REPEATED LITERAL NEWLINE
-    OPTIONAL REPEATED COMPOUND($statements = RULE RootStatement, REPEATED LITERAL NEWLINE)
+    OPTIONAL REPEATED COMPOUND($statements = ALIAS RootStatement, REPEATED LITERAL NEWLINE)
 END RULE

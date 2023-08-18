@@ -3,7 +3,7 @@ source_filename = "intrinsics.ll"
 ; heap data for a class: ptr (classinfo pointer), i64 (ref count)
 %KeidAbiClassData = type { ptr, i64 }
 
-; pointer to either a stack-allocated struct or a heap-allocated class: ptr (classinfo pointer)
+; pointer to either a stack-allocated struct/enum or a heap-allocated class: ptr (classinfo pointer)
 %KeidAbiStructData = type { ptr }
 
 ; constant class metadata:
@@ -32,7 +32,7 @@ source_filename = "intrinsics.ll"
 @missing_class_info_error = private unnamed_addr constant [91 x i8] c"MissingClassInfoError: attempted retrieval of null class info pointer in object or struct\0A\00", align 1
 @find_interface_method_null_error = private unnamed_addr constant [85 x i8] c"NullValueError: attempted retrieval of interface method pointer from a null pointer\0A\00", align 1
 @illegal_ref_count_error = private unnamed_addr constant [43 x i8] c"InternalError: illegal reference count %i\0A\00", align 1
-@no_such_method_error = private unnamed_addr constant [104 x i8] c"NoSuchMethodError: attempted to invoke an invalid interface method (interface id = %i, method id = %i)\0A\00", align 1
+@no_such_method_error = private unnamed_addr constant [123 x i8] c"NoSuchMethodError: attempted to invoke an invalid interface method (class name = '%s', interface id = %i, method id = %i)\0A\00", align 1
 @index_out_of_bounds_error = private unnamed_addr constant [84 x i8] c"IndexOutOfBoundsError: attempted to access index %i of a collection with length %i\0A\00", align 1
 @error_already_thrown_error = private unnamed_addr constant [100 x i8] c "ErrorAlreadyThrownError: attempted to throw error when current thread already is handling an error\0A\00", align 1
 @allocator = global ptr null, align 8
@@ -113,7 +113,9 @@ block.success:
   ret ptr %method_array_item ; return the method pointer
 
 block.fail: ; the method pointer was not found -- fatal unrecoverable error
-  call i32 @printf(ptr @no_such_method_error, i32 %interface_id, i32 %method_id)
+  %class_name_ptr = getelementptr inbounds %KeidAbiClassInfo, ptr %class_info, i32 0, i32 4
+  %class_name = load ptr, ptr %class_name_ptr, align 4
+  call i32 @printf(ptr @no_such_method_error, ptr %class_name, i32 %interface_id, i32 %method_id)
   call void @"core::runtime::printStackFrames()"()
   call void @exit(i32 1)
   unreachable
