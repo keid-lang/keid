@@ -92,6 +92,15 @@ public class List<T> {
         }
     }
 
+    public contains(value: T): bool {
+        for i in range.create(0, this.length) {
+            if this.get(i) == value {
+                return true
+            }
+        }
+        return false
+    }
+
     public toArray(): [T] {
         let array = new T[default(T); this.length]
         for i in range.create(0, this.length) {

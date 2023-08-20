@@ -1,0 +1,20 @@
+namespace keidc::ksdl
+
+public class TokenReader {
+    sourceText: string
+    currentText: string
+    cursor: usize
+
+    public static create(source: string): TokenReader => new TokenReader {
+        sourceText = source
+        currentText = source
+        cursor = 0
+    }
+
+    public advance(length: usize) {
+        this.cursor += length
+        this.currentText = this.currentText.substringAfter(length)
+    }
+
+    public get currentCharacter: char => this.currentText.chars[0]
+}

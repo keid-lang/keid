@@ -212,7 +212,9 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                         match interface.functions.iter().position(|id| {
                             get_type_leaf(&self.cpl.type_provider.get_function_node(interface.module_id, *id).unwrap().base_name) == fc.name.token.0
                         }) {
-                            Some(function_id) => vec![(class.source_id, function_id, interface.base_name.clone(), class.generic_impls)],
+                            Some(function_id) => {
+                                vec![(self.cpl.type_provider.get_resolved_interface_id(&ident), function_id, interface.base_name.clone(), class.generic_impls)]
+                            }
                             None => vec![],
                         }
                     },

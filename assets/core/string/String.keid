@@ -106,7 +106,10 @@ public class String {
 
     /// Returns a new string containing the characters of this string from [start..end).
     public substring(start: usize, end: usize): string {
-        if end <= start {
+        if start == end {
+            return ""
+        }
+        if end < start {
             throw Error.create("substring `end` must be greater than `start`")
         }
         if end > this.length {

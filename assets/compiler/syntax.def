@@ -1,55 +1,57 @@
-// This file defines the Keid syntax.
+// This file defines the Keid syntax in Keid Syntax Definition Language (KSDL).
 // The parser for this file can be found in `parser.keid`.
 // See "syntax.def.README.md" for documentation regarding the format of this file.
 
-Newline { "\r\n" | "\n" }
+RULE Newline
+    OR(LITERAL \r\n, LITERAL \n)
+END RULE
 
-rule Identifier
-    'A-Z' | 'a-z' | '_'
-    optional repeated 'A-Z' | 'a-z' | '_' | '0-9'
-end rule
+RULE Identifier
+    OR(RANGE A-Z, RANGE a-z, LITERAL _)
+    OPTIONAL REPEATED OR(RANGE A-Z, RANGE a-z, LITERAL _, RANGE 0-9)
+END RULE
 
-rule TypeModifier
-    "public"
-end rule
+RULE TypeModifier
+    LITERAL public
+END RULE
 
-rule ClassDecl
-    $modifiers = optional repeated TypeModifier
-    "class"
-    move
-    $name = Identifier
-end rule
+RULE ClassDecl
+    $modifiers = OPTIONAL REPEATED RULE TypeModifier
+    LITERAL class
+    MOVE
+    $name = RULE Identifier
+END RULE
 
-rule Namespace
-    Identifier
-    optional repeated compound
-        "::"
-        Identifier
-    end compound
-end rule
+RULE Namespace
+    RULE Identifier
+    OPTIONAL REPEATED COMPOUND
+        LITERAL ::
+        RULE Identifier
+    END COMPOUND
+END RULE
 
-rule NamespaceStatement
-    "namespace"
-    move
-    $ns = Namespace
-end rule
+RULE NamespaceStatement
+    LITERAL namespace
+    MOVE
+    $ns = RULE Namespace
+END RULE
 
-rule ImportStatement
-    "import"
-    move
-    $ns = Namespace
-end rule
+RULE ImportStatement
+    LITERAL import
+    MOVE
+    $ns = RULE Namespace
+END RULE
 
-rule RootStatement
-    move
-    $st = ImportStatement | ClassDecl
-    Newline
-end rule
+RULE RootStatement
+    MOVE
+    $st = OR(RULE ImportStatement, RULE ClassDecl)
+    RULE Newline
+END RULE
 
-rule Program
-    optional repeated Newline
-    $ns = NamespaceStatement
-    optional repeated Newline
-    $st = optional repeated RootStatement
-    optional repeated Newline
-end rule
+RULE Program
+    OPTIONAL REPEATED RULE Newline
+    $ns = RULE NamespaceStatement
+    OPTIONAL REPEATED RULE Newline
+    $st = OPTIONAL REPEATED RULE RootStatement
+    OPTIONAL REPEATED RULE Newline
+END RULE

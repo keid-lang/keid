@@ -1,0 +1,105 @@
+namespace keidc::ksdl
+
+import (
+    core::collections
+    core::error
+)
+
+class LineReader {
+    lines: [string]
+    num: usize
+
+    next() {
+        if !this.isFinished {
+            this.num += 1
+        }
+    }
+
+    public get isFinished: bool => this.num == this.lines.length
+    
+    public get line: string => this.lines[this.num].trim()
+}
+
+public class KsdlParser {
+    rules: List<Rule>
+
+    public static fromKsdl(ksdl: string): KsdlParser {
+        let parser = new KsdlParser {
+            rules = List.empty<Rule>()
+        }
+        parser.parseKsdl(ksdl)
+        return parser
+    }
+
+    parseKsdl(ksdl: string) {
+        let reader = new LineReader {
+            lines = ksdl.split("\n")
+            num = 0
+        }
+
+        while !reader.isFinished {
+            let line = reader.line
+
+            if line.startsWith("RULE") {
+                this.rules.push(this.parseRule(reader))
+            }
+
+            reader.next()
+        }
+    }
+
+    parseRule(reader: LineReader): Rule {
+        let rule = new Rule {
+            name = reader.line.substringAfter(5).trim()
+            statements = List.empty<ParserStatement>()
+        }
+        reader.next()
+        while !reader.isFinished {
+            let line = reader.line
+            if line == "END RULE" {
+                return rule
+            }
+
+            rule.statements.push(this.parseStatement(line))
+
+            reader.next()
+        }
+        throw Error.create("missing 'end rule'")
+    }
+
+    parseStatement(line: string): ParserStatement {
+        if line == "MOVE" {
+            return new MoveStatement {}
+        } else if line.startsWith("LITERAL") {
+            let literal = line.substringAfter(8).trim()
+            return StringLiteralStatement.create(literal)
+        } else if line.startsWith("RULE") {
+            let ruleName = line.substringAfter(5).trim()
+            let rule = this.getRule(ruleName)
+            return SubruleStatement.create(rule)
+        } else if line.startsWith("$") {
+            let groupName = line.substring(1, line.indexOf("=")!).trim()
+            let statement = this.parseStatement(line.substringAfter(line.indexOf("=")! + 1).trim())
+            return GroupStatement.create(groupName, statement)
+        } else if line.startsWith("OR") {
+            let inside = line.substring(line.indexOf("(")! + 1, line.indexOf(")")!).trim()
+            let parts = inside.split(",")
+            let options = List.withCapacity<ParserStatement>(parts.length)
+            // for part in parts {
+            //     options.push(this.parseStatement(part.trim()))
+            // }
+            return OrStatement.create(options)
+        }
+        throw Error.create(string.format("Invalid KSDL: ", line))
+    }
+
+    public getRule(name: string): Rule {
+        for rule in this.rules {
+            if rule.name == name {
+                return rule
+            }
+        }
+
+        throw Error.create(string.format("no such rule: ", name))
+    }
+}

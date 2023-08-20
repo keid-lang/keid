@@ -1,0 +1,124 @@
+namespace keidc::ksdl
+
+import (
+    core::collections
+)
+
+public enum StatementResult {
+    /// Returned by statements when they match with a token result.
+    Match {
+        data: ParsedRule
+    }
+    /// Returned by statements which don't perform matching operations, e.g. `move`.
+    /// A matchless result is always considered successful.
+    Matchless
+    /// Returned by statements when they attempt to match a token and fail.
+    Failure
+}
+
+public interface ParserStatement {
+    /// Returns true if the rule matched, otherwise false.
+    execute(reader: TokenReader, state: RuleState): StatementResult
+}
+
+public class MoveStatement { }
+
+implement ParserStatement for MoveStatement {
+    execute(_: TokenReader, state: RuleState): StatementResult {
+        state.moved = true
+
+        return StatementResult.Matchless
+    }
+}
+
+public class StringLiteralStatement {
+    lit: string
+
+    public static create(lit: string): StringLiteralStatement => new StringLiteralStatement { lit, }
+}
+
+implement ParserStatement for StringLiteralStatement {
+    execute(reader: TokenReader, _: RuleState): StatementResult {
+        if reader.currentText.startsWith(this.lit) {
+            reader.advance(this.lit.length)
+            return StatementResult.Matchless
+        }
+        return StatementResult.Failure
+    }
+}
+
+public class SubruleStatement {
+    subrule: Rule
+
+    public static create(subrule: Rule): SubruleStatement => new SubruleStatement { subrule, }
+}
+
+implement ParserStatement for SubruleStatement {
+    execute(reader: TokenReader, state: RuleState): StatementResult {
+        let cursor = reader.cursor
+        let ruleResult = this.subrule.parse(reader)
+        match ruleResult {
+            Success { data, } => return new StatementResult.Match {
+                data
+            }
+            _ => return StatementResult.Failure
+        }
+    }
+}
+
+public class OptionalStatement {
+    statement: ParserStatement
+}
+
+implement ParserStatement for OptionalStatement {
+    execute(reader: TokenReader, state: RuleState): StatementResult {
+        return match this.statement.execute(reader, state) {
+            Success { data, } => new StatementResult.Success { data, }
+            _ => StatementResult.Matchless
+        }
+    }
+}
+
+public class OrStatement {
+    options: List<ParserStatement>
+
+    public static create(options: List<ParserStatement>): OrStatement => new OrStatement { options, }
+}
+
+implement ParserStatement for OrStatement {
+    execute(reader: TokenReader, state: RuleState): StatementResult {
+        for option in this.options {
+            let result = option.execute(reader, state)
+            match result {
+                Match { data, } => return result
+                Matchless => return result
+                _ => {}
+            }
+        }
+        return StatementResult.Failure
+    }
+}
+
+public class GroupStatement {
+    groupName: string
+    value: ParserStatement
+
+    public static create(groupName: string, value: ParserStatement): GroupStatement => new GroupStatement { groupName, value, }
+}
+
+implement ParserStatement for GroupStatement {
+    execute(reader: TokenReader, state: RuleState): StatementResult {
+        let result = this.value.execute(reader, state)
+        match result {
+            Match { data, } => {
+                state.groups.push(new ParserGroup {
+                    variable = this.groupName
+                    value = data
+                })
+            }
+            _ => {}
+        }
+
+        return result
+    }
+}
