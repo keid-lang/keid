@@ -7,20 +7,41 @@ import (
     a::b::c::d
     a::b::c::d::e
     a::b::c::d::e::f
+    std::io
 )
 
 public class FooClass<A, B, C, D> {
+    field1: uint32
 
+    constructor {
+        println("DDE")
+        io.println("Created FooClass instance!")
+    }
+
+    destructor {
+        io.println("Destroyed FooClass instance!")
+    }
+
+    field2: string
+
+    doSomething(): string {
+        io.println("Doing something!")
+        return "hello, doSomething()!"
+    }
 }
 
-public struct FooStruct {
+public struct FooStruct<T> {
+    someValue: T
+}
 
+public struct ChildFooStruct extends FooStruct<std::string::String> {
+    otherValue: int64
 }
 
 public interface FooInterface {
 
 }
 
-public notenum FooEnum {
+public enum FooEnum {
 
 }

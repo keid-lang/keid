@@ -106,6 +106,7 @@ implement ParserStatement for OptionalStatement {
     execute(reader: TokenReader, state: RuleState): StatementResult {
         return match this.statement.execute(reader, state) {
             Match { matches, } => new StatementResult.Match { matches, }
+            ImmediateFailure { rule, statement, result, } => new StatementResult.ImmediateFailure { rule, statement, result, }
             _ => StatementResult.Matchless
         }
     }
@@ -119,12 +120,15 @@ public class OrStatement {
 
 implement ParserStatement for OrStatement {
     execute(reader: TokenReader, state: RuleState): StatementResult {
+        let pos = reader.cursor
         for option in this.options {
             let result = option.execute(reader, state)
             match result {
-                Match { matches, } => return result
-                Matchless => return result
-                _ => {}
+                Failure => {
+                    reader.cursor = pos
+                    reader.currentText = reader.sourceText.substringAfter(reader.cursor)
+                }
+                _ => return result
             }
         }
         return StatementResult.Failure
@@ -145,7 +149,6 @@ implement ParserStatement for GroupStatement {
             Match { matches, } => {
                 for group in state.groups {
                     if group.variable == this.groupName {
-                        std::io.println("Matches = ", core::object::Class.fromInstance(matches).name)
                         group.values.extend(matches)
                         return result
                     }
@@ -234,8 +237,8 @@ implement ParserStatement for CompoundStatement {
                 Failure => {
                     // if not every statement within the compound statement succeeds,
                     // revert back to before the compound statement executed
-                    reader.cursor = readerStart
-                    reader.currentText = reader.sourceText.substringAfter(reader.cursor)
+                    // reader.cursor = readerStart
+                    // reader.currentText = reader.sourceText.substringAfter(reader.cursor)
                     return StatementResult.Failure
                 }
                 _ => {}

@@ -66,15 +66,30 @@ public class KsdlParser {
                     statements = List.empty<ParserStatement>()
                     isContiguous
                 })
-            } else if line.startsWith("ALIAS") {
-                let after = line.substringAfter(6).trim()
-                let sep2 = after.indexOf(" ")
-                let name2 = after.substringBefore(sep2!).trim()
-                let statement = this.parseStatement(after.substringAfter(sep2! + 1).trim())
-                this.aliases.push(new Alias {
-                    name = name2
-                    statement
-                })
+            }
+            reader.next()
+        }
+        reader.num = 0
+
+        let isParsingRule = false
+        while !reader.isFinished {
+            let line2 = reader.line
+
+            if line2.startsWith("RULE") {
+                isParsingRule = true
+            } else if line2.startsWith("END RULE") {
+                isParsingRule = false
+            } else if line2.startsWith("ALIAS") {
+                if !isParsingRule {
+                    let after = line2.substringAfter(6).trim()
+                    let sep2 = after.indexOf(" ")
+                    let name2 = after.substringBefore(sep2!).trim()
+                    let statement = this.parseStatement(after.substringAfter(sep2! + 1).trim())
+                    this.aliases.push(new Alias {
+                        name = name2
+                        statement
+                    })
+                }
             }
             reader.next()
         }
@@ -82,17 +97,16 @@ public class KsdlParser {
 
         while !reader.isFinished {
             // TODO: why does this conflict with the first declaration of `line`?
-            let line2 = reader.line
+            let line3 = reader.line
 
-            if line2.startsWith("RULE") {
-                let name = line2.substringAfter(5).trim()
+            if line3.startsWith("RULE") {
+                let name = line3.substringAfter(5).trim()
                 let sep = name.indexOf(" ")
                 if sep != null {
                     name = name.substringBefore(sep!)
                 }
                 this.parseRule(this.getRule(name), reader)
             }
-
             reader.next()
         }
     }

@@ -1,12 +1,14 @@
 namespace keidc::ksdl
 
 public class TokenReader {
+    currentRule: ?Rule
     sourceText: string
     currentText: string
     cursor: usize
     isSkipWhitespace: bool
 
     public static create(source: string): TokenReader => new TokenReader {
+        currentRule = null
         sourceText = source
         currentText = source
         cursor = 0

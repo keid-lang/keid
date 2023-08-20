@@ -105,7 +105,7 @@ class KeidParser {
 }
 
 public function parseKeidSource(programText: string): AstKeidProgram {
-    let syntaxDefFile = File.open("../keid/assets/compiler/syntax.def", FileOpenMode.ReadOnly)
+    let syntaxDefFile = File.open("../keid/assets/compiler/syntax.ksdl", FileOpenMode.ReadOnly)
     let syntaxDef = string.fromUtf8(syntaxDefFile.readAllBytes())
     syntaxDefFile.close()
 
@@ -113,6 +113,10 @@ public function parseKeidSource(programText: string): AstKeidProgram {
     let programRule = parser.getRule("Program")
     let reader = TokenReader.create(programText)
     let parseResult = programRule.parse(reader)
+    if !reader.isFinished {
+        std::io.println("At: ", reader.currentText.substringBefore(20))
+        throw Error.create(string.format("Failed parsing rule: ", reader.currentRule!.name))
+    }
     match parseResult {
         Success { match, } => {
             std::io.println(match.toString())

@@ -39,6 +39,7 @@ public class Rule {
 
         let start = reader.cursor
         for statement in this.statements {
+            reader.currentRule = this
             reader.skipWhitespace()
             reader.isSkipWhitespace = !this.isContiguous
             
