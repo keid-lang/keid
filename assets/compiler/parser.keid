@@ -50,6 +50,10 @@ class KeidParser {
         }
     }
 
+    parseCodeBlock(match: RuleMatch): List<Statement> {
+
+    }
+
     parseClass(match: RuleMatch): AstClass {
         let modifiers = List.empty<AstToken<KeidModifier>>()
         if match.hasGroup("modifiers") {
@@ -69,6 +73,21 @@ class KeidParser {
         let generics: ?List<AstGenericDecl> = null
         if match.hasGroup("generics") {
             generics = this.parseGenericDecls(match.getGroupValue("generics"))
+        }
+
+        let constructor = null
+        let destructor = null
+        if match.hasGroup("statements") {
+            let statements = match.getGroup("statements")
+            for statement in statements {
+                match statement.rule {
+                    "ConstructorDecl" => constructor = this.parseCodeBlock(statement.getGroupValue("block"))
+                    "DestructorDecl"  => destructor  = this.parseCodeBlock(statement.getGroupValue("block"))
+                    _ => {
+                        std::io.println(statement.rule)
+                    }
+                }
+            }
         }
 
         return new AstClass {

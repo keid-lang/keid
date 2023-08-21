@@ -19,6 +19,7 @@ public extern function main(): int32 {
     programFile.close()
 
     let f = new Foo { bar = 5, }
+    // TODO: this should not be allowed
     f.bar = 6
 
     let ast = keidc::parser.parseKeidSource(programText)

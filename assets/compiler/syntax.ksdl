@@ -190,7 +190,6 @@ RULE FuncCallExpr
     LITERAL )
 END RULE
 
-// ALIAS ExprOperand OR(RULE OperatorExpr, RULE FuncCallExpr, RULE Null, RULE Bool, RULE Integer, RULE Char, RULE String)
 ALIAS ExprOperand OR(RULE FuncCallExpr, RULE Null, RULE Bool, RULE Integer, RULE Char, RULE String, RULE Identifier)
 
 RULE ReturnStatement
@@ -233,10 +232,10 @@ RULE PostfixOperator
 END RULE
 
 RULE Expr
-    $prefix = OPTIONAL REPEATED RULE PrefixOperator
-    $operand = ALIAS ExprOperand
-    $postfix = OPTIONAL REPEATED RULE PostfixOperator
-    OPTIONAL REPEATED COMPOUND($infix = RULE InfixOperator, $prefix = OPTIONAL REPEATED RULE PrefixOperator, $operand = ALIAS ExprOperand, $postfix = OPTIONAL REPEATED RULE PostfixOperator)
+    $parts = OPTIONAL REPEATED RULE PrefixOperator
+    $parts = ALIAS ExprOperand
+    $parts = OPTIONAL REPEATED RULE PostfixOperator
+    OPTIONAL REPEATED COMPOUND($parts = RULE InfixOperator, $parts = OPTIONAL REPEATED RULE PrefixOperator, $parts = ALIAS ExprOperand, $parts = OPTIONAL REPEATED RULE PostfixOperator)
 END RULE
 
 ALIAS ConstExpr OR(RULE Null, RULE Bool, RULE Integer, RULE Char, RULE String)
