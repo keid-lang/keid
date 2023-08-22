@@ -60,6 +60,8 @@ public class AstClass {
     modifiers: List<AstToken<KeidModifier>>
     name: AstToken<string>
     generics: ?List<AstGenericDecl>
+    constructor: ?List<AstToken<AstStatement>>
+    destructor: ?List<AstToken<AstStatement>>
 }
 
 implement ToString for AstClass {
@@ -76,6 +78,72 @@ implement ToString for AstClass {
         }
         sb.append("])")
         return sb.toString()
+    }
+}
+
+public enum AstStatement {
+    Return {
+        operand: AstToken<AstExpr>
+    }
+    Expr {
+        value: AstToken<AstExpr>
+    }
+}
+
+public enum AstOperator {
+    Equals
+    NotEquals
+    Add
+    Subtract
+    Multiply
+    Divide
+    Modulus
+    LeftShift
+    RightShift
+    BooleanOr
+    BooleanAnd
+    LessThanOrEquals
+    GreaterThanOrEquals
+    LessThan
+    GreaterThan
+    As
+    Not
+    NonNullAssertion
+    Spread
+    NullCoalesce
+    MemberAccess
+}
+
+public class AstUnaryExpr {
+    operator: AstToken<AstOperator>
+    operand: AstToken<AstExpr>
+}
+
+public class AstBinaryExpr {
+    lhs: AstToken<AstExpr>
+    operator: AstToken<AstOperator>
+    rhs: AstToken<AstExpr>
+}
+
+public enum AstExpr {
+    Null
+    BoolLit {
+        value: bool
+    }
+    StringLit {
+        value: string
+    }
+    CharLit {
+        value: char
+    }
+    SignedIntLit {
+        value: int64
+    }
+    Unary {
+        unary: AstUnaryExpr
+    }
+    Binary {
+        binary: AstBinaryExpr
     }
 }
 

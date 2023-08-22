@@ -93,6 +93,12 @@ pub struct OpaqueFunctionValue(LLVMValueRef);
 #[derive(Clone, Copy, Debug)]
 pub struct OpaqueBasicBlock(LLVMBasicBlockRef);
 
+impl OpaqueFunctionType {
+    pub fn to_any_type(self) -> OpaqueType {
+        OpaqueType(self.0)
+    }
+}
+
 impl OpaqueFunctionValue {
     pub fn to_value(self) -> OpaqueValue {
         OpaqueValue(self.0)

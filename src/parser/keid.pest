@@ -58,12 +58,13 @@ ident = @{
     all_chars*
 }
 
+function_type = { "function" ~ function_params_decl ~ "=>" ~ variable_type }
 array_type = { "[" ~ variable_type ~ "]" }
 qualifier = { (ident ~ "::")* }
 literal_qualifier = { ident ~ ("::" ~ ident)* }
 anonymous_struct_type = { "{" ~ NEWLINE* ~ (ident ~ (":" ~ variable_type)? ~ ("," | NEWLINE*))+ ~ "}" }
 
-variable_type = { nullable* ~ (array_type | anonymous_struct_type | (qualifier? ~ ident ~ generic_args?)) }
+variable_type = { nullable* ~ (function_type | array_type | anonymous_struct_type | (qualifier? ~ ident ~ generic_args?)) }
 
 func_call = { ident ~ generic_args? ~ ("(" ~ NEWLINE* ~ (expr ~ "," ~ NEWLINE*)* ~ NEWLINE* ~ expr? ~ NEWLINE* ~ ")") }
 enum_with_data_ref = { keyword_new ~ literal_qualifier ~ "." ~ ident ~ anonymous_struct }
@@ -74,7 +75,7 @@ new_call_field = { ident ~ "=" ~ expr }
 new_call = { keyword_new ~ variable_type ~ NEWLINE* ~ "{" ~ NEWLINE* ~ ((new_call_field | ident) ~ ("," | NEWLINE*))* ~ block_end }
 
 new_array = { keyword_new ~ variable_type ~ "[" ~ expr ~ ";" ~ expr ~ "]" }
-specified_array = { keyword_new ~ variable_type ~ "[" ~ expr? ~ ("," ~ expr)* ~ "]" }
+specified_array = { keyword_new ~ variable_type ~ NEWLINE* ~ "[" ~ NEWLINE* ~ expr? ~ (NEWLINE* ~ "," ~ NEWLINE* ~ expr)* ~ NEWLINE* ~ ","? ~ NEWLINE* ~ "]" }
 
 initial_member_val = _{ enum_with_data_ref | ((literal_qualifier ~ ".")? ~ func_call) | ((literal_qualifier ~ ".")? ~ ident) }
 initial_member_expr = { initial_member_val ~ postfix_operator* }

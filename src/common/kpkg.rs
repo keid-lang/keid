@@ -1,7 +1,7 @@
 use bincode::*;
 
 use crate::tree::{
-    ast::{FunctionModifier, FunctionType, Varargs},
+    ast::{FunctionModifier, FunctionContextType, Varargs},
     AccessorNodeType, ClassType, FunctionNode, GenericDefNode, KeidModuleNode,
 };
 
@@ -118,8 +118,8 @@ impl FunctionDecl {
         let mut decl = FunctionDecl {
             modifiers: method.modifiers.clone(),
             kind: match method.function_type {
-                FunctionType::Instance => FunctionKind::Instance,
-                FunctionType::Static => FunctionKind::Static,
+                FunctionContextType::Instance => FunctionKind::Instance,
+                FunctionContextType::Static => FunctionKind::Static,
             },
             name: method.base_name.clone(),
             generic_defs: method.generic_defs.clone(),

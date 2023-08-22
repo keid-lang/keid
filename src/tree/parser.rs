@@ -202,7 +202,7 @@ impl<'a> AstConverter<'a> {
             ns,
             FunctionDecl {
                 attributes: Vec::new(),
-                function_type: FunctionType::Instance,
+                function_type: FunctionContextType::Instance,
                 modifiers: acc.modifiers,
                 name: vec![Token {
                     loc: acc.name.loc,
@@ -240,9 +240,9 @@ impl<'a> AstConverter<'a> {
 
     fn parse_func_decl(&self, ns: &str, func: FunctionDecl, class: Option<&DeclParent>, dst: &mut KeidModuleNode) -> Result<usize> {
         let function_type = if class.is_some() && !func.modifiers.contains(&FunctionModifier::Static) {
-            FunctionType::Instance
+            FunctionContextType::Instance
         } else {
-            FunctionType::Static
+            FunctionContextType::Static
         };
         let base_name = {
             let base_name = Qualifier(func.name.clone()).to_string();
@@ -292,7 +292,7 @@ impl<'a> AstConverter<'a> {
             func.generics.unwrap_or_default().into_iter().map(|def| GenericDefNode::from_ast(&def)).collect();
         let mut this_node = None;
 
-        if function_type == FunctionType::Instance && let Some(class) = class {
+        if function_type == FunctionContextType::Instance && let Some(class) = class {
             match class {
                 DeclParent::Class { generic_defs, .. } | DeclParent::InterfaceImpl { generic_defs, .. } => {
                     let additional_defs: Vec<GenericDefNode> = generic_defs
@@ -631,7 +631,7 @@ impl<'a> AstConverter<'a> {
                 modifiers: vec![FunctionModifier::Internal],
                 base_name: format!("{}::keid.destructor", base_name),
                 namespace_name: ns.to_owned(),
-                function_type: FunctionType::Instance,
+                function_type: FunctionContextType::Instance,
                 external_name: format!("{}::keid.destructor()", base_name),
                 generic_defs: generic_defs.clone(),
                 params: vec![ParameterNode {

@@ -17,7 +17,7 @@ impl<'a> GlobalInitializerCompiler for FunctionCompiler<'a> {
             self.import_map = utils::get_import_map(
                 &imports,
                 &self.cpl.type_provider,
-                Some(&self.cpl.type_provider.get_module_namespace(self.unit.module_id)),
+                Some(&self.cpl.type_provider.get_module_namespace(module_id)),
             );
             for field in fields {
                 let field_type = self.resolve_type(&field.ty)?;

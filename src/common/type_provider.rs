@@ -228,6 +228,14 @@ impl TypeProvider {
                     });
                 }
             }
+            for field in &root.fields {
+                if utils::get_type_namespace(&field.name) == namespace {
+                    members.push(NamespaceMember {
+                        name: utils::get_type_leaf(&field.name).to_owned(),
+                        member_type: NamespaceMemberType::Member,
+                    });
+                }
+            }
             for enm in &root.enums {
                 if utils::get_type_namespace(&enm.base_name) == namespace {
                     members.push(NamespaceMember {

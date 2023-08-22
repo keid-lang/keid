@@ -1,5 +1,5 @@
 use super::ClassType;
-use crate::common::types::AnonymousStructField;
+use crate::common::types::{AnonymousStructField, FunctionType};
 use crate::parser::Rule;
 use crate::{
     common::types::{BasicType, ComplexType},
@@ -106,6 +106,32 @@ impl QualifiedType {
                 }
 
                 ComplexType::Basic(BasicType::AnonymousStruct(members))
+            }
+            Rule::function_type => {
+                pairs.next();
+                let mut inner = token.into_inner();
+                let function_params_decl = inner.next().unwrap().into_inner();
+                let mut varargs = Varargs::None;
+                let mut params = Vec::new();
+                for function_param_decl in function_params_decl {
+                    match function_param_decl.as_rule() {
+                        Rule::function_param_decl => {
+                            let mut params_inner = function_param_decl.into_inner();
+                            params_inner.next(); // skip the name
+                            let param_type = QualifiedType::from_idents(params_inner.next().unwrap());
+                            params.push(param_type.complex);
+                        }
+                        Rule::varargs => varargs = Varargs::Array,
+                        Rule::native_varargs => varargs = Varargs::Native,
+                        _ => unreachable!(),
+                    }
+                }
+                let return_type = QualifiedType::from_idents(inner.next().unwrap());
+                ComplexType::Basic(BasicType::Function(FunctionType {
+                    params,
+                    varargs,
+                    return_type: Box::new(return_type.complex),
+                }))
             }
             _ => {
                 let mut path = Vec::new();
@@ -254,7 +280,7 @@ pub struct InterfaceImpl {
 }
 
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub enum FunctionType {
+pub enum FunctionContextType {
     Instance,
     Static,
 }
@@ -269,7 +295,7 @@ pub struct Attribute {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDecl {
     pub attributes: Vec<Attribute>,
-    pub function_type: FunctionType,
+    pub function_type: FunctionContextType,
     pub modifiers: Vec<FunctionModifier>,
     pub name: Vec<Token<Identifier>>,
     pub generics: Option<Vec<GenericDecl>>,
@@ -279,7 +305,7 @@ pub struct FunctionDecl {
     pub varargs: Varargs,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encode, Decode)]
 pub enum Varargs {
     None,
     Array,

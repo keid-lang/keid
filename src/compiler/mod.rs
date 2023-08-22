@@ -82,7 +82,7 @@ impl SignatureCompiler {
                     namespace_name: "".to_owned(),
                     body: None,
                     modifiers: vec![FunctionModifier::Internal],
-                    function_type: FunctionType::Static,
+                    function_type: FunctionContextType::Static,
                     generic_defs: Vec::new(),
                     id: 0,
                     module_id: 0,

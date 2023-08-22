@@ -195,7 +195,7 @@ ALIAS ExprOperand OR(RULE FuncCallExpr, RULE Null, RULE Bool, RULE Integer, RULE
 RULE ReturnStatement
     LITERAL return
     MOVE
-    $value = RULE Expr
+    $operand = RULE Expr
 END RULE
 
 // ALIAS BlockStatement OR(RULE TryStatement, RULE BreakStatement, RULE ContinueStatement, RULE IfStatement, RULE ForLoop, RULE WhileLoop, RULE IndefiniteLoop, RULE UnsafeBlock, RULE FixedBlock, RULE CodeBlock, RULE AssignStatement, RULE ImportStatement, RULE LetStatement, RULE ReturnStatement, RULE UnreachableStatement, RULE ThrowStatement, RULE Expr)

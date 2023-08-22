@@ -16,6 +16,93 @@ function tokenize<T>(match: RuleMatch, node: T): AstToken<T> {
     }
 }
 
+public enum PrattParserAffix {
+    Prefix
+    Infix
+    Postfix
+}
+
+const PRECEDENCE_STEP: uint32 = 10
+const OPERATORS: [PrattParserOperator] = new PrattParserOperator[
+    PrattParserOperator.create(PrattParserAffix.Infix, ".", AstOperator.MemberAccess, PRECEDENCE_STEP * 1),
+    PrattParserOperator.create(PrattParserAffix.Infix, "??", AstOperator.NullCoalesce, PRECEDENCE_STEP * 2),
+    PrattParserOperator.create(PrattParserAffix.Infix, "||", AstOperator.BooleanOr, PRECEDENCE_STEP * 3),
+    PrattParserOperator.create(PrattParserAffix.Infix, "&&", AstOperator.BooleanAnd, PRECEDENCE_STEP * 4),
+    PrattParserOperator.create(PrattParserAffix.Infix, "==", AstOperator.Equals, PRECEDENCE_STEP * 5),
+    PrattParserOperator.create(PrattParserAffix.Infix, "!=", AstOperator.NotEquals, PRECEDENCE_STEP * 5),
+    PrattParserOperator.create(PrattParserAffix.Infix, "<", AstOperator.LessThan, PRECEDENCE_STEP * 6),
+    PrattParserOperator.create(PrattParserAffix.Infix, "<=", AstOperator.LessThanOrEquals, PRECEDENCE_STEP * 6),
+    PrattParserOperator.create(PrattParserAffix.Infix, ">", AstOperator.GreaterThan, PRECEDENCE_STEP * 6),
+    PrattParserOperator.create(PrattParserAffix.Infix, ">=", AstOperator.GreaterThanOrEquals, PRECEDENCE_STEP * 6),
+    PrattParserOperator.create(PrattParserAffix.Infix, "<<", AstOperator.LeftShift, PRECEDENCE_STEP * 7),
+    PrattParserOperator.create(PrattParserAffix.Infix, ">>", AstOperator.RightShift, PRECEDENCE_STEP * 7),
+    PrattParserOperator.create(PrattParserAffix.Infix, "+", AstOperator.Add, PRECEDENCE_STEP * 8),
+    PrattParserOperator.create(PrattParserAffix.Infix, "-", AstOperator.Subtract, PRECEDENCE_STEP * 8),
+    PrattParserOperator.create(PrattParserAffix.Infix, "*", AstOperator.Multiply, PRECEDENCE_STEP * 9),
+    PrattParserOperator.create(PrattParserAffix.Infix, "/", AstOperator.Divide, PRECEDENCE_STEP * 9),
+    PrattParserOperator.create(PrattParserAffix.Infix, "%", AstOperator.Modulus, PRECEDENCE_STEP * 9),
+    PrattParserOperator.create(PrattParserAffix.Infix, "as", AstOperator.As, PRECEDENCE_STEP * 10),
+    PrattParserOperator.create(PrattParserAffix.Prefix, "not", AstOperator.Not, PRECEDENCE_STEP * 11),
+    PrattParserOperator.create(PrattParserAffix.Prefix, "...", AstOperator.Spread, PRECEDENCE_STEP * 12),
+    PrattParserOperator.create(PrattParserAffix.Postfix, "!", AstOperator.NonNullAssertion, PRECEDENCE_STEP * 13),
+]
+
+public struct PrattParserOperator {
+    affix: PrattParserAffix
+    text: string
+    ast: AstOperator
+    precedence: uint32
+
+    public static create(affix: PrattParserAffix, text: string, ast: AstOperator, precedence: uint32): PrattParserOperator => new PrattParserOperator { affix, text, ast, precedence, }
+}
+
+public class PrattParser {
+    operators: [PrattParserOperator]
+    primaryParser: function (match: RuleMatch) => AstToken<Expr>
+    prefixParser: function (op: AstOperator, operand: RuleMatch) => AstToken<Expr>
+    infixParser: function (lhs: RuleMatch, op: AstOperator, rhs: RuleMatch) => AstToken<Expr>
+    postfixParser: function (operand: RuleMatch, op: AstOperator) => AstToken<Expr>
+
+    public parse(parts: List<RuleMatch>): AstToken<AstExpr> {
+        return this.expr(parts, 0)
+    }
+
+    findOperator(text: string): PrattParserOperator {
+        for operator in this.operators {
+            if operator.text == text {
+                return operator
+            }
+        }
+
+        throw Error.create("No such operator: " + text)
+    }
+
+    expr(rbp: uint32): AstToken<AstExpr> {
+        let lhs = this.nud(parts)
+        while rbp < this.lbp(parts) {
+            lhs = self.led(parts, lhs)
+        }
+        return lhs
+    }
+
+    nud(): AstToken<AstExpr> {
+        let next = this.parts.get(this.offset)
+        this.offset += 1
+        return match next.rule {
+            "PrefixOperator" => {
+                let prefixOperator = this.findOperator(next)
+                match prefixOperator.affix {
+                    Prefix => {}
+                    _ => throw Error.create("not a valid prefix operator: " + prefixOperator.text)
+                }
+                let rhs = this.expr(prefixOperator.precedence - 1)
+                return this.prefixParser(prefixOperator.ast, rhs)
+            }
+            _ => this.primaryParser(next)
+        }
+    }
+}
+
 class KeidParser {
     source: string
 
@@ -50,8 +137,23 @@ class KeidParser {
         }
     }
 
-    parseCodeBlock(match: RuleMatch): List<Statement> {
+    parseExpr(expr: RuleMatch): AstToken<AstExpr> {
+        let parsed = AstExpr.Null
+        return tokenize(expr, parsed)
+    }
 
+    parseCodeBlock(match: RuleMatch): List<AstToken<AstStatement>> {
+        let statements = List.empty<AstToken<AstStatement>>()
+        if match.hasGroup("statements") {
+            for statement in match.getGroup("statements") {
+                let ast = match statement.rule {
+                    "ReturnStatement" => new AstStatement.Return { operand = this.parseExpr(statement.getGroupValue("operand")), }
+                    "Expr" => new AstStatement.Expr { value = this.parseExpr(statement), }
+                }
+                statements.push(tokenize<AstStatement>(statement, ast))
+            }
+        }
+        return statements
     }
 
     parseClass(match: RuleMatch): AstClass {
@@ -75,8 +177,8 @@ class KeidParser {
             generics = this.parseGenericDecls(match.getGroupValue("generics"))
         }
 
-        let constructor = null
-        let destructor = null
+        let constructor: ?List<AstToken<AstStatement>> = null
+        let destructor: ?List<AstToken<AstStatement>> = null
         if match.hasGroup("statements") {
             let statements = match.getGroup("statements")
             for statement in statements {
@@ -95,6 +197,8 @@ class KeidParser {
             modifiers
             name
             generics
+            constructor
+            destructor
         }
     }
 

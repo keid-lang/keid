@@ -749,9 +749,9 @@ fn parse_function_decl(mut pairs: Pairs<Rule>, namespace: Option<Qualifier>) -> 
     Ok(FunctionDecl {
         attributes,
         function_type: match (scoped, modifiers.contains(&FunctionModifier::Static)) {
-            (true, true) => FunctionType::Static,
-            (true, false) => FunctionType::Instance,
-            (false, _) => FunctionType::Static,
+            (true, true) => FunctionContextType::Static,
+            (true, false) => FunctionContextType::Instance,
+            (false, _) => FunctionContextType::Static,
         },
         modifiers,
         name,

@@ -674,7 +674,7 @@ pub fn get_import_map(imports: &[ImportNode], type_provider: &TypeProvider, from
 
     let mut modules = imports.iter().map(|import| import.module.clone()).collect::<Vec<String>>();
     if let Some(from_namespace) = from_namespace {
-        modules.push(from_namespace.to_owned());
+        modules.push(from_namespace.to_string());
     }
     for module in modules {
         let types = type_provider.get_namespace_members(&module);
@@ -702,10 +702,19 @@ pub fn get_import_map(imports: &[ImportNode], type_provider: &TypeProvider, from
                 NamespaceMemberType::Member => {
                     let member = ImportedMember {
                         local_name: format!("{}.{}", top_namespace_name, item.name),
-                        absolute_name,
+                        absolute_name: absolute_name.clone(),
                     };
                     if !map.contains(&member) {
                         map.push(member);
+                    }
+                    if let Some(from_namespace) = from_namespace {
+                        println!("from: {}", from_namespace);
+                        if from_namespace == module {
+                            map.push(ImportedMember {
+                                local_name: item.name.clone(),
+                                absolute_name,
+                            });
+                        }
                     }
                 }
             }
@@ -725,7 +734,6 @@ pub fn get_import_map(imports: &[ImportNode], type_provider: &TypeProvider, from
         "core::test",
     ];
     for default_module in default_modules {
-        // let types = type_provider.get_namespace_members(default_module);
         let top_namespace_name = &default_module[default_module.rfind("::").map(|i| i + 2).unwrap_or(0)..];
         let member = ImportedMember {
             local_name: top_namespace_name.to_owned(),
@@ -734,20 +742,6 @@ pub fn get_import_map(imports: &[ImportNode], type_provider: &TypeProvider, from
         if !map.contains(&member) {
             map.push(member);
         }
-        // for item in &types {
-        //     match item.member_type {
-        //         NamespaceMemberType::Member => {
-        //             let member = ImportedMember {
-        //                 local_name: format!("{}::{}", top_namespace_name, item.name),
-        //                 absolute_name: format!("{}::{}", default_module, item.name),
-        //             };
-        //             if !map.contains(&member) {
-        //                 map.push(member);
-        //             }
-        //         }
-        //         _ => (),
-        //     }
-        // }
     }
 
     map
