@@ -57,32 +57,44 @@ public struct PrattParserOperator {
 }
 
 public class PrattParser {
+    source: string
+    parts: List<RuleMatch>
+    offset: usize
     operators: [PrattParserOperator]
-    primaryParser: function (match: RuleMatch) => AstToken<Expr>
-    prefixParser: function (op: AstOperator, operand: RuleMatch) => AstToken<Expr>
-    infixParser: function (lhs: RuleMatch, op: AstOperator, rhs: RuleMatch) => AstToken<Expr>
-    postfixParser: function (operand: RuleMatch, op: AstOperator) => AstToken<Expr>
+    primaryParser: function (match: RuleMatch) => AstToken<AstExpr>
+    prefixParser: function (op: AstOperator, operand: AstToken<AstExpr>) => AstToken<AstExpr>
+    infixParser: function (lhs: AstToken<AstExpr>, op: AstOperator, rhs: AstToken<AstExpr>) => AstToken<AstExpr>
+    postfixParser: function (operand: AstToken<AstExpr>, op: AstOperator) => AstToken<AstExpr>
 
-    public parse(parts: List<RuleMatch>): AstToken<AstExpr> {
-        return this.expr(parts, 0)
+    public parse(): AstToken<AstExpr> {
+        return this.expr(0)
     }
 
-    findOperator(text: string): PrattParserOperator {
+    findOperator(text: string): ?PrattParserOperator {
         for operator in this.operators {
             if operator.text == text {
                 return operator
             }
         }
 
-        throw Error.create("No such operator: " + text)
+        return null
     }
 
     expr(rbp: uint32): AstToken<AstExpr> {
-        let lhs = this.nud(parts)
-        while rbp < this.lbp(parts) {
-            lhs = self.led(parts, lhs)
+        let lhs = this.nud()
+        while rbp < this.lbp() {
+            lhs = this.led(lhs)
         }
         return lhs
+    }
+
+    lbp(): uint32 {
+        let next = this.parts.get(this.offset)
+        let op = this.findOperator(next.token.getText(this.source))
+        if op == null {
+            return 0
+        }
+        return op!.precedence
     }
 
     nud(): AstToken<AstExpr> {
@@ -90,15 +102,19 @@ public class PrattParser {
         this.offset += 1
         return match next.rule {
             "PrefixOperator" => {
-                let prefixOperator = this.findOperator(next)
-                match prefixOperator.affix {
-                    Prefix => {}
-                    _ => throw Error.create("not a valid prefix operator: " + prefixOperator.text)
+                let text = next.token.getText(this.source)
+                let prefixOperator = this.findOperator(text)
+                if prefixOperator == null {
+                    throw Error.create("No such operator: " + text)
                 }
-                let rhs = this.expr(prefixOperator.precedence - 1)
-                return this.prefixParser(prefixOperator.ast, rhs)
+                match prefixOperator!.affix {
+                    Prefix => {}
+                    _ => throw Error.create("not a valid prefix operator: " + prefixOperator!.text)
+                }
+                let rhs = this.expr(prefixOperator!.precedence - 1)
+                return (this.prefixParser)(prefixOperator!.ast, rhs)
             }
-            _ => this.primaryParser(next)
+            _ => (this.primaryParser)(next)
         }
     }
 }
@@ -138,8 +154,14 @@ class KeidParser {
     }
 
     parseExpr(expr: RuleMatch): AstToken<AstExpr> {
-        let parsed = AstExpr.Null
-        return tokenize(expr, parsed)
+        let pratt = new PrattParser {
+            source = this.source
+            parts = expr.getGroup("parts")
+            offset = 0
+            operators = OPERATORS
+            primaryParser = this.parseExpr
+        }
+        return pratt.parse()
     }
 
     parseCodeBlock(match: RuleMatch): List<AstToken<AstStatement>> {

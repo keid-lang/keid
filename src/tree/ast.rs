@@ -346,7 +346,7 @@ pub struct Let {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FuncCall {
-    pub name: Token<Identifier>,
+    pub callee: Box<Token<Expr>>,
     pub generic_args: Option<GenericArgs>,
     pub args: Vec<Token<Expr>>,
 }
@@ -385,7 +385,10 @@ pub struct StaticFuncCall {
 impl StaticFuncCall {
     pub fn get_full_name(&self) -> String {
         let mut full_parts = self.owner.clone().into_tokens();
-        full_parts.push(self.call.name.clone());
+        full_parts.push(match self.call.callee.token.clone() {
+            Expr::Ident(ident) => ident,
+            _ => unreachable!(),
+        });
         full_parts.iter().map(|part| &part.token.0).fold(String::new(), |a, b| a + b + "::").trim_end_matches(':').to_owned()
     }
 }

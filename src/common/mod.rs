@@ -16,10 +16,9 @@ use crate::tree::ast::{Operator, TokenLocation};
 use crate::tree::ResolvedFunctionNode;
 use std::backtrace::Backtrace;
 use std::fmt::Display;
-use thiserror::Error;
 pub trait TypeResolver = Fn(&str) -> Result<ComplexType>;
 
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub struct CompilerError {
     pub message: String,
     pub loc: TokenLocation,

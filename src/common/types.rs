@@ -90,7 +90,10 @@ impl BasicType {
             let full_name = tokens.iter().map(|part| part.token.0.as_str()).collect::<Vec<&str>>().join("::");
             BasicType::Object(GenericIdentifier::from_name_with_args(
                 &full_name,
-                &generic_args.as_ref().map(|args| args.args.iter().map(|qual| qual.complex.clone()).collect::<Vec<_>>()).unwrap_or_default(),
+                &generic_args
+                    .as_ref()
+                    .map(|args| args.args.iter().map(|qual| qual.complex.clone()).collect::<Vec<_>>())
+                    .unwrap_or_default(),
             ))
         }
     }
@@ -126,7 +129,9 @@ impl IntoOpaqueType for BasicType {
             BasicType::ISize | BasicType::USize => cpl.context.get_isize_type(),
             BasicType::Object(identifier) => match cpl.type_provider.get_class_by_name(identifier) {
                 Some(class_impl) => match class_impl.class_type {
-                    ClassType::Class | ClassType::Interface => cpl.context.get_pointer_type(cpl.context.get_abi_class_data_type(cpl, &class_impl)),
+                    ClassType::Class | ClassType::Interface => {
+                        cpl.context.get_pointer_type(cpl.context.get_abi_class_data_type(cpl, &class_impl))
+                    }
                     ClassType::Struct => cpl.context.get_abi_class_data_type(cpl, &class_impl),
                     ClassType::Enum => unreachable!(),
                 },
@@ -142,19 +147,12 @@ impl IntoOpaqueType for BasicType {
                 },
             },
             BasicType::AnonymousStruct(members) => {
-                let name = members.iter().map(|member| format!("{}:{}", member.name, member.ty.to_string())).collect::<Vec<String>>().join(",");
+                let name =
+                    members.iter().map(|member| format!("{}:{}", member.name, member.ty.to_string())).collect::<Vec<String>>().join(",");
                 let name = format!("AnonymousStruct#{}", name);
                 cpl.context.get_struct_type(&name, &members.iter().map(|member| member.ty.as_llvm_type(cpl)).collect::<Vec<OpaqueType>>())
             }
-            BasicType::Function(ft) => cpl.context.get_pointer_type(
-                cpl.context
-                    .get_function_type(
-                        &ft.params.iter().map(|param| param.as_llvm_type(cpl)).collect::<Vec<OpaqueType>>(),
-                        ft.varargs,
-                        ft.return_type.as_llvm_type(cpl),
-                    )
-                    .to_any_type(),
-            ),
+            BasicType::Function(_) => cpl.context.get_pointer_type(cpl.context.get_abi_any_closure_type()),
         }
     }
 }
@@ -187,7 +185,10 @@ impl ToString for BasicType {
             BasicType::Null => "null",
             BasicType::Unknown => "{unknown}",
             BasicType::Function(ft) => {
-                return format!("function ({})", utils::iter_join(&ft.params.iter().map(|param| param.to_string()).collect::<Vec<String>>()))
+                return format!(
+                    "function ({})",
+                    utils::iter_join(&ft.params.iter().map(|param| param.to_string()).collect::<Vec<String>>())
+                )
             }
         })
     }

@@ -708,7 +708,6 @@ pub fn get_import_map(imports: &[ImportNode], type_provider: &TypeProvider, from
                         map.push(member);
                     }
                     if let Some(from_namespace) = from_namespace {
-                        println!("from: {}", from_namespace);
                         if from_namespace == module {
                             map.push(ImportedMember {
                                 local_name: item.name.clone(),

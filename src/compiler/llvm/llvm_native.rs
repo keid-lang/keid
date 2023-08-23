@@ -535,6 +535,35 @@ impl Context {
         )
     }
 
+    pub fn get_abi_closure_type(&self, captured_value_types: &[OpaqueType]) -> OpaqueType {
+        let mut hash = 7;
+        for captured_value in captured_value_types {
+            hash = 31 * hash + captured_value.0 as usize;
+        }
+
+        self.get_struct_type(
+            &format!("__closure${}", hex::encode(&hash.to_be_bytes())),
+            &[
+                &[
+                    self.get_isize_type(),                       // ref count
+                    self.get_pointer_type(self.get_void_type()), // function pointer
+                ],
+                captured_value_types,
+            ]
+            .concat(),
+        )
+    }
+
+    pub fn get_abi_any_closure_type(&self) -> OpaqueType {
+        self.get_struct_type(
+            &format!("__closure"),
+            &[
+                self.get_isize_type(),                       // ref count
+                self.get_pointer_type(self.get_void_type()), // function pointer
+            ],
+        )
+    }
+
     fn get_cached_struct_type(&self, name: &str) -> Option<OpaqueType> {
         let cached_struct_types = self.cached_struct_types.borrow();
         cached_struct_types.get(name).cloned()
@@ -961,7 +990,7 @@ impl InsnBuilder {
             if !current_block.is_null() {
                 let first = LLVMGetFirstInstruction(current_block);
                 if first.is_null() {
-                    self.emit(Insn::Br(block.as_val()), 0, 0);
+                    self.emit(Insn::Br(block.as_val()));
                 }
             }
 
@@ -973,7 +1002,7 @@ impl InsnBuilder {
         unsafe { OpaqueType(LLVMGetAllocatedType(var.0)) }
     }
 
-    pub fn emit(&self, insn: Insn, _line: u32, _col: u32) -> OpaqueValue {
+    pub fn emit(&self, insn: Insn) -> OpaqueValue {
         if get_eval_only() {
             return OpaqueValue(std::ptr::null_mut());
         }

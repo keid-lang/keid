@@ -37,6 +37,7 @@ pub struct FunctionCompiler<'a> {
     import_map: Vec<ImportedMember>,
     builder: InsnBuilder,
     llvm_func: Function,
+    closure_count: usize,
     pub state: FunctionCompilerState,
 }
 
@@ -57,6 +58,7 @@ impl<'a> FunctionCompiler<'a> {
             import_map,
             builder,
             llvm_func,
+            closure_count: 0,
             state: FunctionCompilerState::new(),
         }
     }
@@ -81,7 +83,7 @@ impl<'a> FunctionCompiler<'a> {
     }
 
     pub fn emit(&self, insn: Insn) -> OpaqueValue {
-        self.builder.emit(insn, 0, 0)
+        self.builder.emit(insn)
     }
 
     fn initialize_local_vars(&mut self) -> Result<()> {
@@ -339,6 +341,50 @@ impl<'a> FunctionCompiler<'a> {
         self.resolve_type_with_context(ty, &self.import_map)
     }
 
+    fn compile_closure(&mut self, closure_data_type: OpaqueType, class_type: ComplexType, callee: ResolvedFunctionNode) -> Result<OpaqueFunctionValue> {
+        self.closure_count += 1;
+        let name = format!("{}#_closure{}", self.func.external_name, self.closure_count);
+
+        let mut callee_without_instance = callee.clone();
+        callee_without_instance.params.remove(0);
+
+        let mut func_params = Vec::new();
+        func_params.push(self.cpl.context.get_pointer_type(closure_data_type));
+        for param in &callee_without_instance.params {
+            func_params.push(param.as_llvm_type(&self.cpl));
+        }
+
+        let closure_function_type = self.cpl.context.get_function_type(&func_params, callee.varargs, callee.return_type.as_llvm_type(&self.cpl));
+        let closure_function = self.unit.mdl.add_function(&name, closure_function_type, 0);
+
+        let mut bdl = closure_function.create_builder();
+        let main_block = bdl.create_block();
+        bdl.append_block(&main_block);
+
+        let mut args = Vec::new();
+        let closure_data = closure_function.get_param(0);
+        let instance_ptr = bdl.emit(Insn::GetElementPtr(closure_data, closure_data_type, 2));
+        let instance = TypedValueContainer(TypedValue::new(class_type, instance_ptr)).load(self)?;
+        args.push(instance);
+
+        for i in 0..callee_without_instance.params.len() {
+            let param_type = callee_without_instance.params[i].clone();
+            let register = closure_function.get_param(i as u32 + 1);
+            args.push(TypedValue::new(param_type, register));
+        }
+
+        let callee_ref = self.get_function_ref(&callee)?;
+        let result = self.call_function(callee_ref, &callee, &args)?;
+
+        if matches!(callee.return_type, ComplexType::Basic(BasicType::Void)) {
+            bdl.emit(Insn::RetVoid);
+        } else {
+            bdl.emit(Insn::Ret(result));
+        }
+
+        Ok(closure_function.as_val())
+    }
+
     fn resolve_class_member_ptr(
         &mut self,
         class_instance: &TypedValue,
@@ -361,6 +407,42 @@ impl<'a> FunctionCompiler<'a> {
         }
         let getter_impl = 'getter_block: {
             let class = &self.cpl.type_provider.get_source_class(type_root);
+            for function_id in &class.functions {
+                let function = self.cpl.type_provider.get_function_node(type_root.module_id, *function_id).unwrap();
+                if utils::get_type_leaf(&function.base_name) == field_name.token.0 {
+                    let resolved_function = function.create_impl(&self.cpl.type_provider, &type_root.generic_impls).unwrap();
+                    let closure_abi = self.cpl.context.get_abi_closure_type(&[class_instance.ty.as_llvm_type(&self.cpl)]);
+                    let closure_data_ptr = self.heap_allocate(closure_abi, None)?;
+
+                    // set the ref count to 0
+                    let const_zero = self.cpl.context.const_int(self.cpl.context.get_i64_type(), 0);
+                    let ref_count_ptr = self.emit(Insn::GetElementPtr(closure_data_ptr, closure_abi, 0));
+                    self.emit(Insn::Store(const_zero, ref_count_ptr));
+
+                    let wrapper_function = self.compile_closure(closure_abi, class_instance.ty.clone(), resolved_function.clone())?;
+
+                    // set the function pointer
+                    let closure_func_ptr = self.emit(Insn::GetElementPtr(closure_data_ptr, closure_abi, 1));
+                    self.emit(Insn::Store(wrapper_function.to_value(), closure_func_ptr));
+
+                    // set the class instance
+                    let closure_instance_ptr = self.emit(Insn::GetElementPtr(closure_data_ptr, closure_abi, 2));
+                    self.copy(class_instance, &TypedValue::new(class_instance.ty.clone(), closure_instance_ptr))?;
+
+                    let mut params = resolved_function.params;
+                    params.remove(0); // remove the instance parameter
+
+                    // TODO: call keid.scope_closure() on the closure instance
+
+                    let closure_type = BasicType::Function(FunctionType {
+                        params,
+                        return_type: Box::new(resolved_function.return_type),
+                        varargs: resolved_function.varargs,
+                    })
+                    .to_complex();
+                    return Ok(Box::new(TypedValueContainer(TypedValue::new(closure_type, closure_data_ptr))));
+                }
+            }
 
             for accessor in &class.accessors {
                 if accessor.name == field_name.token.0 {
@@ -383,7 +465,7 @@ impl<'a> FunctionCompiler<'a> {
                     }
                 }
             }
-            return Err(compiler_error!(self, "No such field or accessor `{}.{}`", type_root.full_name, field_name.token.0));
+            return Err(compiler_error!(self, "No such class member `{}.{}`", type_root.full_name, field_name.token.0));
         };
 
         Ok(Box::new(AccessorValueContainer::new(getter_impl, class_instance.val)))
@@ -396,9 +478,13 @@ impl<'a> FunctionCompiler<'a> {
 
     fn resolve_static_function(&mut self, sfc: &StaticFuncCall, args: &[Token<Expr>]) -> Result<(ResolvedFunctionNode, Vec<TypedValue>)> {
         let generic_args = self.parse_generic_args(&sfc.call.generic_args)?;
+        let name = match sfc.call.callee.token.clone() {
+            Expr::Ident(ident) => ident,
+            x => unreachable!("{:?}", x),
+        };
 
         for owner in utils::lookup_import_map(&self.import_map, &sfc.owner.to_string()) {
-            for full_name in utils::lookup_import_map(&self.import_map, &format!("{}::{}", owner, sfc.call.name.token.0)) {
+            for full_name in utils::lookup_import_map(&self.import_map, &format!("{}::{}", owner, name.token.0)) {
                 let ident = GenericIdentifier::from_name_with_args(&full_name, &generic_args);
                 match self.find_function(&ident, args, None)? {
                     Some(sig) => return Ok(sig),
@@ -418,11 +504,11 @@ impl<'a> FunctionCompiler<'a> {
         }
 
         let evaluated_arguments = args.iter().map(|arg| self.compile_expr(arg, None).map(|arg| arg.ty.to_string())).collect::<Result<Vec<String>>>()?;
-        self.loc(&sfc.call.name.loc);
+        self.loc(&name.loc);
         Err(compiler_error!(
             self,
             "No such function overload `{}({})`",
-            GenericIdentifier::from_name_with_args(&format!("{}::{}", sfc.owner.to_string(), sfc.call.name.token.0), &generic_args).to_string(),
+            GenericIdentifier::from_name_with_args(&format!("{}::{}", sfc.owner.to_string(), name.token.0), &generic_args).to_string(),
             utils::iter_join(&evaluated_arguments),
         ))
     }
