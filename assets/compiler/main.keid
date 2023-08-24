@@ -18,9 +18,9 @@ public extern function main(): int32 {
     let programText = String.fromUtf8(programFile.readAllBytes())
     programFile.close()
 
-    let f = new Foo { bar = 5, }
+    // let f = new Foo { bar = 5, }
     // TODO: this should not be allowed
-    f.bar = 6
+    // f.bar = 6
 
     let ast = keidc::parser.parseKeidSource(programText)
     std::io.println("AST: ", ast.toString())
@@ -28,61 +28,61 @@ public extern function main(): int32 {
     os.exit(0)
 
     // core::array tests
-    core::array::test.testArrayLength()
-    core::array::test.testArrayEquals()
-    core::array::test.testSingleElementCopy()
-    core::array::test.testMultipleElementCopy()
-    core::array::test.testArrayToString()
+    // core::array::test.testArrayLength()
+    // core::array::test.testArrayEquals()
+    // core::array::test.testSingleElementCopy()
+    // core::array::test.testMultipleElementCopy()
+    // core::array::test.testArrayToString()
 
-    // core::string::format() tests
-    core::string::test.testIdentityFormat()
-    core::string::test.testAppendFormat()
+    // // core::string::format() tests
+    // core::string::test.testIdentityFormat()
+    // core::string::test.testAppendFormat()
 
-    // core::string::String tests
-    core::string::test.testEmptyString()
-    core::string::test.testFromUtf8()
-    core::string::test.testStringToString()
-    core::string::test.testStringEquals()
-    core::string::test.testStringsWithNul()
-    core::string::test.testStringAddition()
-    core::string::test.testStringFromCStr()
-    core::string::test.testIndexOf()
-    core::string::test.testSubstring()
-    core::string::test.testSplit()
-    core::string::test.testTrim()
-    core::string::test.testStartsWith()
+    // // core::string::String tests
+    // core::string::test.testEmptyString()
+    // core::string::test.testFromUtf8()
+    // core::string::test.testStringToString()
+    // core::string::test.testStringEquals()
+    // core::string::test.testStringsWithNul()
+    // core::string::test.testStringAddition()
+    // core::string::test.testStringFromCStr()
+    // core::string::test.testIndexOf()
+    // core::string::test.testSubstring()
+    // core::string::test.testSplit()
+    // core::string::test.testTrim()
+    // core::string::test.testStartsWith()
 
-    // core::string::StringBuilder tests
-    core::string::test.testEmptyStringBuilder()
-    core::string::test.testEmptyAppend()
-    core::string::test.testEmptyDoubleAppend()
-    core::string::test.testPreallocatedTooSmall()
-    core::string::test.testPreallocatedTooBig()
-    core::string::test.testInsert()
+    // // core::string::StringBuilder tests
+    // core::string::test.testEmptyStringBuilder()
+    // core::string::test.testEmptyAppend()
+    // core::string::test.testEmptyDoubleAppend()
+    // core::string::test.testPreallocatedTooSmall()
+    // core::string::test.testPreallocatedTooBig()
+    // core::string::test.testInsert()
 
-    // core::collections tests
-    core::collections::test.testListPushOnce()
-    core::collections::test.testListRemoveOnce()
-    core::collections::test.testListRemoveMany()
+    // // core::collections tests
+    // core::collections::test.testListPushOnce()
+    // core::collections::test.testListRemoveOnce()
+    // core::collections::test.testListRemoveMany()
 
-    // core::object::Class tests
-    core::object::test.testClassFromInstance()
+    // // core::object::Class tests
+    // core::object::test.testClassFromInstance()
 
-    let bt4 = new ComplexType.Nullable {
-        element = new ComplexType.Array {
-            element = new ComplexType.Basic {
-                type = new BasicType.Object {
-                    ident = new QualifiedIdent {
-                        name = "keidc::Test"
-                        generics = List.empty<ComplexType>()
-                    }
-                }
-            }
-        }
-    }
-    test.assertEqual(bt4.toString(), "?[keidc::Test]")
+    // let bt4 = new ComplexType.Nullable {
+    //     element = new ComplexType.Array {
+    //         element = new ComplexType.Basic {
+    //             type = new BasicType.Object {
+    //                 ident = new QualifiedIdent {
+    //                     name = "keidc::Test"
+    //                     generics = List.empty<ComplexType>()
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+    // test.assertEqual(bt4.toString(), "?[keidc::Test]")
 
-    std::io.println("Successfully ran all tests.")
+    // std::io.println("Successfully ran all tests.")
 
     return 0
 }

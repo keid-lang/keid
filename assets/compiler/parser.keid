@@ -97,19 +97,41 @@ public class PrattParser {
         return op!.precedence
     }
 
+    led(lhs: AstToken<AstExpr>): AstToken<AstExpr> {
+        let next = this.parts.get(this.offset)
+        this.offset += 1
+        match next.rule {
+            "InfixOperator" => {
+                let text = next.token.getText(this.source)
+                let infixOperator = this.findOperator(text)
+                if infixOperator == null {
+                    throw Error.create("No such operator: " + text)
+                }
+                let rhs = this.expr(infixOperator!.precedence)
+                return (this.infixParser)(lhs, infixOperator!.ast, rhs)
+            }
+            "PostfixOperator" => {
+                let text2 = next.token.getText(this.source)
+                let postfixOperator = this.findOperator(text2)
+                if postfixOperator == null {
+                    throw Error.create("No such operator: " + text2)
+                }
+                return (this.postfixParser)(lhs, postfixOperator!.ast)
+            }
+            _ => throw Error.create("expected infix or postfix expression")
+        }
+    }
+
     nud(): AstToken<AstExpr> {
         let next = this.parts.get(this.offset)
         this.offset += 1
+        std::io.println(next.rule)
         return match next.rule {
             "PrefixOperator" => {
                 let text = next.token.getText(this.source)
                 let prefixOperator = this.findOperator(text)
                 if prefixOperator == null {
                     throw Error.create("No such operator: " + text)
-                }
-                match prefixOperator!.affix {
-                    Prefix => {}
-                    _ => throw Error.create("not a valid prefix operator: " + prefixOperator!.text)
                 }
                 let rhs = this.expr(prefixOperator!.precedence - 1)
                 return (this.prefixParser)(prefixOperator!.ast, rhs)
@@ -159,7 +181,7 @@ class KeidParser {
             parts = expr.getGroup("parts")
             offset = 0
             operators = OPERATORS
-            primaryParser = this.parseExpr
+            primaryParser = this.parseExprOperand
         }
         return pratt.parse()
     }

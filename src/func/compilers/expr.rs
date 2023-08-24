@@ -329,6 +329,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
             }
             Expr::Logic(logic) => {
                 let lhs = self.compile_expr(&logic.lhs, None)?;
+
                 if logic.op == Operator::As {
                     let cast_target = match &logic.rhs.token {
                         Expr::CastTarget(target) => target,
@@ -380,9 +381,10 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
         let value = self.compile_expr(&mtch.value, None)?;
 
         let mut match_result_types = Vec::new();
-        for branch in &mtch.branches {
-            llvm::set_eval_only(true);
 
+        let state = self.state.clone();
+        llvm::set_eval_only(true);
+        for branch in &mtch.branches {
             let mut temp_block = ScopeBlock::new(BlockType::Generic);
             match &branch.arg {
                 MatchExprBranchArg::EnumWithData {
@@ -420,8 +422,10 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                     }
                 }
             }
-
-            llvm::set_eval_only(false);
+        }
+        llvm::set_eval_only(false);
+        if !llvm::get_eval_only() {
+            self.state = state;
         }
 
         for (ty, loc) in &match_result_types {

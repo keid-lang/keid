@@ -473,8 +473,8 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
             ComplexType::Basic(BasicType::Object(ident)) => {
                 let class_impl = self.cpl.type_provider.get_class_by_name(ident).unwrap();
 
-                // TODO: ensure all fields are initialized
                 // TODO: call constructor if present
+                let mut set_fields = Vec::new();
                 for arg in &nc.args {
                     let field = self.resolve_class_member_ptr(&class_instance, &class_impl, &arg.field_name)?;
                     let arg_value = match &arg.value {
@@ -485,6 +485,14 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                         }
                     };
                     field.store(Operator::Equals, self, arg_value)?;
+                    set_fields.push(arg.field_name.token.0.clone());
+                }
+
+                for field in class_impl.fields {
+                    if !set_fields.contains(&field.name) {
+                        self.loc(&nc.ty.loc);
+                        return Err(compiler_error!(self, "Instantiation missing required field `{}`", field.name));
+                    }
                 }
 
                 Ok(class_instance)

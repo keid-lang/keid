@@ -361,9 +361,14 @@ impl<'a> FunctionCompiler<'a> {
         let main_block = bdl.create_block();
         bdl.append_block(&main_block);
 
+        let current_builder = self.builder.clone();
+
+        self.builder.is_clone = true;
+        self.builder = bdl;
+
         let mut args = Vec::new();
         let closure_data = closure_function.get_param(0);
-        let instance_ptr = bdl.emit(Insn::GetElementPtr(closure_data, closure_data_type, 2));
+        let instance_ptr = self.emit(Insn::GetElementPtr(closure_data, closure_data_type, 2));
         let instance = TypedValueContainer(TypedValue::new(class_type, instance_ptr)).load(self)?;
         args.push(instance);
 
@@ -377,10 +382,13 @@ impl<'a> FunctionCompiler<'a> {
         let result = self.call_function(callee_ref, &callee, &args)?;
 
         if matches!(callee.return_type, ComplexType::Basic(BasicType::Void)) {
-            bdl.emit(Insn::RetVoid);
+            self.emit(Insn::RetVoid);
         } else {
-            bdl.emit(Insn::Ret(result));
+            self.emit(Insn::Ret(result));
         }
+
+        self.builder = current_builder;
+        self.builder.is_clone = false;
 
         Ok(closure_function.as_val())
     }
@@ -440,7 +448,7 @@ impl<'a> FunctionCompiler<'a> {
                         varargs: resolved_function.varargs,
                     })
                     .to_complex();
-                    return Ok(Box::new(TypedValueContainer(TypedValue::new(closure_type, closure_data_ptr))));
+                    return Ok(Box::new(PreloadedTypedValueContainer(TypedValue::new(closure_type, closure_data_ptr))));
                 }
             }
 

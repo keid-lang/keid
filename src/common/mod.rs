@@ -80,6 +80,24 @@ pub trait ValueContainer {
 }
 
 #[derive(Debug)]
+pub struct PreloadedTypedValueContainer(pub TypedValue);
+
+impl ValueContainer for PreloadedTypedValueContainer {
+    fn load(&self, _: &mut FunctionCompiler) -> Result<TypedValue> {
+        Ok(self.0.clone())
+    }
+
+    fn store(&self, _: Operator, _: &mut FunctionCompiler, _: TypedValue) -> Result<()> {
+        panic!("cannot store into a preloaded value");
+    }
+
+    fn get_type(&self) -> ComplexType {
+        self.0.ty.clone()
+    }
+}
+
+
+#[derive(Debug)]
 pub struct TypedValueContainer(pub TypedValue);
 
 impl ValueContainer for TypedValueContainer {

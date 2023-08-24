@@ -158,12 +158,12 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
     fn compile_let(&mut self, lt: &Let) -> Result<()> {
         if self.resolve_ident(&lt.name).is_ok() {
             return Err(compiler_error!(self, "Duplicate identifier: {}", lt.name.token.0));
+        } else {
+            self.state.get_current_block_mut().locals.push(LocalVar {
+                name: lt.name.token.0.clone(),
+                value: self.cpl.context.const_unknown(),
+            });
         }
-
-        self.state.get_current_block_mut().locals.push(LocalVar {
-            name: lt.name.token.0.clone(),
-            value: self.cpl.context.const_unknown(),
-        });
 
         let (initial_ref, var_type) = match (&lt.var_type, &lt.initial_value) {
             (Some(var_type), Some(initial_value)) => {
@@ -198,8 +198,16 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
         let typed_local_var = TypedValue::new(var_type, var_ref);
         self.copy(&initial_ref, &typed_local_var)?;
 
-        self.state.get_current_block_mut().locals.last_mut().unwrap().value = typed_local_var;
+        for i in (0..self.state.block_stack.len()).rev() {
+            let locals = &mut self.state.block_stack[i].locals;
+            for local in locals {
+                if local.name == lt.name.token.0 {
+                    local.value = typed_local_var;
+                    return Ok(());
+                }
+            }
+        }        
 
-        Ok(())
+        panic!("failed to assign to let binding")
     }
 }

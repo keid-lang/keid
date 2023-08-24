@@ -883,6 +883,7 @@ impl Function {
                 debug: self.debug,
                 debug_file: self.debug_file,
                 target: self.target.clone(),
+                is_clone: false,
             }
         }
     }
@@ -930,7 +931,6 @@ impl BuilderBlock {
     }
 }
 
-#[derive(Clone)]
 pub struct InsnBuilder {
     ctx: LLVMContextRef,
     bdl: LLVMBuilderRef,
@@ -939,6 +939,7 @@ pub struct InsnBuilder {
     debug: LLVMDIBuilderRef,
     debug_file: LLVMMetadataRef,
     target: LLVMTargetData,
+    pub is_clone: bool,
 }
 
 impl InsnBuilder {
@@ -1004,7 +1005,7 @@ impl InsnBuilder {
 
     pub fn emit(&self, insn: Insn) -> OpaqueValue {
         if get_eval_only() {
-            return OpaqueValue(std::ptr::null_mut());
+            return OpaqueValue(0xDEADBEEFusize as *mut _);
         }
         unsafe {
             let insn_name = CString::new("").expect("invalid insn name");
@@ -1120,9 +1121,26 @@ impl InsnBuilder {
     }
 }
 
+impl Clone for InsnBuilder {
+    fn clone(&self) -> InsnBuilder {
+        InsnBuilder {
+            bdl: self.bdl,
+            block_offset: self.block_offset,
+            ctx: self.ctx,
+            debug: self.debug,
+            debug_file: self.debug_file,
+            func: self.func,
+            target: self.target.clone(),
+            is_clone: true,
+        }
+    }
+}
+
 impl Drop for InsnBuilder {
     fn drop(&mut self) {
-        unsafe { LLVMDisposeBuilder(self.bdl) }
+        if !self.is_clone {
+            unsafe { LLVMDisposeBuilder(self.bdl) }
+        }
     }
 }
 
