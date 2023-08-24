@@ -114,17 +114,6 @@ public enum AstOperator {
     MemberAccess
 }
 
-public class AstUnaryExpr {
-    operator: AstToken<AstOperator>
-    operand: AstToken<AstExpr>
-}
-
-public class AstBinaryExpr {
-    lhs: AstToken<AstExpr>
-    operator: AstToken<AstOperator>
-    rhs: AstToken<AstExpr>
-}
-
 public enum AstExpr {
     Null
     BoolLit {
@@ -140,10 +129,13 @@ public enum AstExpr {
         value: int64
     }
     Unary {
-        unary: AstUnaryExpr
+        operator: AstToken<AstOperator>
+        operand: AstToken<AstExpr>
     }
     Binary {
-        binary: AstBinaryExpr
+        lhs: AstToken<AstExpr>
+        operator: AstToken<AstOperator>
+        rhs: AstToken<AstExpr>
     }
 }
 
