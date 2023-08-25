@@ -121,8 +121,10 @@ public class PrattParser {
                 }
                 return (this.postfixParser)(lhs, tokenize<AstOperator>(next, postfixOperator!.ast))
             }
-            _ => throw Error.create("expected infix or postfix expression")
+            _ => {}
         }
+
+        throw Error.create("expected infix or postfix expression")
     }
 
     nud(): AstToken<AstExpr> {

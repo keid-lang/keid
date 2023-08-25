@@ -418,7 +418,9 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
 
         self.emit(Insn::Br(loop_block_llvm)); // jump to the top of the loop block
 
-        self.builder.append_block(&rotated_parent); // append the rotated parent block
+        if rotated_parent.has_predecessor() {
+            self.builder.append_block(&rotated_parent); // append the rotated parent block
+        }
 
         Ok(())
     }

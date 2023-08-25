@@ -926,6 +926,10 @@ impl BuilderBlock {
         }
     }
 
+    pub fn has_predecessor(&self) -> bool {
+        unsafe { LLVMHasPredecessor(self.block) != 0 }
+    }
+
     pub fn as_val(&self) -> OpaqueBasicBlock {
         OpaqueBasicBlock(self.block)
     }
@@ -984,6 +988,14 @@ impl InsnBuilder {
         }
         unsafe {
             LLVMAppendExistingBasicBlock(self.func, block.block);
+            
+            // if the new block is not the first block of the function
+            if LLVMGetPreviousBasicBlock(block.block) != std::ptr::null_mut() {
+                // if the new block has no direct predecessor
+                if !block.has_predecessor() {
+                    panic!("block with zero predecessors");
+                }
+            }
 
             // if the current block is empty, then insert a break to jump to the current block
             // this guarantees that no blocks will ever be empty
