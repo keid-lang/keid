@@ -4,6 +4,7 @@ import (
     core::collections
     core::string
     keidc::ksdl
+    keidc::types
 )
 
 public class AstToken<T> {
@@ -55,6 +56,25 @@ implement ToString for AstClassType {
     }
 }
 
+public class AstClassField {
+    modifiers: List<AstToken<KeidModifier>>
+    name: AstToken<string>
+    type: AstToken<ComplexType>
+    initialValue: ?AstToken<AstExpr>
+}
+
+implement ToString for AstClassField {
+    toString(): string {
+        let sb = StringBuilder.empty()
+        sb.append("AstClassField(name=")
+        sb.append(this.name.node)
+        sb.append(", type=")
+        sb.append(this.type.node.toString())
+        sb.append(")")
+        return sb.toString()
+    }
+}
+
 public class AstClass {
     type: AstToken<AstClassType>
     modifiers: List<AstToken<KeidModifier>>
@@ -62,6 +82,7 @@ public class AstClass {
     generics: ?List<AstGenericDecl>
     constructor: ?List<AstToken<AstStatement>>
     destructor: ?List<AstToken<AstStatement>>
+    fields: List<AstClassField>
 }
 
 implement ToString for AstClass {
@@ -74,6 +95,11 @@ implement ToString for AstClass {
         sb.append(", modifiers=[")
         for modifier in this.modifiers {
             sb.append(modifier.node.toString())
+            sb.append(", ")
+        }
+        sb.append("], fields=[")
+        for field in this.fields {
+            sb.append(field.toString())
             sb.append(", ")
         }
         sb.append("])")
@@ -112,6 +138,32 @@ public enum AstOperator {
     Spread
     NullCoalesce
     MemberAccess
+}
+
+implement ToString for AstOperator {
+    toString(): string => match this {
+        Equals => "=="
+        NotEquals => "!="
+        Add => "+"
+        Subtract => "-"
+        Multiply => "*"
+        Divide => "/"
+        Modulus => "%"
+        LeftShift => "<<"
+        RightShift => ">>"
+        BooleanOr => "or"
+        BooleanAnd => "and"
+        LessThanOrEquals => "<="
+        GreaterThanOrEquals => ">="
+        LessThan => "<"
+        GreaterThan => ">"
+        As => "as"
+        Not => "not"
+        NonNullAssertion => "!"
+        Spread => "..."
+        NullCoalesce => "??"
+        MemberAccess => "."
+    }
 }
 
 public enum AstExpr {

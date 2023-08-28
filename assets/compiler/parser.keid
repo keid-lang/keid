@@ -3,9 +3,11 @@ namespace keidc::parser
 import (
     core::collections
     core::error
+    core::string
     core::object
     keidc::ast
     keidc::ksdl
+    keidc::types
     std::fs
 )
 
@@ -20,6 +22,14 @@ public enum PrattParserAffix {
     Prefix
     Infix
     Postfix
+}
+
+implement ToString for PrattParserAffix {
+    toString(): string => match this {
+        Prefix => "Prefix"
+        Infix => "Infix"
+        Postfix => "Postfix"
+    }
 }
 
 const PRECEDENCE_STEP: uint32 = 10
@@ -47,13 +57,17 @@ const OPERATORS: [PrattParserOperator] = new PrattParserOperator[
     PrattParserOperator.create(PrattParserAffix.Postfix, "!", AstOperator.NonNullAssertion, PRECEDENCE_STEP * 13),
 ]
 
-public struct PrattParserOperator {
+public class PrattParserOperator {
     affix: PrattParserAffix
     text: string
     ast: AstOperator
     precedence: uint32
 
     public static create(affix: PrattParserAffix, text: string, ast: AstOperator, precedence: uint32): PrattParserOperator => new PrattParserOperator { affix, text, ast, precedence, }
+}
+
+implement ToString for PrattParserOperator {
+    toString(): string => string.format("PrattParserOperator(affix=", this.affix.toString(), ", text=", this.text, ", ast=", this.ast.toString(), ", precedence=" + this.precedence.toString(), ")")
 }
 
 public class PrattParser {
@@ -130,7 +144,6 @@ public class PrattParser {
     nud(): AstToken<AstExpr> {
         let next = this.parts.get(this.offset)
         this.offset += 1
-        std::io.println(next.rule)
         return match next.rule {
             "PrefixOperator" => {
                 let text = next.token.getText(this.source)
@@ -164,20 +177,26 @@ class KeidParser {
         return decls
     }
 
-    parseModifers(modifiers: List<AstToken<KeidModifier>>, astModifiers: List<RuleMatch>) {
-        for astModifier in astModifiers {
-            let text = astModifier.token.getText(this.source)
-            let modifier = match text {
-                "public" => KeidModifier.Public
-                "extern" => KeidModifier.Extern
-                "static" => KeidModifier.Static
-                // TODO: fix this not compiling _ => throw Error.create("ParseError: invalid modifier: " + text)
+    parseModifers(parentAstNode: RuleMatch): List<AstToken<KeidModifier>> {
+        if parentAstNode.hasGroup("modifiers") {
+            let astModifiers = parentAstNode.getGroup("modifiers")
+            let modifiers = List.withCapacity<AstToken<KeidModifier>>(astModifiers.length)
+            for astModifier in astModifiers {
+                let text = astModifier.token.getText(this.source)
+                let modifier = match text {
+                    "public" => KeidModifier.Public
+                    "extern" => KeidModifier.Extern
+                    "static" => KeidModifier.Static
+                    // TODO: fix this not compiling _ => throw Error.create("ParseError: invalid modifier: " + text)
+                }
+                modifiers.push(new AstToken<KeidModifier> {
+                    node = modifier
+                    loc = astModifier.token
+                })
             }
-            modifiers.push(new AstToken<KeidModifier> {
-                node = modifier
-                loc = astModifier.token
-            })
+            return modifiers
         }
+        return List.empty<AstToken<KeidModifier>>()
     }
 
     parsePrefixExpr(operator: AstToken<AstOperator>, operand: AstToken<AstExpr>): AstToken<AstExpr> {
@@ -252,12 +271,75 @@ class KeidParser {
         return statements
     }
 
-    parseClass(match: RuleMatch): AstClass {
-        let modifiers = List.empty<AstToken<KeidModifier>>()
-        if match.hasGroup("modifiers") {
-            this.parseModifers(modifiers, match.getGroup("modifiers"))
+    parseValueTypeNode(match: RuleMatch): ComplexType {
+        match match.rule {
+            "ArrayType" => return new ComplexType.Array {
+                element = this.parseValueTypeNode(match.getGroupValue("elementType"))
+            }
+            "NullableType" => return new ComplexType.Nullable {
+                element = this.parseValueTypeNode(match.getGroupValue("elementType"))
+            }
+            "BasicType" => {
+                let path = this.parseString(match.getGroupValue("path"))
+                let generics = List.empty<AstGenericDecl>()
+                if match.hasGroup("generics") {
+                    generics = this.parseGenericDecls(match.getGroupValue("generics"))
+                }
+                let basic = match path.node {
+                    "void"    => BasicType.Void
+                    "bool"    => BasicType.Bool
+                    "char"    => BasicType.Char
+                    "uint8"   => BasicType.UInt8
+                    "uint16"  => BasicType.UInt16
+                    "uint32"  => BasicType.UInt32
+                    "uint64"  => BasicType.UInt64
+                    "int8"    => BasicType.Int8
+                    "int16"   => BasicType.Int16
+                    "int32"   => BasicType.Int32
+                    "int64"   => BasicType.Int64
+                    "float32" => BasicType.Float32
+                    "float64" => BasicType.Float64
+                    "usize"   => BasicType.USize
+                    "isize"   => BasicType.ISize
+                    _ => return new ComplexType.Basic {
+                        basic = new BasicType.Object {
+                            ident = new QualifiedIdent {
+                                name = path.node
+                                generics
+                            }
+                        }
+                    }
+                }
+                if generics.length > 0 {
+                    throw Error.create("parser error: primitive cannot have generics")
+                }
+                return new ComplexType.Basic {
+                    basic
+                }
+            }
         }
+    }
 
+    parseValueType(match: RuleMatch): AstToken<ComplexType> => tokenize<ComplexType>(match, this.parseValueTypeNode(match))
+
+    parseClassField(match: RuleMatch): AstClassField {
+        let modifiers = this.parseModifers(match)
+        let name = this.parseString(match.getGroupValue("name"))
+        let type = this.parseValueType(match.getGroupValue("type"))
+        let initialValue: ?AstToken<AstExpr> = null
+        if match.hasGroup("initialValue") {
+            initialValue = this.parseExpr(match.getGroupValue("initialValue"))
+        }
+        return new AstClassField {
+            modifiers
+            name
+            type
+            initialValue
+        }
+    }
+
+    parseClass(match: RuleMatch): AstClass {
+        let modifiers = this.parseModifers(match)
         let typeMatch = match.getGroupValue("type")
         let typeText = typeMatch.token.getText(this.source)
         let type = tokenize<AstClassType>(typeMatch, match typeText {
@@ -275,12 +357,16 @@ class KeidParser {
 
         let constructor: ?List<AstToken<AstStatement>> = null
         let destructor: ?List<AstToken<AstStatement>> = null
+        let fields = List.empty<AstClassField>()
         if match.hasGroup("statements") {
             let statements = match.getGroup("statements")
             for statement in statements {
                 match statement.rule {
                     "ConstructorDecl" => constructor = this.parseCodeBlock(statement.getGroupValue("block"))
                     "DestructorDecl"  => destructor  = this.parseCodeBlock(statement.getGroupValue("block"))
+                    "FieldDecl" => {
+                        fields.push(this.parseClassField(statement))
+                    }
                     _ => {
                         std::io.println("TODO: Class-level statement: ", statement.rule)
                     }
@@ -295,6 +381,7 @@ class KeidParser {
             generics
             constructor
             destructor
+            fields
         }
     }
 

@@ -514,6 +514,9 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
             match &branch.statement.token {
                 Statement::Expr(expr) => {
                     let result = self.compile_expr(expr, type_hint)?;
+                    self.assert_assignable_to(&result.ty, &prealloc_result.ty)?;
+
+                    println!("{:#?}", branch);
                     self.copy(&result, &prealloc_result)?;
 
                     self.pop_block()?;

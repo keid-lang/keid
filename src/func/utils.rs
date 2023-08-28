@@ -357,6 +357,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
     fn copy(&mut self, src: &TypedValue, dest: &TypedValue) -> Result<TypedValue> {
         let casted = self.implicit_cast(src.clone(), &dest.ty)?;
         match &casted.ty {
+            ComplexType::Basic(BasicType::Void) => panic!("attempt to copy void"),
             ComplexType::Nullable(ref inner) => {
                 let llvm_type = casted.ty.as_llvm_type(self.cpl);
 

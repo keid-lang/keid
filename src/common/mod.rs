@@ -103,7 +103,7 @@ pub struct TypedValueContainer(pub TypedValue);
 impl ValueContainer for TypedValueContainer {
     fn load(&self, fc: &mut FunctionCompiler) -> Result<TypedValue> {
         if self.0.ty.is_struct(&fc.cpl.type_provider) {
-            Ok(TypedValue::new(self.0.ty.clone(), self.0.val))
+            Ok(self.0.clone())
         } else {
             Ok(TypedValue::new(self.0.ty.clone(), fc.emit(Insn::Load(self.0.val, self.0.ty.as_llvm_type(fc.cpl)))))
         }

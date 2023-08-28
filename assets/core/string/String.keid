@@ -177,8 +177,6 @@ public class String {
             parts.push(this.substring(prevCursor, next!))
             prevCursor = next! + delim.length
         }
-
-        unreachable
     }
 
     /// Returns a new substring with all whitespace characters at the start and end of this string removed.
