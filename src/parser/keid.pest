@@ -66,7 +66,7 @@ anonymous_struct_type = { "{" ~ NEWLINE* ~ (ident ~ (":" ~ variable_type)? ~ (",
 
 variable_type = { nullable* ~ (function_type | array_type | anonymous_struct_type | (qualifier? ~ ident ~ generic_args?)) }
 
-func_call = { ident ~ generic_args? ~ ("(" ~ NEWLINE* ~ (expr ~ "," ~ NEWLINE*)* ~ NEWLINE* ~ expr? ~ NEWLINE* ~ ")") }
+func_call = { ((ident ~ generic_args?) | ("(" ~ expr ~ ")")) ~ ("(" ~ NEWLINE* ~ (expr ~ "," ~ NEWLINE*)* ~ NEWLINE* ~ expr? ~ NEWLINE* ~ ")") }
 enum_with_data_ref = { keyword_new ~ literal_qualifier ~ "." ~ ident ~ anonymous_struct }
 
 range = { logic_val ~ ".." ~ logic_val }

@@ -31,6 +31,8 @@ pub trait CallCompiler {
         instance: Option<TypedValue>,
     ) -> Result<Option<(ResolvedFunctionNode, Vec<TypedValue>)>>;
 
+    fn try_evaluate_function_args(&mut self, func: &FunctionType, args: &[Token<Expr>]) -> Result<Option<Vec<TypedValue>>>;
+
     fn compile_new_call(&mut self, nc: &NewCall) -> Result<TypedValue>;
 
     fn instantiate_object(&mut self, name: ComplexType) -> Result<TypedValue>;
@@ -58,6 +60,126 @@ pub trait CallCompiler {
 }
 
 impl<'a> CallCompiler for FunctionCompiler<'a> {
+    fn try_evaluate_function_args(&mut self, func: &FunctionType, args: &[Token<Expr>]) -> Result<Option<Vec<TypedValue>>> {
+        match func.varargs {
+            Varargs::Array | Varargs::Native => {
+                if args.len() < func.params.len() - 1 {
+                    return Ok(None);
+                }
+            }
+            Varargs::None => {
+                if func.params.len() != args.len() {
+                    return Ok(None);
+                }
+            }
+        }
+
+        macro_rules! varargs_element_type {
+            () => {{
+                match self.resolve_type(func.params.last().unwrap())? {
+                    ComplexType::Array(element_type) => *element_type,
+                    x => unreachable!("{:#?}, candidate = {:#?}", x, func),
+                }
+            }};
+        }
+
+        let extended_type_hint = match func.varargs {
+            Varargs::Array => Some(varargs_element_type!()),
+            Varargs::Native | Varargs::None => None,
+        };
+
+        macro_rules! evaluate_arguments {
+            () => {{
+                let mut evaluated_arguments = {
+                    args.iter()
+                        .enumerate()
+                        .map(|(i, arg)| {
+                            let type_hint = if i >= func.params.len() {
+                                extended_type_hint.as_ref().unwrap()
+                            } else {
+                                &func.params[i]
+                            };
+                            let expr = self.compile_expr(arg, Some(type_hint));
+                            match expr {
+                                Ok(expr) => match type_hint {
+                                    ComplexType::Basic(BasicType::Object(_)) => self.autobox_primitive(expr.clone()),
+                                    _ => self.implicit_cast(expr, &type_hint),
+                                },
+                                _ => expr,
+                            }
+                        })
+                        .collect::<Result<Vec<TypedValue>>>()?
+                };
+                let spread = func.varargs == Varargs::Array
+                    && if let Some(ComplexType::Spread(box ComplexType::Array(element))) =
+                        evaluated_arguments.last().map(|arg| arg.ty.clone())
+                    {
+                        let len = evaluated_arguments.len();
+                        evaluated_arguments[len - 1].ty = ComplexType::Array(element);
+                        true
+                    } else {
+                        false
+                    };
+                (spread, evaluated_arguments)
+            }};
+        }
+
+        llvm::set_eval_only(true);
+        let (spread, evaluated_arguments) = evaluate_arguments!();
+        llvm::set_eval_only(false);
+
+        for (i, evaluated) in evaluated_arguments.iter().enumerate() {
+            if func.varargs == Varargs::Array {
+                if spread && i == func.params.len() - 1 {
+                    if !self.cpl.type_provider.is_assignable_to(&evaluated.ty, &varargs_element_type!().to_array()) {
+                        return Ok(None);
+                    }
+                } else if i >= func.params.len() - 1 && !self.cpl.type_provider.is_assignable_to(&evaluated.ty, &varargs_element_type!()) {
+                    return Ok(None);
+                }
+            } else if !self.cpl.type_provider.is_assignable_to(&evaluated.ty, &self.resolve_type(&func.params[i])?) {
+                return Ok(None);
+            }
+        }
+
+        // recompile arguments again here, this time actually emitting the instructions
+        let (_, mut evaluated_arguments) = evaluate_arguments!();
+        if func.varargs == Varargs::Array {
+            let element_type = varargs_element_type!();
+            let const_null =
+                TypedValue::new(BasicType::Null.to_complex(), self.cpl.context.const_null(element_type.as_llvm_type(self.cpl)));
+            if !spread {
+                // if we passed only non-varargs parameters, create an empty array and pass it at the end
+                if evaluated_arguments.len() == func.params.len() - 1 {
+                    let const_zero =
+                        TypedValue::new(BasicType::USize.to_complex(), self.cpl.context.const_int(self.cpl.context.get_isize_type(), 0));
+                    let arr = self.compile_new_array(&element_type, &const_null, &const_zero)?;
+                    evaluated_arguments.push(arr);
+                } else {
+                    let varargs_size = args.len() - func.params.len() + 1;
+                    let const_size = TypedValue::new(
+                        BasicType::USize.to_complex(),
+                        self.cpl.context.const_int(self.cpl.context.get_isize_type(), varargs_size as _),
+                    );
+                    let arr = self.compile_new_array(&element_type, &const_null, &const_size)?;
+
+                    // otherwise, collect all the varargs parameters into a single slice parameter
+                    for i in 0..varargs_size {
+                        let const_index = TypedValue::new(
+                            BasicType::USize.to_complex(),
+                            self.cpl.context.const_int(self.cpl.context.get_isize_type(), i as _),
+                        );
+                        let arg_value = evaluated_arguments.remove(func.params.len() - 1);
+                        self.store_array_element(&arr, &arg_value, &const_index, true)?;
+                    }
+                    evaluated_arguments.push(arr);
+                }
+            }
+        }
+
+        Ok(Some(evaluated_arguments))
+    }
+
     fn find_function(
         &mut self,
         name: &GenericIdentifier,
@@ -66,7 +188,7 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
     ) -> Result<Option<(ResolvedFunctionNode, Vec<TypedValue>)>> {
         let mut name = name.clone();
         let mut args = args.to_vec();
-        if let Some(instance) = instance {
+        if let Some(instance) = &instance {
             args.insert(
                 0,
                 Token {
@@ -90,146 +212,81 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
         }
 
         let candidates = self.cpl.type_provider.get_functions_by_name(&name);
-        'candidate_loop: for candidate in candidates {
+        for candidate in candidates {
             let candidate = match candidate {
                 Ok(candidate) => candidate,
                 Err(_) => continue,
             };
-            match candidate.varargs {
-                Varargs::Array | Varargs::Native => {
-                    if args.len() < candidate.params.len() - 1 {
-                        continue;
-                    }
-                }
-                Varargs::None => {
-                    if candidate.params.len() != args.len() {
-                        continue;
-                    }
-                }
+            if let Some(evaluated_arguments) = self.try_evaluate_function_args(
+                &FunctionType {
+                    params: candidate.params.clone(),
+                    return_type: Box::new(candidate.return_type.clone()),
+                    varargs: candidate.varargs.clone(),
+                },
+                &args,
+            )? {
+                return Ok(Some((candidate, evaluated_arguments)));
             }
-
-            macro_rules! varargs_element_type {
-                () => {{
-                    match self.resolve_type(candidate.params.last().unwrap())? {
-                        ComplexType::Array(element_type) => *element_type,
-                        x => unreachable!("{:#?}, candidate = {:#?}", x, candidate),
-                    }
-                }};
-            }
-
-            let extended_type_hint = match candidate.varargs {
-                Varargs::Array => Some(varargs_element_type!()),
-                Varargs::Native | Varargs::None => None,
-            };
-
-            macro_rules! evaluate_arguments {
-                () => {{
-                    let mut evaluated_arguments = {
-                        args.iter()
-                            .enumerate()
-                            .map(|(i, arg)| {
-                                let type_hint = if i >= candidate.params.len() {
-                                    extended_type_hint.as_ref().unwrap()
-                                } else {
-                                    &candidate.params[i]
-                                };
-                                let expr = self.compile_expr(arg, Some(type_hint));
-                                match expr {
-                                    Ok(expr) => match type_hint {
-                                        ComplexType::Basic(BasicType::Object(_)) => self.autobox_primitive(expr.clone()),
-                                        _ => self.implicit_cast(expr, &type_hint),
-                                    },
-                                    _ => expr,
-                                }
-                            })
-                            .collect::<Result<Vec<TypedValue>>>()?
-                    };
-                    let spread = candidate.varargs == Varargs::Array
-                        && if let Some(ComplexType::Spread(box ComplexType::Array(element))) =
-                            evaluated_arguments.last().map(|arg| arg.ty.clone())
-                        {
-                            let len = evaluated_arguments.len();
-                            evaluated_arguments[len - 1].ty = ComplexType::Array(element);
-                            true
-                        } else {
-                            false
-                        };
-                    (spread, evaluated_arguments)
-                }};
-            }
-
-            llvm::set_eval_only(true);
-            let (spread, evaluated_arguments) = evaluate_arguments!();
-            llvm::set_eval_only(false);
-
-            for (i, evaluated) in evaluated_arguments.iter().enumerate() {
-                if candidate.varargs == Varargs::Array {
-                    if spread && i == candidate.params.len() - 1 {
-                        if !self.cpl.type_provider.is_assignable_to(&evaluated.ty, &varargs_element_type!().to_array()) {
-                            continue 'candidate_loop;
-                        }
-                    } else if i >= candidate.params.len() - 1
-                        && !self.cpl.type_provider.is_assignable_to(&evaluated.ty, &varargs_element_type!())
-                    {
-                        continue 'candidate_loop;
-                    }
-                } else if !self.cpl.type_provider.is_assignable_to(&evaluated.ty, &self.resolve_type(&candidate.params[i])?) {
-                    continue 'candidate_loop;
-                }
-            }
-
-            // recompile arguments again here, this time actually emitting the instructions
-            let (_, mut evaluated_arguments) = evaluate_arguments!();
-            if candidate.varargs == Varargs::Array {
-                let element_type = varargs_element_type!();
-                let const_null =
-                    TypedValue::new(BasicType::Null.to_complex(), self.cpl.context.const_null(element_type.as_llvm_type(self.cpl)));
-                if !spread {
-                    // if we passed only non-varargs parameters, create an empty array and pass it at the end
-                    if evaluated_arguments.len() == candidate.params.len() - 1 {
-                        let const_zero = TypedValue::new(
-                            BasicType::USize.to_complex(),
-                            self.cpl.context.const_int(self.cpl.context.get_isize_type(), 0),
-                        );
-                        let arr = self.compile_new_array(&element_type, &const_null, &const_zero)?;
-                        evaluated_arguments.push(arr);
-                    } else {
-                        let varargs_size = args.len() - candidate.params.len() + 1;
-                        let const_size = TypedValue::new(
-                            BasicType::USize.to_complex(),
-                            self.cpl.context.const_int(self.cpl.context.get_isize_type(), varargs_size as _),
-                        );
-                        let arr = self.compile_new_array(&element_type, &const_null, &const_size)?;
-
-                        // otherwise, collect all the varargs parameters into a single slice parameter
-                        for i in 0..varargs_size {
-                            let const_index = TypedValue::new(
-                                BasicType::USize.to_complex(),
-                                self.cpl.context.const_int(self.cpl.context.get_isize_type(), i as _),
-                            );
-                            let arg_value = evaluated_arguments.remove(candidate.params.len() - 1);
-                            self.store_array_element(&arr, &arg_value, &const_index, true)?;
-                        }
-                        evaluated_arguments.push(arr);
-                    }
-                }
-            }
-
-            return Ok(Some((candidate, evaluated_arguments)));
         }
 
         Ok(None)
     }
 
     fn compile_static_func_call(&mut self, sfc: &StaticFuncCall) -> Result<TypedValue> {
-        let (callable, args) = self.resolve_static_function(sfc, &sfc.call.args)?;
-        let func_ref = self.get_function_ref(&callable)?;
-        self.compile_func_call(func_ref, &callable, &args)
+        match &sfc.call.callee.token {
+            Expr::Ident(_) => {
+                let (callable, args) = self.resolve_static_function(sfc, &sfc.call.args)?;
+                let func_ref = self.get_function_ref(&callable)?;
+                self.compile_func_call(func_ref, &callable, &args)
+            }
+            _ => {
+                let closure = self.compile_expr(&sfc.call.callee, None)?;
+                match &closure.ty {
+                    ComplexType::Basic(BasicType::Function(ft)) => {
+                        let compiled_args = self.try_evaluate_function_args(ft, &sfc.call.args)?;
+                        match compiled_args {
+                            Some(mut args) => {
+                                let closure_abi = self.cpl.context.get_abi_any_closure_type();
+                                let function_ptr_ptr = self.emit(Insn::GetElementPtr(closure.val, closure_abi, 1));
+                                let function_ptr = self.emit(Insn::Load(
+                                    function_ptr_ptr,
+                                    self.cpl.context.get_pointer_type(self.cpl.context.get_void_type()),
+                                ));
+                                args.insert(0, closure.clone());
+
+                                let callable = ResolvedFunctionNode::externed(
+                                    "__closure",
+                                    &args.iter().map(|arg| arg.ty.clone()).collect::<Vec<ComplexType>>(),
+                                    ft.varargs,
+                                    *ft.return_type.clone(),
+                                );
+                                let closure_result = self.call_function(function_ptr.to_function(), &callable, &args)?;
+                                return Ok(TypedValue::new(*ft.return_type.clone(), closure_result));
+                            }
+                            None => {
+                                return Err(compiler_error!(
+                                    self,
+                                    "Closure `{}` does not take the provided parameter types",
+                                    closure.ty.to_string()
+                                ))
+                            }
+                        }
+                    }
+                    _ => return Err(compiler_error!(&self, "Cannot invoke type `{}` as a callable function", closure.ty.to_string())),
+                }
+            }
+        }
     }
 
     fn compile_instance_func_call(&mut self, fc: &FuncCall, instance: &TypedValue) -> Result<TypedValue> {
+        self.loc(&fc.callee.loc);
+
         let generic_args = self.parse_generic_args(&fc.generic_args)?;
         let ident = GenericIdentifier::from_complex_type(&instance.ty);
+        let func_name = match &fc.callee.token {
+            Expr::Ident(ident) => ident,
+            _ => unreachable!(),
+        };
 
         let (mut candidates, is_interface) = match self.cpl.type_provider.get_class_by_name(&ident) {
             Some(class) => match class.class_type {
@@ -238,7 +295,7 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                         let interface = self.cpl.type_provider.get_class_node(class.module_id, class.source_id).unwrap();
                         match interface.functions.iter().position(|id| {
                             get_type_leaf(&self.cpl.type_provider.get_function_node(interface.module_id, *id).unwrap().base_name)
-                                == fc.name.token.0
+                                == func_name.token.0
                         }) {
                             Some(function_id) => {
                                 vec![(
@@ -261,7 +318,7 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
             },
         };
 
-        let name = format!("{}::{}", ident.name, fc.name.token.0);
+        let name = format!("{}::{}", ident.name, func_name.token.0);
         if !is_interface {
             let func_ident = GenericIdentifier::from_name_with_args(&name, &generic_args);
             match self.find_function(&func_ident, &fc.args, Some(instance.clone()))? {
@@ -279,7 +336,7 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                             let function_name =
                                 self.cpl.type_provider.get_function_node(interface.module_id, function_id).unwrap().base_name.clone();
                             let function_name = get_type_leaf(&function_name);
-                            if function_name == fc.name.token.0 {
+                            if function_name == func_name.token.0 {
                                 candidates.push((
                                     self.cpl.type_provider.get_resolved_interface_id(&GenericIdentifier::from_name_with_args(
                                         &interface.base_name,
@@ -309,7 +366,7 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                 let err_text = format!(
                     "The instance method `{}::{}({})` does not exist\n        hint: the following overloads exist: ",
                     ident.to_string(),
-                    fc.name.token.0,
+                    func_name.token.0,
                     utils::iter_join(&evaluated_args)
                 );
 
@@ -327,21 +384,22 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                     })
                     .collect::<Vec<String>>();
 
+                self.loc(&func_name.loc);
                 Err(compiler_error!(self, "{}{}", err_text, similar_methods.join(", ")))
             } else {
-                Err(compiler_error!(self, "No such instance method `{}::{}`", ident.to_string(), fc.name.token.0))
+                Err(compiler_error!(self, "No such instance method `{}::{}`", ident.to_string(), func_name.token.0))
             }
         } else if candidates.len() > 1 {
-            Err(compiler_error!(self, "Ambiguous call to method `{}::{}`", ident.to_string(), fc.name.token.0))
+            Err(compiler_error!(self, "Ambiguous call to method `{}::{}`", ident.to_string(), func_name.token.0))
         } else {
             let (source_id, function_id, interface_name, interface_generic_impls) = candidates.remove(0);
             let interface_func_ident =
-                GenericIdentifier::from_name_with_args(&format!("{}::{}", interface_name, fc.name.token.0), &interface_generic_impls);
+                GenericIdentifier::from_name_with_args(&format!("{}::{}", interface_name, func_name.token.0), &interface_generic_impls);
 
             let (interface_func_impl, evaluated_args) = match self.find_function(&interface_func_ident, &fc.args, Some(instance.clone()))? {
                 Some(interface_func_impl) => interface_func_impl,
                 None => {
-                    self.loc(&fc.name.loc);
+                    self.loc(&func_name.loc);
                     return Err(compiler_error!(
                         self,
                         "Could not find interface method overload `{}` (derived from type `{}`)",
@@ -415,8 +473,8 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
             ComplexType::Basic(BasicType::Object(ident)) => {
                 let class_impl = self.cpl.type_provider.get_class_by_name(ident).unwrap();
 
-                // TODO: ensure all fields are initialized
                 // TODO: call constructor if present
+                let mut set_fields = Vec::new();
                 for arg in &nc.args {
                     let field = self.resolve_class_member_ptr(&class_instance, &class_impl, &arg.field_name)?;
                     let arg_value = match &arg.value {
@@ -427,6 +485,14 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                         }
                     };
                     field.store(Operator::Equals, self, arg_value)?;
+                    set_fields.push(arg.field_name.token.0.clone());
+                }
+
+                for field in class_impl.fields {
+                    if !set_fields.contains(&field.name) {
+                        self.loc(&nc.ty.loc);
+                        return Err(compiler_error!(self, "Instantiation missing required field `{}`", field.name));
+                    }
                 }
 
                 Ok(class_instance)
@@ -488,9 +554,9 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                 self.emit(Insn::Store(class_info_global, class_info_local));
 
                 // set the ref count to 0
-                let const_one = self.cpl.context.const_int(self.cpl.context.get_i64_type(), 0);
+                let const_zero = self.cpl.context.const_int(self.cpl.context.get_i64_type(), 0);
                 let ref_count_ptr = self.emit(Insn::GetElementPtr(class_pointer, class_abi, 1));
-                self.emit(Insn::Store(const_one, ref_count_ptr));
+                self.emit(Insn::Store(const_zero, ref_count_ptr));
 
                 let class_abi_ptr_type = self.cpl.context.get_pointer_type(class_abi);
                 let class_pointer = self.emit(Insn::PointerCast(class_pointer, class_abi_ptr_type));

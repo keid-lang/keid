@@ -1,4 +1,4 @@
-namespace keidc
+namespace keidc::types
 
 import (
     core::collections
@@ -26,7 +26,6 @@ implement ToString for QualifiedIdent {
 
 implement ToString for ComplexType {
     toString(): string {
-        std::io.println("Complex Variant: ", this.variant.toString())
         return match this {
             Basic {
                 type
@@ -44,7 +43,7 @@ implement ToString for ComplexType {
 
 public enum ComplexType {
     Basic {
-        type: BasicType
+        basic: BasicType
     }
     Array {
         element: Box<ComplexType>
@@ -78,7 +77,6 @@ public enum BasicType {
 
 implement ToString for BasicType {
     toString(): string {
-        std::io.println("Basic Variant: ", this.variant.toString())
         return match this {
             Void => "void"
             Bool => "bool"

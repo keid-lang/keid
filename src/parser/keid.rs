@@ -430,7 +430,7 @@ fn parse_return(mut pairs: Pairs<Rule>) -> Result<Option<Token<Expr>>> {
 }
 
 fn parse_func_call(mut pairs: Pairs<Rule>) -> Result<FuncCall> {
-    let name = Identifier::from_ident(&pairs.next().unwrap());
+    let callee = parse_expr(pairs.next().unwrap())?;
     let generic_args = parse_generic_args(&mut pairs)?;
 
     let mut args = Vec::new();
@@ -439,7 +439,7 @@ fn parse_func_call(mut pairs: Pairs<Rule>) -> Result<FuncCall> {
     }
 
     Ok(FuncCall {
-        name,
+        callee: Box::new(callee),
         generic_args,
         args,
     })

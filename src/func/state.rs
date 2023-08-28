@@ -43,7 +43,7 @@ impl ScopeBlock {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionCompilerState {
     pub errors: Vec<CompilerError>,
     pub current_token: TokenLocation,

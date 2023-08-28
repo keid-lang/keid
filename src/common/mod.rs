@@ -16,10 +16,9 @@ use crate::tree::ast::{Operator, TokenLocation};
 use crate::tree::ResolvedFunctionNode;
 use std::backtrace::Backtrace;
 use std::fmt::Display;
-use thiserror::Error;
 pub trait TypeResolver = Fn(&str) -> Result<ComplexType>;
 
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub struct CompilerError {
     pub message: String,
     pub loc: TokenLocation,
@@ -81,12 +80,30 @@ pub trait ValueContainer {
 }
 
 #[derive(Debug)]
+pub struct PreloadedTypedValueContainer(pub TypedValue);
+
+impl ValueContainer for PreloadedTypedValueContainer {
+    fn load(&self, _: &mut FunctionCompiler) -> Result<TypedValue> {
+        Ok(self.0.clone())
+    }
+
+    fn store(&self, _: Operator, _: &mut FunctionCompiler, _: TypedValue) -> Result<()> {
+        panic!("cannot store into a preloaded value");
+    }
+
+    fn get_type(&self) -> ComplexType {
+        self.0.ty.clone()
+    }
+}
+
+
+#[derive(Debug)]
 pub struct TypedValueContainer(pub TypedValue);
 
 impl ValueContainer for TypedValueContainer {
     fn load(&self, fc: &mut FunctionCompiler) -> Result<TypedValue> {
         if self.0.ty.is_struct(&fc.cpl.type_provider) {
-            Ok(TypedValue::new(self.0.ty.clone(), self.0.val))
+            Ok(self.0.clone())
         } else {
             Ok(TypedValue::new(self.0.ty.clone(), fc.emit(Insn::Load(self.0.val, self.0.ty.as_llvm_type(fc.cpl)))))
         }

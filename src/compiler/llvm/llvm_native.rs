@@ -535,6 +535,35 @@ impl Context {
         )
     }
 
+    pub fn get_abi_closure_type(&self, captured_value_types: &[OpaqueType]) -> OpaqueType {
+        let mut hash = 7;
+        for captured_value in captured_value_types {
+            hash = 31 * hash + captured_value.0 as usize;
+        }
+
+        self.get_struct_type(
+            &format!("__closure${}", hex::encode(&hash.to_be_bytes())),
+            &[
+                &[
+                    self.get_isize_type(),                       // ref count
+                    self.get_pointer_type(self.get_void_type()), // function pointer
+                ],
+                captured_value_types,
+            ]
+            .concat(),
+        )
+    }
+
+    pub fn get_abi_any_closure_type(&self) -> OpaqueType {
+        self.get_struct_type(
+            &format!("__closure"),
+            &[
+                self.get_isize_type(),                       // ref count
+                self.get_pointer_type(self.get_void_type()), // function pointer
+            ],
+        )
+    }
+
     fn get_cached_struct_type(&self, name: &str) -> Option<OpaqueType> {
         let cached_struct_types = self.cached_struct_types.borrow();
         cached_struct_types.get(name).cloned()
@@ -854,6 +883,7 @@ impl Function {
                 debug: self.debug,
                 debug_file: self.debug_file,
                 target: self.target.clone(),
+                is_clone: false,
             }
         }
     }
@@ -896,12 +926,15 @@ impl BuilderBlock {
         }
     }
 
+    pub fn has_predecessor(&self) -> bool {
+        unsafe { LLVMHasPredecessor(self.block) != 0 }
+    }
+
     pub fn as_val(&self) -> OpaqueBasicBlock {
         OpaqueBasicBlock(self.block)
     }
 }
 
-#[derive(Clone)]
 pub struct InsnBuilder {
     ctx: LLVMContextRef,
     bdl: LLVMBuilderRef,
@@ -910,6 +943,7 @@ pub struct InsnBuilder {
     debug: LLVMDIBuilderRef,
     debug_file: LLVMMetadataRef,
     target: LLVMTargetData,
+    pub is_clone: bool,
 }
 
 impl InsnBuilder {
@@ -954,6 +988,14 @@ impl InsnBuilder {
         }
         unsafe {
             LLVMAppendExistingBasicBlock(self.func, block.block);
+            
+            // if the new block is not the first block of the function
+            if LLVMGetPreviousBasicBlock(block.block) != std::ptr::null_mut() {
+                // if the new block has no direct predecessor
+                if !block.has_predecessor() {
+                    panic!("block with zero predecessors");
+                }
+            }
 
             // if the current block is empty, then insert a break to jump to the current block
             // this guarantees that no blocks will ever be empty
@@ -961,7 +1003,7 @@ impl InsnBuilder {
             if !current_block.is_null() {
                 let first = LLVMGetFirstInstruction(current_block);
                 if first.is_null() {
-                    self.emit(Insn::Br(block.as_val()), 0, 0);
+                    self.emit(Insn::Br(block.as_val()));
                 }
             }
 
@@ -973,9 +1015,9 @@ impl InsnBuilder {
         unsafe { OpaqueType(LLVMGetAllocatedType(var.0)) }
     }
 
-    pub fn emit(&self, insn: Insn, _line: u32, _col: u32) -> OpaqueValue {
+    pub fn emit(&self, insn: Insn) -> OpaqueValue {
         if get_eval_only() {
-            return OpaqueValue(std::ptr::null_mut());
+            return OpaqueValue(0xDEADBEEFusize as *mut _);
         }
         unsafe {
             let insn_name = CString::new("").expect("invalid insn name");
@@ -1091,9 +1133,26 @@ impl InsnBuilder {
     }
 }
 
+impl Clone for InsnBuilder {
+    fn clone(&self) -> InsnBuilder {
+        InsnBuilder {
+            bdl: self.bdl,
+            block_offset: self.block_offset,
+            ctx: self.ctx,
+            debug: self.debug,
+            debug_file: self.debug_file,
+            func: self.func,
+            target: self.target.clone(),
+            is_clone: true,
+        }
+    }
+}
+
 impl Drop for InsnBuilder {
     fn drop(&mut self) {
-        unsafe { LLVMDisposeBuilder(self.bdl) }
+        if !self.is_clone {
+            unsafe { LLVMDisposeBuilder(self.bdl) }
+        }
     }
 }
 

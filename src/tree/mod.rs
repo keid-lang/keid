@@ -559,7 +559,6 @@ impl IntoOpaqueType for ResolvedFunctionNode {
             .map(|param| {
                 if param.is_struct(&cpl.type_provider) {
                     cpl.context.get_pointer_type(param.as_llvm_type(cpl))
-                    // param.as_llvm_type(cpl)
                 } else {
                     param.as_llvm_type(cpl)
                 }

@@ -7,7 +7,6 @@ import (
 
 public class RuleState {
     moved: bool
-    skipWhitespace: bool
     groups: List<RuleMatchGroup>
 }
 

@@ -148,6 +148,38 @@ impl<'a> AstConverter<'a> {
 
         let original_complex = original_type.complex.clone();
         let concrete_type = match original_complex.get_root_type() {
+            BasicType::Function(ft) => {
+                let resolved_type = BasicType::Function(FunctionType {
+                    params: ft
+                        .params
+                        .iter()
+                        .map(|param| {
+                            self.get_type(
+                                QualifiedType {
+                                    complex: param.clone(),
+                                    loc: original_type.loc.clone(),
+                                },
+                                parent,
+                                dst,
+                                namespace_name.clone(),
+                            )
+                        })
+                        .collect::<Result<Vec<ComplexType>>>()?,
+                    return_type: Box::new(self.get_type(
+                        QualifiedType {
+                            complex: *ft.return_type,
+                            loc: original_type.loc.clone(),
+                        },
+                        parent,
+                        dst,
+                        namespace_name.clone(),
+                    )?),
+                    varargs: ft.varargs,
+                })
+                .to_complex();
+
+                original_complex.replace_root(resolved_type)
+            }
             BasicType::Object(ident) => {
                 let import_map = crate::func::utils::get_import_map_with(&dst.imports, self.get_all_type_names());
                 let resolved_type = {
