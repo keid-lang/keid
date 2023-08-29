@@ -28,8 +28,8 @@ implement ToString for ComplexType {
     toString(): string {
         return match this {
             Basic {
-                type
-            } => type.toString()
+                basic
+            } => basic.toString()
             Array {
                 element
             } => string.format("[", element.toString(), "]")

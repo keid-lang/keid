@@ -48,7 +48,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
             Expr::SignedIntLit(val) => self.compile_integer_literal_expr(*val, type_hint)?,
             Expr::StringLit(str) => self.compile_string_literal_expr(str)?,
             Expr::CharLit(ch) => {
-                TypedValue::new(BasicType::Char.to_complex(), self.cpl.context.const_int(self.cpl.context.get_i64_type(), *ch as u64))
+                TypedValue::new(BasicType::Char.to_complex(), self.cpl.context.const_int(self.cpl.context.get_i32_type(), *ch as u64))
             }
             Expr::Ident(ident) => {
                 let field_ref = self.resolve_static_field_reference(&Qualifier(vec![ident.clone()]))?;
@@ -63,12 +63,10 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                 let compiled_expr = self.compile_expr(expr, None)?;
                 self.compile_dereference_expr(&compiled_expr)?
             }
-            Expr::FuncCall(func_call) => {
-                self.compile_static_func_call(&StaticFuncCall {
-                    owner: Qualifier(Vec::new()),
-                    call: func_call.clone(),
-                })?
-            },
+            Expr::FuncCall(func_call) => self.compile_static_func_call(&StaticFuncCall {
+                owner: Qualifier(Vec::new()),
+                call: func_call.clone(),
+            })?,
             Expr::Member(member_expr) => {
                 let mut members = member_expr.members.clone();
 
@@ -417,7 +415,6 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                 _ => {
                     let returns = self.compile_block(&[branch.statement.clone()]);
                     if !returns {
-                        match_result_types.push((BasicType::Void.to_complex(), branch.statement.loc.clone()));
                         self.state.block_stack.pop();
                     }
                 }
@@ -514,9 +511,6 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
             match &branch.statement.token {
                 Statement::Expr(expr) => {
                     let result = self.compile_expr(expr, type_hint)?;
-                    self.assert_assignable_to(&result.ty, &prealloc_result.ty)?;
-
-                    println!("{:#?}", branch);
                     self.copy(&result, &prealloc_result)?;
 
                     self.pop_block()?;
@@ -787,12 +781,20 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                     let addr_ptr = self.emit(Insn::GetElementPtr(val.val, val.ty.as_llvm_type(self.cpl), 1)); // pointer to the `address` field in the Pointer<T> struct
                     let addr_int = self.emit(Insn::Load(addr_ptr, BasicType::USize.as_llvm_type(self.cpl))); // this Load loads the address stored in the Pointer<T> struct
                     let addr_ptr = self.emit(Insn::IntToPtr(addr_int, ty.clone().to_reference().as_llvm_type(self.cpl)));
-                    let val = self.emit(Insn::Load(addr_ptr, ty.as_llvm_type(self.cpl))); // this Load derefences the pointer
+                    let val = if ty.is_struct(&self.cpl.type_provider) {
+                        let dest = self.emit(Insn::Alloca(ty.as_llvm_type(&self.cpl)));
+                        let const_size = self.cpl.context.const_int(
+                            self.cpl.context.get_isize_type(),
+                            self.cpl.context.target.get_type_size(ty.as_llvm_type(&self.cpl)),
+                        );
+                        self.emit(Insn::Memmove(addr_ptr, dest, const_size)); // copy the bytes from the pointer to the local stack
+                        dest
+                    } else {
+                        // this Load derefences the pointer
+                        self.emit(Insn::Load(addr_ptr, ty.as_llvm_type(self.cpl)))
+                    };
 
-                    TypedValue {
-                        ty,
-                        val,
-                    }
+                    TypedValue::new(ty, val)
                 } else {
                     return Err(compiler_error!(self, "Cannot dereference non-reference type `{}`", val.ty.to_string()));
                 }

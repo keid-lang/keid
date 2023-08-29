@@ -29,7 +29,6 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
             let result = match &tkn.token {
                 Statement::Unreachable => {
                     self.emit(Insn::Unreachable);
-                    self.state.block_stack.pop();
 
                     Ok(())
                 }
@@ -56,7 +55,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                     let res = self.compile_return(return_val.as_ref());
                     returns = true;
 
-                    // pop the cloned block without keid.scope() by popping the stack directly
+                    // pop the block without keid.scope() by popping the stack directly
                     self.state.block_stack.pop();
                     res
                 }

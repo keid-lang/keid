@@ -51,7 +51,7 @@ public class RuleMatch {
             }
         }
 
-        throw Error.create(string.format("no such group with variable name '", variable, "'"))
+        throw Error.create(string.format("no such group with variable name '", variable, "' in rule '", this.rule, "'"))
     }
 
     public getGroupValue(variable: string): RuleMatch {

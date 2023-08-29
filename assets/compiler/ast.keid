@@ -38,14 +38,14 @@ implement ToString for KeidModifier {
     }
 }
 
-public enum AstClassType {
+public enum ClassType {
     Class
     Struct
     Interface
     Enum
 }
 
-implement ToString for AstClassType {
+implement ToString for ClassType {
     toString(): string {
         return match this {
             Class => "class"
@@ -75,14 +75,38 @@ implement ToString for AstClassField {
     }
 }
 
+public class AstFunctionParam {
+    name: AstToken<string>
+    type: AstToken<ComplexType>
+}
+
+public enum VarargsMode {
+    None
+    Native
+    Array {
+        param: AstFunctionParam
+    }
+}
+
+public class AstFunction {
+    modifiers: List<AstToken<KeidModifier>>
+    name: AstToken<string>
+    generics: ?List<AstGenericDecl>
+    params: List<AstFunctionParam>
+    returnType: ?AstToken<ComplexType>
+    varargs: VarargsMode
+    body: List<AstToken<AstStatement>>
+}
+
 public class AstClass {
-    type: AstToken<AstClassType>
+    type: AstToken<ClassType>
     modifiers: List<AstToken<KeidModifier>>
     name: AstToken<string>
     generics: ?List<AstGenericDecl>
     constructor: ?List<AstToken<AstStatement>>
     destructor: ?List<AstToken<AstStatement>>
     fields: List<AstClassField>
+    methods: List<AstFunction>
 }
 
 implement ToString for AstClass {

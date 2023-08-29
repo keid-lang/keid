@@ -117,7 +117,7 @@ END RULE
 
 RULE FuncVarargsDecl
     LITERAL ...
-    $type = RULE FuncParamDecl
+    $param = RULE FuncParamDecl
 END RULE
 
 RULE FuncNativeVarargsDecl
@@ -127,14 +127,14 @@ END RULE
 RULE FuncParamsDecl
     LITERAL (
     OPTIONAL REPEATED LITERAL NEWLINE
-    OPTIONAL REPEATED COMPOUND($params = RULE FuncParamDecl, LITERAL COMMA, REPEATED LITERAL NEWLINE)
+    OPTIONAL REPEATED COMPOUND($params = RULE FuncParamDecl, LITERAL COMMA, OPTIONAL REPEATED LITERAL NEWLINE)
     OPTIONAL OR($varargs = RULE FuncVarargsDecl, $params = RULE FuncParamDecl, $nativeVarargs = RULE FuncNativeVarargsDecl)
     OPTIONAL LITERAL COMMA
     OPTIONAL REPEATED LITERAL NEWLINE
     LITERAL )
 END RULE
 
-RULE MethodDecl
+RULE FunctionDecl
     ALIAS Attributes
     $modifiers = OPTIONAL REPEATED RULE Modifier
     $name = RULE Identifier
@@ -147,13 +147,13 @@ END RULE
 RULE ConstructorDecl
     LITERAL constructor
     MOVE
-    $block = OR(RULE CodeBlock, RULE ArrowBlock)
+    $body = OR(RULE CodeBlock, RULE ArrowBlock)
 END RULE
 
 RULE DestructorDecl
     LITERAL destructor
     MOVE
-    $block = OR(RULE CodeBlock, RULE ArrowBlock)
+    $body = OR(RULE CodeBlock, RULE ArrowBlock)
 END RULE
 
 RULE GetAccessorDecl
@@ -179,9 +179,10 @@ END RULE
 ALIAS AccessorDecl OR(RULE GetAccessorDecl, RULE SetAccessorDecl)
 
 RULE FuncCallExpr
-    $callee = RULE Identifier
+    $callee = OR(RULE GroupingExpr, RULE Identifier)
     $generics = OPTIONAL RULE GenericArgs
     LITERAL (
+    MOVE
     OPTIONAL REPEATED LITERAL NEWLINE
     OPTIONAL REPEATED COMPOUND($params = RULE Expr, LITERAL COMMA, OPTIONAL REPEATED LITERAL NEWLINE)
     OPTIONAL REPEATED LITERAL NEWLINE
@@ -190,7 +191,26 @@ RULE FuncCallExpr
     LITERAL )
 END RULE
 
-ALIAS ExprOperand OR(RULE FuncCallExpr, RULE Null, RULE Bool, RULE Integer, RULE Char, RULE String, RULE Identifier)
+RULE GroupingExpr
+    LITERAL (
+    $expr = RULE Expr
+    LITERAL )
+END RULE
+
+ALIAS ExprOperand OR(RULE FuncCallExpr, RULE GroupingExpr, RULE Null, RULE Bool, RULE Integer, RULE Char, RULE String, RULE Identifier)
+
+RULE LetStatementMode
+    OR(LITERAL let, LITERAL const)
+END RULE
+
+RULE LetStatement
+    $modifiers = OPTIONAL REPEATED RULE Modifier
+    $mode = RULE LetStatementMode
+    MOVE
+    $name = RULE Identifier
+    OPTIONAL COMPOUND(LITERAL :, $type = ALIAS ValueType)
+    OPTIONAL COMPOUND(LITERAL =, $initialValue = RULE Expr)
+END RULE
 
 RULE ReturnStatement
     LITERAL return
@@ -199,7 +219,7 @@ RULE ReturnStatement
 END RULE
 
 // ALIAS BlockStatement OR(RULE TryStatement, RULE BreakStatement, RULE ContinueStatement, RULE IfStatement, RULE ForLoop, RULE WhileLoop, RULE IndefiniteLoop, RULE UnsafeBlock, RULE FixedBlock, RULE CodeBlock, RULE AssignStatement, RULE ImportStatement, RULE LetStatement, RULE ReturnStatement, RULE UnreachableStatement, RULE ThrowStatement, RULE Expr)
-ALIAS BlockStatement OR(RULE ReturnStatement, RULE Expr)
+ALIAS BlockStatement OR(RULE ReturnStatement, RULE LetStatement, RULE Expr)
 
 RULE CodeBlock
     LITERAL {
@@ -249,7 +269,7 @@ RULE FieldDecl
     OPTIONAL COMPOUND(LITERAL =, $initialValue = RULE Expr)
 END RULE
 
-ALIAS ClassBodyStatement OR(RULE ConstructorDecl, RULE DestructorDecl, ALIAS AccessorDecl, RULE FieldDecl, RULE MethodDecl)
+ALIAS ClassBodyStatement OR(RULE ConstructorDecl, RULE DestructorDecl, ALIAS AccessorDecl, RULE FieldDecl, RULE FunctionDecl)
 
 RULE ClassDecl
     $modifiers = OPTIONAL REPEATED RULE Modifier

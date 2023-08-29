@@ -177,6 +177,16 @@ class KeidParser {
         return decls
     }
 
+    parseGenericArgs(match: RuleMatch): List<ComplexType> {
+        let args = List.empty<ComplexType>()
+        if match.hasGroup("generics") {
+            for arg in match.getGroupValue("generics").getGroup("args") {
+                args.push(this.parseValueTypeNode(arg))
+            }
+        }
+        return args
+    }
+
     parseModifers(parentAstNode: RuleMatch): List<AstToken<KeidModifier>> {
         if parentAstNode.hasGroup("modifiers") {
             let astModifiers = parentAstNode.getGroup("modifiers")
@@ -240,7 +250,18 @@ class KeidParser {
     }
 
     parseExprOperand(operand: RuleMatch): AstToken<AstExpr> {
-        return tokenize<AstExpr>(operand, AstExpr.Null)
+        return tokenize<AstExpr>(operand, match operand.rule {
+            "GroupingExpr" => return this.parseExprOperand(operand.getGroupValue("expr"))
+            "Null" => AstExpr.Null
+            "Bool" => new AstExpr.BoolLit {
+                value = match operand.token.getText(this.source) {
+                    "true" => true
+                    "false" => false
+                    _ => unreachable
+                }
+            }
+            _ => unreachable
+        })
     }
 
     parseExpr(expr: RuleMatch): AstToken<AstExpr> {
@@ -255,6 +276,22 @@ class KeidParser {
             postfixParser = this.parsePostfixExpr
         }
         return pratt.parse()
+    }
+
+    parseBody(bodyDecl: RuleMatch): List<AstToken<AstStatement>> {
+        match bodyDecl.rule {
+            "CodeBlock" => return this.parseCodeBlock(bodyDecl)
+            "ArrowBlock" => {
+                let exprDecl = bodyDecl.getGroupValue("expr")
+                let expr = this.parseExpr(exprDecl)
+                let statement = new AstStatement.Expr {
+                    value = expr
+                }
+                return List.from<AstToken<AstStatement>>(tokenize<AstStatement>(exprDecl, statement))
+            }
+        }
+
+        unreachable
     }
 
     parseCodeBlock(match: RuleMatch): List<AstToken<AstStatement>> {
@@ -281,10 +318,7 @@ class KeidParser {
             }
             "BasicType" => {
                 let path = this.parseString(match.getGroupValue("path"))
-                let generics = List.empty<AstGenericDecl>()
-                if match.hasGroup("generics") {
-                    generics = this.parseGenericDecls(match.getGroupValue("generics"))
-                }
+                let generics = this.parseGenericArgs(match)
                 let basic = match path.node {
                     "void"    => BasicType.Void
                     "bool"    => BasicType.Bool
@@ -318,6 +352,8 @@ class KeidParser {
                 }
             }
         }
+
+        unreachable
     }
 
     parseValueType(match: RuleMatch): AstToken<ComplexType> => tokenize<ComplexType>(match, this.parseValueTypeNode(match))
@@ -338,15 +374,65 @@ class KeidParser {
         }
     }
 
+    parseFunctionParam(paramDecl: RuleMatch): AstFunctionParam {
+        return new AstFunctionParam {
+            name = this.parseString(paramDecl.getGroupValue("name"))
+            type = this.parseValueType(paramDecl.getGroupValue("type"))
+        }
+    }
+
+    parseFunction(decl: RuleMatch): AstFunction {
+        let modifiers = this.parseModifers(decl)
+        let name = this.parseString(decl.getGroupValue("name"))
+        let generics: ?List<AstGenericDecl> = null
+        if decl.hasGroup("generics") {
+            generics = this.parseGenericDecls(decl.getGroupValue("generics"))
+        }
+        let params = List.empty<AstFunctionParam>()
+        let paramsDecl = decl.getGroupValue("params")
+        if paramsDecl.hasGroup("params") {
+            for paramDecl in paramsDecl.getGroup("params") {
+                params.push(this.parseFunctionParam(paramDecl))
+            }
+        }
+
+        let returnType: ?AstToken<ComplexType> = null
+        if decl.hasGroup("returnType") {
+            returnType = this.parseValueType(decl.getGroupValue("returnType"))
+        }
+
+        let varargs = VarargsMode.None
+        if decl.hasGroup("nativeVarargs") {
+            varargs = VarargsMode.Native
+        } else if decl.hasGroup("varargs") {
+            let paramDecl = decl.getGroupValue("varargs").getGroupValue("param")
+            varargs = new VarargsMode.Array {
+                param = this.parseFunctionParam(paramDecl)
+            }
+        }
+
+        let body = this.parseBody(decl.getGroupValue("body"))
+
+        return new AstFunction {
+            modifiers
+            name
+            generics
+            params
+            returnType
+            varargs
+            body
+        }
+    }
+
     parseClass(match: RuleMatch): AstClass {
         let modifiers = this.parseModifers(match)
         let typeMatch = match.getGroupValue("type")
         let typeText = typeMatch.token.getText(this.source)
-        let type = tokenize<AstClassType>(typeMatch, match typeText {
-            "class" => AstClassType.Class
-            "struct" => AstClassType.Struct
-            "interface" => AstClassType.Interface
-            "enum" => AstClassType.Enum
+        let type = tokenize<ClassType>(typeMatch, match typeText {
+            "class" => ClassType.Class
+            "struct" => ClassType.Struct
+            "interface" => ClassType.Interface
+            "enum" => ClassType.Enum
         })
 
         let name = this.parseString(match.getGroupValue("name"))
@@ -358,14 +444,18 @@ class KeidParser {
         let constructor: ?List<AstToken<AstStatement>> = null
         let destructor: ?List<AstToken<AstStatement>> = null
         let fields = List.empty<AstClassField>()
+        let methods = List.empty<AstFunction>()
         if match.hasGroup("statements") {
             let statements = match.getGroup("statements")
             for statement in statements {
                 match statement.rule {
-                    "ConstructorDecl" => constructor = this.parseCodeBlock(statement.getGroupValue("block"))
-                    "DestructorDecl"  => destructor  = this.parseCodeBlock(statement.getGroupValue("block"))
+                    "ConstructorDecl" => constructor = this.parseBody(statement.getGroupValue("body"))
+                    "DestructorDecl"  => destructor  = this.parseBody(statement.getGroupValue("body"))
                     "FieldDecl" => {
                         fields.push(this.parseClassField(statement))
+                    }
+                    "FunctionDecl" => {
+                        methods.push(this.parseFunction(statement))
                     }
                     _ => {
                         std::io.println("TODO: Class-level statement: ", statement.rule)
@@ -382,6 +472,7 @@ class KeidParser {
             constructor
             destructor
             fields
+            methods
         }
     }
 
@@ -425,8 +516,6 @@ public function parseKeidSource(programText: string): AstKeidProgram {
     }
     match parseResult {
         Success { match, } => {
-            std::io.println(match.toString())
-
             let keidParser = new KeidParser {
                 source = programText
             }

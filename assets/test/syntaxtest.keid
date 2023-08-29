@@ -14,7 +14,10 @@ public class FooClass<A, B, C, D> {
     field1: uint32
 
     constructor {
-        println("DDE")
+        let foo = 5
+        let bar = 6
+        let s = (foo + bar).toString()
+        (this.println)(s)
         io.println("Created FooClass instance!")
     }
 

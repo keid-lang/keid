@@ -21,6 +21,7 @@ use llvm_sys::linker::LLVMLinkModules2;
 use llvm_sys::prelude::*;
 use llvm_sys::target::*;
 use llvm_sys::target_machine::*;
+use llvm_sys::transforms::pass_manager_builder::*;
 
 use super::get_eval_only;
 use super::Insn;
@@ -834,7 +835,7 @@ impl Module {
 
     pub fn to_object_code(&self, target: &LLVMTargetData) -> Result<LLVMArray> {
         unsafe {
-            let pm = PassManager::new(0);
+            let pm = PassManager::new(3);
             pm.run(self.mdl);
 
             let mut error_message: *mut _ = std::ptr::null_mut();
@@ -988,7 +989,7 @@ impl InsnBuilder {
         }
         unsafe {
             LLVMAppendExistingBasicBlock(self.func, block.block);
-            
+
             // if the new block is not the first block of the function
             if LLVMGetPreviousBasicBlock(block.block) != std::ptr::null_mut() {
                 // if the new block has no direct predecessor
@@ -1059,6 +1060,7 @@ impl InsnBuilder {
                     if otherwise.0 == current {
                         panic!("CondBr secondary target attempted to reference current block, causing infinite recursion")
                     }
+
                     LLVMBuildCondBr(self.bdl, test.0, then.0, otherwise.0)
                 }
                 Insn::Br(target) => LLVMBuildBr(self.bdl, target.0),
@@ -1276,40 +1278,39 @@ pub struct PassManager {
 }
 
 impl PassManager {
-    pub fn new(_opt_level: u32) -> PassManager {
-        // unsafe {
-        let pm = std::ptr::null_mut();
-        // let pm = LLVMCreatePassManager();
+    pub fn new(opt_level: u32) -> PassManager {
+        unsafe {
+            let pm = LLVMCreatePassManager();
 
-        // let pmb = LLVMPassManagerBuilderCreate();
-        // LLVMPassManagerBuilderSetOptLevel(pmb, opt_level);
-        // LLVMPassManagerBuilderSetSizeLevel(pmb, 0);
-        // LLVMPassManagerBuilderSetDisableUnitAtATime(pmb, i32::from(false));
-        // LLVMPassManagerBuilderSetDisableUnrollLoops(pmb, i32::from(false));
+            let pmb = LLVMPassManagerBuilderCreate();
+            LLVMPassManagerBuilderSetOptLevel(pmb, opt_level);
+            LLVMPassManagerBuilderSetSizeLevel(pmb, 0);
+            LLVMPassManagerBuilderSetDisableUnitAtATime(pmb, i32::from(false));
+            LLVMPassManagerBuilderSetDisableUnrollLoops(pmb, i32::from(false));
 
-        // LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm);
-        // LLVMPassManagerBuilderDispose(pmb);
+            LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm);
+            LLVMPassManagerBuilderDispose(pmb);
 
-        PassManager {
-            pm,
+            PassManager {
+                pm,
+            }
         }
-        // }
     }
 
-    pub fn run(&self, _module: LLVMModuleRef) {
-        // unsafe {
-        // LLVMRunPassManager(self.pm, module);
-        // }
+    pub fn run(&self, module: LLVMModuleRef) {
+        unsafe {
+            LLVMRunPassManager(self.pm, module);
+        }
     }
 }
 
-// impl Drop for PassManager {
-//     fn drop(&mut self) {
-//         unsafe {
-//             LLVMDisposePassManager(self.pm);
-//         }
-//     }
-// }
+impl Drop for PassManager {
+    fn drop(&mut self) {
+        unsafe {
+            LLVMDisposePassManager(self.pm);
+        }
+    }
+}
 
 pub struct ExecutionEngine {
     engine: LLVMExecutionEngineRef,
