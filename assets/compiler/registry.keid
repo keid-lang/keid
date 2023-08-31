@@ -1,0 +1,39 @@
+namespace keidc::registry
+
+import (
+    core::collections
+    keidc::ast
+    keidc::types
+)
+
+public class ClassData {
+    ast: AstClass
+    qualifiedName: string
+}
+
+public class RegisteredType {
+    name: string
+    kind: ObjectKind
+    id: usize
+}
+
+public class TypeMetadataCompiler {
+    programs: List<AstKeidProgram>
+
+    findRegisteredTypes(): List<RegisteredType> {
+        let registeredTypes = List.empty<RegisteredType>()
+        let id: usize = 0
+        for program in this.programs {
+            for class in program.classes {
+                let name = string.format(program.namespace.node, "::", class.name)
+                registeredTypes.push(new RegisteredType {
+                    name
+                    kind = class.kind.
+                    id
+                })
+                id += 1
+            }
+        }
+        return registeredTypes
+    }
+}

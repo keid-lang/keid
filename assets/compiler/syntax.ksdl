@@ -82,17 +82,6 @@ RULE GenericArgs
     LITERAL >
 END RULE
 
-RULE ClassDeclType
-    OR(LITERAL class, LITERAL struct, LITERAL interface, LITERAL enum)
-END RULE
-
-RULE ClassExtends
-    LITERAL extends
-    MOVE
-    $superclass = RULE QualifiedPath
-    $generics = OPTIONAL RULE GenericArgs
-END RULE
-
 RULE AttributeArgs
     LITERAL (
     OPTIONAL REPEATED COMPOUND($args = ALIAS ConstExpr, LITERAL COMMA)
@@ -270,6 +259,17 @@ RULE FieldDecl
 END RULE
 
 ALIAS ClassBodyStatement OR(RULE ConstructorDecl, RULE DestructorDecl, ALIAS AccessorDecl, RULE FieldDecl, RULE FunctionDecl)
+
+RULE ClassDeclType
+    OR(LITERAL class, LITERAL struct, LITERAL interface, LITERAL enum)
+END RULE
+
+RULE ClassExtends
+    LITERAL extends
+    MOVE
+    $superclass = RULE QualifiedPath
+    $generics = OPTIONAL RULE GenericArgs
+END RULE
 
 RULE ClassDecl
     $modifiers = OPTIONAL REPEATED RULE Modifier

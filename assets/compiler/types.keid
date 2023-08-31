@@ -10,6 +10,13 @@ import (
 public class QualifiedIdent {
     name: string
     generics: List<ComplexType>
+
+    public static withName(name: string): QualifiedIdent => new QualifiedIdent {
+        name
+        generics = List.empty<ComplexType>()
+    }
+
+    public static withGenerics(name: string, generics: List<ComplexType>): QualifiedIdent => new QualifiedIdent { name, generics, }
 }
 
 implement ToString for QualifiedIdent {

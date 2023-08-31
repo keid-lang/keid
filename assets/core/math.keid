@@ -13,3 +13,17 @@ public function pow<T>(value: T, pow: T): T {
     }
     return total
 }
+
+public function min<T>(a: T, b: T): T {
+    if a > b {
+        return b
+    }
+    return a
+}
+
+public function max<T>(a: T, b: T): T {
+    if a < b {
+        return b
+    }
+    return a
+}

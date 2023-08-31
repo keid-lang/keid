@@ -1,0 +1,43 @@
+namespace keidc::common
+
+import (
+    core::string
+    keidc::types
+)
+
+public enum Modifier {
+    Public
+    Static
+    Extern
+}
+
+implement ToString for Modifier {
+    toString(): string {
+        return match this {
+            Public => "public"
+            Static => "static"
+            Extern => "extern"
+        } 
+    }
+}
+
+public enum ObjectKind {
+    Class
+    Struct
+    Interface
+    Enum
+    Typedef {
+        aliasee: ComplexType
+    }
+}
+
+implement ToString for ObjectKind {
+    toString(): string {
+        return match this {
+            Class => "class"
+            Struct => "struct"
+            Interface => "interface"
+            Enum => "enum"
+        }
+    }
+}

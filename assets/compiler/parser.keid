@@ -187,26 +187,26 @@ class KeidParser {
         return args
     }
 
-    parseModifers(parentAstNode: RuleMatch): List<AstToken<KeidModifier>> {
+    parseModifers(parentAstNode: RuleMatch): List<AstToken<Modifier>> {
         if parentAstNode.hasGroup("modifiers") {
             let astModifiers = parentAstNode.getGroup("modifiers")
-            let modifiers = List.withCapacity<AstToken<KeidModifier>>(astModifiers.length)
+            let modifiers = List.withCapacity<AstToken<Modifier>>(astModifiers.length)
             for astModifier in astModifiers {
                 let text = astModifier.token.getText(this.source)
                 let modifier = match text {
-                    "public" => KeidModifier.Public
-                    "extern" => KeidModifier.Extern
-                    "static" => KeidModifier.Static
+                    "public" => Modifier.Public
+                    "extern" => Modifier.Extern
+                    "static" => Modifier.Static
                     // TODO: fix this not compiling _ => throw Error.create("ParseError: invalid modifier: " + text)
                 }
-                modifiers.push(new AstToken<KeidModifier> {
+                modifiers.push(new AstToken<Modifier> {
                     node = modifier
                     loc = astModifier.token
                 })
             }
             return modifiers
         }
-        return List.empty<AstToken<KeidModifier>>()
+        return List.empty<AstToken<Modifier>>()
     }
 
     parsePrefixExpr(operator: AstToken<AstOperator>, operand: AstToken<AstExpr>): AstToken<AstExpr> {
@@ -215,10 +215,7 @@ class KeidParser {
                 operator
                 operand
             }
-            loc = new TokenLocation {
-                start = operator.loc.start
-                length = operand.loc.start + operand.loc.length - operator.loc.start
-            }
+            loc = operator.loc.joined(operand.loc)
         }
     }
 
@@ -229,10 +226,7 @@ class KeidParser {
                 operator
                 rhs
             }
-            loc = new TokenLocation {
-                start = lhs.loc.start
-                length = rhs.loc.start + rhs.loc.length - lhs.loc.start
-            }
+            loc = lhs.loc.joined(rhs.loc)
         }
     }
 
@@ -242,10 +236,7 @@ class KeidParser {
                 operator
                 operand
             }
-            loc = new TokenLocation {
-                start = operator.loc.start
-                length = operator.loc.start + operator.loc.length - operand.loc.start
-            }
+            loc = operand.loc.joined(operator.loc)
         }
     }
 
@@ -426,19 +417,32 @@ class KeidParser {
 
     parseClass(match: RuleMatch): AstClass {
         let modifiers = this.parseModifers(match)
-        let typeMatch = match.getGroupValue("type")
-        let typeText = typeMatch.token.getText(this.source)
-        let type = tokenize<ClassType>(typeMatch, match typeText {
-            "class" => ClassType.Class
-            "struct" => ClassType.Struct
-            "interface" => ClassType.Interface
-            "enum" => ClassType.Enum
+        let kindMatch = match.getGroupValue("type")
+        let kindText = kindMatch.token.getText(this.source)
+        let kind = tokenize<ObjectKind>(kindMatch, match kindText {
+            "class" => ObjectKind.Class
+            "struct" => ObjectKind.Struct
+            "interface" => ObjectKind.Interface
+            "enum" => ObjectKind.Enum
         })
 
         let name = this.parseString(match.getGroupValue("name"))
         let generics: ?List<AstGenericDecl> = null
         if match.hasGroup("generics") {
             generics = this.parseGenericDecls(match.getGroupValue("generics"))
+        }
+
+        let superclass: ?AstToken<QualifiedIdent> = null
+        if match.hasGroup("extends") {
+            let extendsDecl = match.getGroupValue("extends")
+            let superclassDecl = extendsDecl.getGroupValue("superclass")
+            let superclassName = superclassDecl.token.getText(this.source)
+            let superclassGenerics = this.parseGenericArgs(extendsDecl)
+
+            superclass = new AstToken<QualifiedIdent> {
+                node = QualifiedIdent.withGenerics(superclassName, superclassGenerics)
+                loc = superclassDecl.token
+            }
         }
 
         let constructor: ?List<AstToken<AstStatement>> = null
@@ -465,10 +469,11 @@ class KeidParser {
         }
 
         return new AstClass {
-            type
+            kind
             modifiers
             name
             generics
+            superclass
             constructor
             destructor
             fields

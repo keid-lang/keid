@@ -22,42 +22,8 @@ public class AstGenericDecl {
     name: AstToken<string>
 }
 
-public enum KeidModifier {
-    Public
-    Static
-    Extern
-}
-
-implement ToString for KeidModifier {
-    toString(): string {
-        return match this {
-            Public => "public"
-            Static => "static"
-            Extern => "extern"
-        } 
-    }
-}
-
-public enum ClassType {
-    Class
-    Struct
-    Interface
-    Enum
-}
-
-implement ToString for ClassType {
-    toString(): string {
-        return match this {
-            Class => "class"
-            Struct => "struct"
-            Interface => "interface"
-            Enum => "enum"
-        }
-    }
-}
-
 public class AstClassField {
-    modifiers: List<AstToken<KeidModifier>>
+    modifiers: List<AstToken<Modifier>>
     name: AstToken<string>
     type: AstToken<ComplexType>
     initialValue: ?AstToken<AstExpr>
@@ -89,7 +55,7 @@ public enum VarargsMode {
 }
 
 public class AstFunction {
-    modifiers: List<AstToken<KeidModifier>>
+    modifiers: List<AstToken<Modifier>>
     name: AstToken<string>
     generics: ?List<AstGenericDecl>
     params: List<AstFunctionParam>
@@ -99,10 +65,11 @@ public class AstFunction {
 }
 
 public class AstClass {
-    type: AstToken<ClassType>
-    modifiers: List<AstToken<KeidModifier>>
+    kind: AstToken<ObjectKind>
+    modifiers: List<AstToken<Modifier>>
     name: AstToken<string>
     generics: ?List<AstGenericDecl>
+    superclass: ?AstToken<QualifiedIdent>
     constructor: ?List<AstToken<AstStatement>>
     destructor: ?List<AstToken<AstStatement>>
     fields: List<AstClassField>

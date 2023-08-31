@@ -7,13 +7,19 @@ import (
     core::string
 )
 
-public class TokenLocation {
+public struct TokenLocation {
     /// The index of the first character of the token, relative to the start of the entire program input.
     start: usize
     /// The length of the matched token.
     length: usize
 
     public static create(start: usize, length: usize): TokenLocation => new TokenLocation { start, length, }
+
+    public joined(other: TokenLocation): TokenLocation {
+        let start = math.min<usize>(this.start, other.start)
+        let length = this.length + other.length
+        return TokenLocation.create(start, length)
+    }
 
     public getText(program: string): string {
         return program.substring(this.start, this.start + this.length)
