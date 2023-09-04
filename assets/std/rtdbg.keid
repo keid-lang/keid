@@ -1,0 +1,17 @@
+namespace rtdbg
+
+import (
+    core::mem
+)
+
+extern function rtdbg_memdump(ptr: Pointer<void>, count: usize)
+
+public function memdump<T>(value: T) {
+    unsafe {
+        fixed let valuePtr: Pointer<T> = ref value {
+            rtdbg_memdump(Pointer.cast<T, void>(valuePtr), sizeof(T))
+        }
+    }
+
+    runtime.printStackFrames()
+}

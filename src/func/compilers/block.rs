@@ -29,6 +29,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
             let result = match &tkn.token {
                 Statement::Unreachable => {
                     self.emit(Insn::Unreachable);
+                    returns = true;
 
                     Ok(())
                 }
@@ -391,7 +392,8 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         self.compile_block(&for_loop.block);
         self.pop_block()?; // pop `loop_block` and all of its variables
 
-        self.try_unscope(&source_iterator_ptr)?;
+        // TODO: unscope as a ptr
+        // self.try_unscope(&iterator_ptr)?;
         self.emit(Insn::Br(get_next_block.as_val())); // after the main body and unscope calls, break to the `get_next_block`
 
         self.builder.append_block(&rotated_parent); // append the rotated parent block

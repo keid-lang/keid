@@ -120,6 +120,12 @@ public class List<T> {
         return false
     }
 
+    public clear() {
+        this.storage = Pointer.null<T>()
+        this.length = 0
+        this.capacity = 0
+    }
+
     public toArray(): [T] {
         let array = new T[default(T); this.length]
         for i in range.create(0, this.length) {

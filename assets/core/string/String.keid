@@ -197,6 +197,17 @@ public class String {
         return this.substring(start, end + 1)
     }
 
+    /// Returns the total instances of the provided character in the string.
+    public count(c: char): usize {
+        let count: usize = 0
+        for o in this.chars {
+            if c == 0 {
+                count += 1
+            }
+        }
+        return count
+    }
+
     /// Returns true if the start of this string matches the substring entirely, otherwise false.
     public startsWith(substr: string): bool {
         return this.indexOf(substr) == 0

@@ -13,7 +13,7 @@ pub trait FunctionCompilerUtils {
     fn try_change_scope(&mut self, object: &TypedValue, scope_change: ScopeChange) -> Result<bool>;
     fn parse_generic_args(&mut self, generics: &Option<GenericArgs>) -> Result<Vec<ComplexType>>;
 
-    fn get_array_element_ptr(&mut self, slice: &TypedValue, index: &TypedValue) -> Result<OpaqueValue>;
+    fn get_array_element_ptr(&mut self, slice: &TypedValue, index: &TypedValue) -> Result<TypedValue>;
     fn load_array_element(&mut self, slice: &TypedValue, index: &TypedValue) -> Result<TypedValue>;
     fn store_array_element(&mut self, array: &TypedValue, value: &TypedValue, index: &TypedValue, was_null: bool) -> Result<()>;
 
@@ -66,12 +66,32 @@ pub trait FunctionCompilerUtils {
     fn handle_unhandled_error(&mut self, check: bool) -> Result<()>;
     fn return_null(&mut self) -> Result<()>;
 
-    fn unbox_object(&mut self, value: TypedValue) -> Result<TypedValue>;
+    fn box_object(&mut self, value: TypedValue) -> Result<TypedValue>;
+    fn try_unbox_object(&mut self, value: TypedValue) -> Result<TypedValue>;
     fn heap_allocate(&mut self, ty: OpaqueType, count: Option<OpaqueValue>) -> Result<OpaqueValue>;
 }
 
 impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
-    fn unbox_object(&mut self, value: TypedValue) -> Result<TypedValue> {
+    fn box_object(&mut self, value: TypedValue) -> Result<TypedValue> {
+        let box_ident = GenericIdentifier::from_name_with_args("core::object::Box", &[value.ty.clone()]);
+        let boxed = self.instantiate_object(BasicType::Object(box_ident.clone()).to_complex())?;
+        let type_root = self.cpl.type_provider.get_class_by_name(&box_ident).unwrap();
+        let element_ptr = self.resolve_class_member_ptr(
+            &boxed,
+            &type_root,
+            &Token {
+                loc: TokenLocation {
+                    start: 0,
+                    end: 0,
+                },
+                token: Identifier("element".to_owned()),
+            },
+        )?;
+        element_ptr.store(Operator::Equals, self, value)?;
+        Ok(boxed)
+    }
+
+    fn try_unbox_object(&mut self, value: TypedValue) -> Result<TypedValue> {
         match &value.ty {
             ComplexType::Basic(BasicType::Object(ident)) => {
                 if ident.name == "core::object::Box" {
@@ -104,11 +124,12 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
         }
     }
 
+    /// Given a **pointer** to an object type or nullable object type, load the object pointer at the provided pointer, and change its scope accordingly.
     fn try_change_scope(&mut self, object: &TypedValue, scope_change: ScopeChange) -> Result<bool> {
         let scope_block = self.builder.create_block();
         let rotated_parent_block = self.builder.create_block();
 
-        let (_object_val, rotate) = match &object.ty {
+        let (object_val, rotate) = match &object.ty {
             ComplexType::Nullable(box ComplexType::Basic(BasicType::Object(ref ident))) => {
                 let nullability_ptr = self.emit(Insn::GetElementPtr(object.val, object.ty.as_llvm_type(self.cpl), 1)); // nullable type nullability
                 let nullability = self.emit(Insn::Load(nullability_ptr, self.cpl.context.get_i8_type()));
@@ -129,7 +150,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                 // we can omit the keid.unscope call since it will have no effect at runtime
                 match self.cpl.type_provider.get_class_by_name(ident) {
                     Some(class) => {
-                        if class.class_type == ClassType::Struct {
+                        if class.class_type == ClassType::Struct || class.class_type == ClassType::Enum {
                             return Ok(false);
                         }
                     }
@@ -139,7 +160,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                     },
                 }
 
-                (object.val, false)
+                (self.emit(Insn::Load(object.val, BasicType::Object(ident.clone()).as_llvm_type(self.cpl))), false)
             }
             _ => return Ok(false),
         };
@@ -148,15 +169,10 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
             ScopeChange::Inside => "keid.scope",
             ScopeChange::Outside => "keid.unscope",
         };
-        let scope_impl = ResolvedFunctionNode::externed(
-            func_name,
-            &[BasicType::Void.to_complex().to_reference()],
-            Varargs::None,
-            BasicType::Void.to_complex(),
-        );
-        let _scope_func = self.get_function_ref(&scope_impl)?;
+        let scope_impl = ResolvedFunctionNode::externed(func_name, &[BasicType::Void.to_complex().to_reference()], Varargs::None, BasicType::Void.to_complex());
+        let scope_func = self.get_function_ref(&scope_impl)?;
         // TODO: fix this
-        // self.emit(Insn::Call(scope_func, scope_impl.as_llvm_type(self.cpl), vec![object_val]));
+        self.emit(Insn::Call(scope_func, scope_impl.as_llvm_type(self.cpl), vec![object_val]));
 
         if rotate {
             self.emit(Insn::Br(rotated_parent_block.as_val()));
@@ -178,43 +194,17 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
             ComplexType::Basic(BasicType::Object(ident)) => {
                 // convert assignment of T -> Box<T> if needed
                 if ident.name == "core::object::Box" {
-                    let value = self.instantiate_object(dest.ty.clone())?;
-                    let type_root = self.cpl.type_provider.get_class_by_name(ident).unwrap();
-                    let element_ptr = self.resolve_class_member_ptr(
-                        &value,
-                        &type_root,
-                        &Token {
-                            loc: TokenLocation {
-                                start: 0,
-                                end: 0,
-                            },
-                            token: Identifier("element".to_owned()),
-                        },
-                    )?;
-                    element_ptr.store(Operator::Equals, self, src)?;
-                    src = value;
-                } else {
                     match &src.ty {
-                        ComplexType::Basic(BasicType::Object(src_ident)) => {
-                            // convert assignment of Box<T> -> T if needed
-                            if src_ident.name == "core::object::Box" {
-                                let type_root = self.cpl.type_provider.get_class_by_name(src_ident).unwrap();
-                                let element_ptr = self.resolve_class_member_ptr(
-                                    &src,
-                                    &type_root,
-                                    &Token {
-                                        loc: TokenLocation {
-                                            start: 0,
-                                            end: 0,
-                                        },
-                                        token: Identifier("element".to_owned()),
-                                    },
-                                )?;
-                                src = element_ptr.load(self)?;
+                        ComplexType::Basic(BasicType::Object(ident)) => {
+                            if ident.name != "core::object::Box" {
+                                src = self.box_object(src)?;
                             }
                         }
                         _ => (),
                     }
+                } else {
+                    // convert assignment of Box<T> -> T if needed
+                    src = self.try_unbox_object(src)?;
                 }
             }
             _ => (),
@@ -257,7 +247,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
         }
     }
 
-    fn get_array_element_ptr(&mut self, slice: &TypedValue, index: &TypedValue) -> Result<OpaqueValue> {
+    fn get_array_element_ptr(&mut self, slice: &TypedValue, index: &TypedValue) -> Result<TypedValue> {
         let check_block = self.builder.create_block();
         let load_block = self.builder.create_block();
         let error_block = self.builder.create_block();
@@ -320,17 +310,12 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
 
         self.builder.append_block(&rotated_parent_block);
 
-        Ok(element_ptr)
+        Ok(TypedValue::new(element_type, element_ptr))
     }
 
     fn load_array_element(&mut self, slice: &TypedValue, index: &TypedValue) -> Result<TypedValue> {
-        let element_type = match &slice.ty {
-            ComplexType::Array(element_type) => *element_type.clone(),
-            _ => unreachable!(),
-        };
-
         let element_ptr = self.get_array_element_ptr(slice, index)?;
-        let element = TypedValueContainer(TypedValue::new(element_type.clone(), element_ptr)).load(self)?;
+        let element = TypedValueContainer(element_ptr).load(self)?;
 
         Ok(element)
     }
@@ -343,13 +328,11 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
 
         self.assert_assignable_to(&value.ty, &element_type)?;
 
-        if !was_null {
-            let current_element = self.load_array_element(slice, index)?;
-            self.try_unscope(&current_element)?;
-        }
-
         let element_ptr = self.get_array_element_ptr(slice, index)?;
-        self.emit(Insn::Store(value.val, element_ptr));
+        if !was_null {
+            self.try_unscope(&element_ptr)?;
+        }
+        self.store(Operator::Equals, value.clone(), &element_ptr)?;
 
         Ok(())
     }
@@ -393,9 +376,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
 
                 let metadata_val = self.emit(Insn::Load(
                     casted_metadata_ptr,
-                    self.cpl.context.get_pointer_type(
-                        self.cpl.context.get_abi_array_data_type(element_type.as_llvm_type(self.cpl), &element_type.to_string()),
-                    ),
+                    self.cpl.context.get_pointer_type(self.cpl.context.get_abi_array_data_type(element_type.as_llvm_type(self.cpl), &element_type.to_string())),
                 ));
                 self.emit(Insn::Store(metadata_val, dest_metadata_ptr));
             }
@@ -417,10 +398,8 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                         self.assert_assignable_to(&src.ty, &dest.ty)?;
 
                         let src_classinfo_ptr = self.emit(Insn::GetElementPtr(casted.val, casted.ty.as_llvm_type(self.cpl), 0));
-                        let src_classinfo = self.emit(Insn::Load(
-                            src_classinfo_ptr,
-                            self.cpl.context.get_pointer_type(self.cpl.context.get_abi_class_info_type()),
-                        ));
+                        let src_classinfo =
+                            self.emit(Insn::Load(src_classinfo_ptr, self.cpl.context.get_pointer_type(self.cpl.context.get_abi_class_info_type())));
 
                         let dest_classinfo_ptr = self.emit(Insn::GetElementPtr(dest.val, dest.ty.as_llvm_type(self.cpl), 0));
                         self.emit(Insn::Store(src_classinfo, dest_classinfo_ptr));
@@ -477,7 +456,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                 let new_nullable = self.emit(Insn::Alloca(dest_type.as_llvm_type(self.cpl)));
 
                 let value_ptr = self.emit(Insn::GetElementPtr(new_nullable, dest_type.as_llvm_type(self.cpl), 0));
-                self.emit(Insn::Store(src.val, value_ptr));
+                self.copy(&src, &TypedValue::new(src.ty.clone(), value_ptr))?;
 
                 let nullability_ptr = self.emit(Insn::GetElementPtr(new_nullable, dest_type.as_llvm_type(self.cpl), 1));
                 let null_value = self.cpl.context.const_int(self.cpl.context.get_i8_type(), 1); // 1 indicates the value is non-null
@@ -497,13 +476,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
         let base_type = match &src.ty {
             ComplexType::Basic(BasicType::Object(ident)) => ident,
             ComplexType::Basic(
-                BasicType::Bool
-                | BasicType::Char
-                | BasicType::Float32
-                | BasicType::Float64
-                | BasicType::Int8
-                | BasicType::Int16
-                | BasicType::Int32,
+                BasicType::Bool | BasicType::Char | BasicType::Float32 | BasicType::Float64 | BasicType::Int8 | BasicType::Int16 | BasicType::Int32,
             ) => {
                 if parent == "core::object::Object" {
                     return Ok(Some(self.autobox_primitive(src)?));
@@ -538,11 +511,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                 } else {
                     // if no generic args were specified, return the first generic implementation
                     return Ok(Some(TypedValue {
-                        ty: BasicType::Object(GenericIdentifier::from_name_with_args(
-                            parent,
-                            &resolved_interface_impl.interface_generic_impls,
-                        ))
-                        .to_complex(),
+                        ty: BasicType::Object(GenericIdentifier::from_name_with_args(parent, &resolved_interface_impl.interface_generic_impls)).to_complex(),
                         val: src.val,
                     }));
                 }
@@ -597,8 +566,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
 
         let rotated_parent = self.builder.create_block();
         if check {
-            let check_unhandled_error_callable =
-                ResolvedFunctionNode::externed("keid.check_unhandled_error", &[], Varargs::None, BasicType::Bool.to_complex());
+            let check_unhandled_error_callable = ResolvedFunctionNode::externed("keid.check_unhandled_error", &[], Varargs::None, BasicType::Bool.to_complex());
             let check_unhandled_error_ref = self.get_function_ref(&check_unhandled_error_callable)?;
             let check_unhandled_error_val = self.call_function(check_unhandled_error_ref, &check_unhandled_error_callable, &[])?;
 
@@ -635,12 +603,8 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
     }
 
     fn heap_allocate(&mut self, ty: OpaqueType, count: Option<OpaqueValue>) -> Result<OpaqueValue> {
-        let malloc_func = ResolvedFunctionNode::externed(
-            "keid_malloc",
-            &[BasicType::USize.to_complex()],
-            Varargs::None,
-            BasicType::Void.to_complex().to_reference(),
-        );
+        let malloc_func =
+            ResolvedFunctionNode::externed("keid_malloc", &[BasicType::USize.to_complex()], Varargs::None, BasicType::Void.to_complex().to_reference());
 
         let size = self.cpl.context.target.get_type_size(ty);
         let mut size_const = self.cpl.context.const_int(self.cpl.context.get_i64_type(), size);
@@ -662,8 +626,7 @@ pub fn get_import_map_with(imports: &[ImportNode], all_type_names: Vec<&String>)
     map.insert("range".to_owned(), "core::collections::Range".to_owned());
     map.insert("object".to_owned(), "core::object::Object".to_owned());
     for node in imports {
-        let types: Vec<String> =
-            all_type_names.iter().filter(|type_name| get_type_namespace(type_name) == node.module).map(|str| str.to_string()).collect();
+        let types: Vec<String> = all_type_names.iter().filter(|type_name| get_type_namespace(type_name) == node.module).map(|str| str.to_string()).collect();
         for item in &types {
             map.try_insert(get_type_leaf(item).to_owned(), item.to_string()).unwrap();
         }
@@ -679,8 +642,7 @@ pub struct ImportedMember {
 }
 
 pub fn lookup_import_map(map: &[ImportedMember], key: &str) -> Vec<String> {
-    let mut imports: Vec<String> =
-        map.iter().filter(|member| member.local_name == key).map(|member| member.absolute_name.clone()).collect();
+    let mut imports: Vec<String> = map.iter().filter(|member| member.local_name == key).map(|member| member.absolute_name.clone()).collect();
     imports.push(key.to_owned());
     imports
 }

@@ -25,6 +25,11 @@ implement ToString for QualifiedIdent {
         sb.append(this.name)
         if this.generics.length > 0 {
             sb.append("<")
+            for generic in this.generics {
+                sb.append(generic.toString())
+                sb.append(", ")
+            }
+            sb.move(-2)
             sb.append(">")
         }
         return sb.toString()
@@ -57,6 +62,36 @@ public enum ComplexType {
     }
     Nullable {
         element: Box<ComplexType>
+    }
+}
+
+// this should not be an interface, only here due to restrictions of the pre-0.1 compiler
+// TODO: move to enum body in 0.1
+public interface ComplexTypeImpl {
+    get root: BasicType
+
+    withRoot(root: ComplexType): ComplexType
+}
+
+implement ComplexTypeImpl for ComplexType {
+    get root: BasicType {
+        return match this {
+            Basic { basic, } => basic
+            Array { element, } => element.root
+            Nullable { element, } => element.root
+        }
+    }
+
+    withRoot(root: ComplexType): ComplexType {
+        return match this {
+            Basic { basic, } => root
+            Array { element, } => new ComplexType.Array {
+                element = element.withRoot(root)
+            }
+            Nullable { element, } => new ComplexType.Nullable {
+                element = element.withRoot(root)
+            }
+        }
     }
 }
 

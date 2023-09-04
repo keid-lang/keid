@@ -485,13 +485,19 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                         }
                     };
                     field.store(Operator::Equals, self, arg_value)?;
-                    set_fields.push(arg.field_name.token.0.clone());
+                    set_fields.push(arg.field_name.clone());
                 }
 
-                for field in class_impl.fields {
-                    if !set_fields.contains(&field.name) {
+                for field in &class_impl.fields {
+                    if set_fields.iter().find(|set_field| set_field.token.0 == field.name).is_none() {
                         self.loc(&nc.ty.loc);
                         return Err(compiler_error!(self, "Instantiation missing required field `{}`", field.name));
+                    }
+                }
+                for field in set_fields {
+                    if class_impl.fields.iter().find(|class_field| class_field.name == field.token.0).is_none() {
+                        self.loc(&field.loc);
+                        return Err(compiler_error!(self, "No such field `{}::{}`", ident.to_string(), field.token.0));
                     }
                 }
 
@@ -529,10 +535,8 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                         ClassType::Interface => {
                             return Err(compiler_error!(self, "Cannot instantiate object with interface type `{}`", ident.to_string()))
                         }
-                        ClassType::Enum => panic!("enums must be a BasicType::Enum"),
+                        ClassType::Enum => unreachable!(),
                     },
-                    // sometimes structs are reported to be objects
-                    // as an awful workaround, we just call this function again with the write typings
                     None => return Err(compiler_error!(self, "[ER7] Could not resolve type `{}`", object_type.to_string())),
                 };
 

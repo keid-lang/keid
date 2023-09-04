@@ -18,9 +18,7 @@ impl<'a> DestructorCompiler for FunctionCompiler<'a> {
                 class
                     .fields
                     .iter()
-                    .map(|field| {
-                        crate::tree::extract_type(&self.cpl.type_provider, field.ty.clone(), &class.generic_defs, &self.func.generic_impls)
-                    })
+                    .map(|field| crate::tree::extract_type(&self.cpl.type_provider, field.ty.clone(), &class.generic_defs, &self.func.generic_impls))
                     .collect::<anyhow::Result<_>>()
                     .map_err(|e| compiler_error!(self, "{}", e))?,
                 class.destructor.clone(),
@@ -42,19 +40,19 @@ impl<'a> DestructorCompiler for FunctionCompiler<'a> {
 
         for i in 0..fields.len() {
             let field_type = &fields[i];
-            if matches!(field_type, ComplexType::Basic(BasicType::Object { .. })) {
-                let field_ptr = self.emit(Insn::GetElementPtr(this.val, this_type, 2 + i as u32)); // offset of 2 for (ref count) + (classinfo ptr)
-                let field = TypedValueContainer(TypedValue::new(field_type.clone(), field_ptr)).load(self)?;
+            let field_ptr = self.emit(Insn::GetElementPtr(this.val, this_type, 2 + i as u32)); // offset of 2 for (ref count) + (classinfo ptr)
 
-                self.try_unscope(&field)?;
-            } else if matches!(
-                field_type,
-                ComplexType::Nullable(box ComplexType::Basic(BasicType::Object {
-                    ..
-                }))
-            ) {
-                let field_ptr = self.emit(Insn::GetElementPtr(this.val, this_type, 2 + i as u32)); // offset of 2 for (ref count) + (classinfo ptr)
+            if matches!(field_type, ComplexType::Basic(BasicType::Object(_))) {
                 self.try_unscope(&TypedValue::new(field_type.clone(), field_ptr))?;
+            } else {
+                match field_type {
+                    ComplexType::Nullable(box ComplexType::Basic(BasicType::Object(ident))) => {
+                        let element_ty = BasicType::Object(ident.clone()).to_complex();
+                        let element_ptr = self.emit(Insn::GetElementPtr(field_ptr, field_type.as_llvm_type(&self.cpl), 0));
+                        self.try_unscope(&TypedValue::new(element_ty, element_ptr))?;
+                    },
+                    _ => (),
+                }
             }
         }
 

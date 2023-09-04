@@ -202,29 +202,29 @@ $IF(RTDBG, ```
 ;   %object - pointer to the reference counted object
 define void @keid.scope(ptr %object) {
 block.check_null:
-;   ; null check, i.e. `if %object == NULL`
-;   %object_is_null = icmp eq ptr %object, null
-;   br i1 %object_is_null, label %block.is_null, label %block.is_not_null
+  ; null check, i.e. `if %object == NULL`
+  %object_is_null = icmp eq ptr %object, null
+  br i1 %object_is_null, label %block.is_null, label %block.is_not_null
 
-; block.is_null:
-;   ret void ; exit early if %object is a null pointer
+block.is_null:
+  ret void ; exit early if %object is a null pointer
 
-; block.is_not_null:
-;   %is_struct = call i1 @keid.is_struct(ptr %object)
-;   br i1 %is_struct, label %block.is_struct, label %block.is_not_struct
+block.is_not_null:
+  %is_struct = call i1 @keid.is_struct(ptr %object)
+  br i1 %is_struct, label %block.is_struct, label %block.is_not_struct
 
-; block.is_struct:
-;   ret void ; exit early if %object is a struct type (i.e. has no ref count)
+block.is_struct:
+  ret void ; exit early if %object is a struct type (i.e. has no ref count)
 
-; block.is_not_struct:
-; $IF(RTDBG, ```
-;   %rtdbg = load ptr, ptr @rtdbg_instance, align 4
-;   call void @rtdbg_change_scope(ptr %rtdbg, ptr %object, i8 0)
-; ```)
-;   %ref_count_ptr = getelementptr inbounds %KeidAbiClassData, ptr %object, i32 0, i32 1
-;   %ref_count = load i64, ptr %ref_count_ptr, align 4 ; load the ref count from %ref_count_ptr
-;   %new_count = add i64 %ref_count, 1                 ; add one to the ref count
-;   store i64 %new_count, ptr %ref_count_ptr, align 4  ; store the (ref count + 1) into %ref_count_ptr
+block.is_not_struct:
+$IF(RTDBG, ```
+  %rtdbg = load ptr, ptr @rtdbg_instance, align 4
+  call void @rtdbg_change_scope(ptr %rtdbg, ptr %object, i8 0)
+```)
+  %ref_count_ptr = getelementptr inbounds %KeidAbiClassData, ptr %object, i32 0, i32 1
+  %ref_count = load i64, ptr %ref_count_ptr, align 4 ; load the ref count from %ref_count_ptr
+  %new_count = add i64 %ref_count, 1                 ; add one to the ref count
+  store i64 %new_count, ptr %ref_count_ptr, align 4  ; store the (ref count + 1) into %ref_count_ptr
   ret void
 }
 
@@ -233,62 +233,62 @@ block.check_null:
 ;   %object - pointer to the reference counted object
 define void @keid.unscope(ptr %object) {
 block.check_null:
-;   ; null check, i.e. `if %object == NULL`
-;   %object_is_null = icmp eq ptr %object, null
-;   br i1 %object_is_null, label %block.is_null, label %block.is_not_invalid_null
+  ; null check, i.e. `if %object == NULL`
+  %object_is_null = icmp eq ptr %object, null
+  br i1 %object_is_null, label %block.is_null, label %block.is_not_invalid_null
 
-; block.is_null:                          
-;   ret void ; exit early if %object is a null pointer
+block.is_null:                          
+  ret void ; exit early if %object is a null pointer
 
-; block.is_struct:
-;   ret void ; exit early if %object is a struct type (i.e. has no ref count)
+block.is_struct:
+  ret void ; exit early if %object is a struct type (i.e. has no ref count)
 
-; block.is_not_invalid_null:
-;   %is_struct = call i1 @keid.is_struct(ptr %object)
-;   br i1 %is_struct, label %block.is_struct, label %block.is_not_struct
+block.is_not_invalid_null:
+  %is_struct = call i1 @keid.is_struct(ptr %object)
+  br i1 %is_struct, label %block.is_struct, label %block.is_not_struct
 
-; block.is_not_struct:
-; $IF(RTDBG, ```
-;   %rtdbg = load ptr, ptr @rtdbg_instance, align 4
-;   call void @rtdbg_change_scope(ptr %rtdbg, ptr %object, i8 1)
-; ```)
-;   %ref_count_ptr = getelementptr inbounds %KeidAbiClassData, ptr %object, i32 0, i32 1
-;   %ref_count = load i64, ptr %ref_count_ptr, align 4 ; load the ref count from %object
-;   %ref_count_is_invalid = icmp slt i64 %ref_count, 1
-;   br i1 %ref_count_is_invalid, label %block.is_invalid, label %block.is_not_null
+block.is_not_struct:
+$IF(RTDBG, ```
+  %rtdbg = load ptr, ptr @rtdbg_instance, align 4
+  call void @rtdbg_change_scope(ptr %rtdbg, ptr %object, i8 1)
+```)
+  %ref_count_ptr = getelementptr inbounds %KeidAbiClassData, ptr %object, i32 0, i32 1
+  %ref_count = load i64, ptr %ref_count_ptr, align 4 ; load the ref count from %object
+  %ref_count_is_invalid = icmp slt i64 %ref_count, 1
+  br i1 %ref_count_is_invalid, label %block.is_invalid, label %block.is_not_null
 
-; block.is_invalid:
-;   call i32 @printf(ptr @illegal_ref_count_error, i64 %ref_count)
-;   call void @"core::runtime::printStackFrames()"()
-;   call void @exit(i32 1)
-;   unreachable
+block.is_invalid:
+  call i32 @printf(ptr @illegal_ref_count_error, i64 %ref_count)
+  call void @"core::runtime::printStackFrames()"()
+  call void @exit(i32 1)
+  unreachable
 
-; block.is_not_null:
-;   %ref_count_is_null = icmp eq i64 %ref_count, 0
-;   br i1 %ref_count_is_null, label %block.is_null, label %block.test_should_free
+block.is_not_null:
+  %ref_count_is_null = icmp eq i64 %ref_count, 0
+  br i1 %ref_count_is_null, label %block.is_null, label %block.test_should_free
 
-; block.test_should_free:
-;   %should_free = icmp eq i64 %ref_count, 1     ; check if should free; i.e. `if ref count == 1`
-;   br i1 %should_free, label %block.should_free, label %block.should_not_free
+block.test_should_free:
+  %should_free = icmp eq i64 %ref_count, 1     ; check if should free; i.e. `if ref count == 1`
+  br i1 %should_free, label %block.should_free, label %block.should_not_free
 
-; block.should_free:                     
-;   ; if ref count == 1 call the object's destructor and then free it
-;   %classinfo_ptr_offset = getelementptr inbounds %KeidAbiClassData, ptr %object, i32 0, i32 0
-;   %classinfo_ptr = load ptr, ptr %classinfo_ptr_offset, align 4 ; load the classinfo pointer from the class data
+block.should_free:                     
+  ; if ref count == 1 call the object's destructor and then free it
+  %classinfo_ptr_offset = getelementptr inbounds %KeidAbiClassData, ptr %object, i32 0, i32 0
+  %classinfo_ptr = load ptr, ptr %classinfo_ptr_offset, align 4 ; load the classinfo pointer from the class data
 
-;   %destructor_ptr_offset = getelementptr inbounds %KeidAbiClassInfo, ptr %classinfo_ptr, i32 0, i32 0
-;   %destructor_ptr = load ptr, ptr %destructor_ptr_offset, align 4 ; dereference the classinfo pointer to get the destructor pointer
+  %destructor_ptr_offset = getelementptr inbounds %KeidAbiClassInfo, ptr %classinfo_ptr, i32 0, i32 0
+  %destructor_ptr = load ptr, ptr %destructor_ptr_offset, align 4 ; dereference the classinfo pointer to get the destructor pointer
 
-;   call void %destructor_ptr(ptr %object) ; invoke the object's destructor method
+  call void %destructor_ptr(ptr %object) ; invoke the object's destructor method
 
-;   %raw_pointer = bitcast ptr %object to ptr
-;   tail call void @keid_free(ptr %raw_pointer) ; free the object's heap memory
-;   ret void
+  %raw_pointer = bitcast ptr %object to ptr
+  tail call void @keid_free(ptr %raw_pointer) ; free the object's heap memory
+  ret void
 
-; block.should_not_free:
-;   ; if ref count != 1 (i.e. is > 1):
-;   %new_count = sub i64 %ref_count, 1          ; decrease the ref count by 1
-;   store i64 %new_count, ptr %ref_count_ptr, align 4 ; store the (ref count - 1) into %ref_count_ptr
+block.should_not_free:
+  ; if ref count != 1 (i.e. is > 1):
+  %new_count = sub i64 %ref_count, 1          ; decrease the ref count by 1
+  store i64 %new_count, ptr %ref_count_ptr, align 4 ; store the (ref count - 1) into %ref_count_ptr
   ret void
 }
 

@@ -20,17 +20,23 @@ public class StringBuilder {
         }
     }
 
-    public append(val: string): StringBuilder {
+    public move(pos: isize) {
+        let newPos: isize = (this.pos as isize) + pos
+        if newPos < 0 {
+            throw error.indexOutOfBounds(newPos)
+        }
+        this.pos = newPos as usize
+    }
+
+    public append(val: string) {
         this.buffer.ensureCapacity(this.pos + val.length)
         for i in range.create(0, val.chars.length) {
             this.buffer.setElement(this.pos, val.chars[i])
             this.pos += 1
         }
-
-        return this
     }
 
-    public insert(index: usize, val: string): StringBuilder {
+    public insert(index: usize, val: string) {
         this.buffer.ensureCapacity(this.pos + val.length)
         for i in range.create(this.pos, index) {
             let currentCh = this.buffer.getElement(i)
@@ -40,7 +46,6 @@ public class StringBuilder {
             this.buffer.setElement(i + index, val.chars[i])
         }
         this.pos += val.length
-        return this
     }
 
     /// Returns a new string whose value is a copy of the current state of this `Builder`.

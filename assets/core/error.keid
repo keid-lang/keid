@@ -46,5 +46,6 @@ implement ToString for Error {
 }
 
 public function indexOutOfBounds(index: usize): Error => Error.create(string.format("index out of bounds: ", index.toString()))
+public function indexOutOfBounds(index: isize): Error => Error.create(string.format("index out of bounds: ", index.toString()))
 
 public function io(msg: string): Error => Error.create(string.format("IO error: ", msg))

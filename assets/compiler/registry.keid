@@ -3,6 +3,8 @@ namespace keidc::registry
 import (
     core::collections
     keidc::ast
+    keidc::common
+    keidc::ksdl
     keidc::types
 )
 
@@ -12,26 +14,152 @@ public class ClassData {
 }
 
 public class RegisteredType {
+    namespace: string
     name: string
     kind: ObjectKind
     id: usize
+
+    get fullName: string => string.format(this.namespace, "::", this.name)
+}
+
+public class TypeResolveContext {
+    at: TokenLocation
+    allTypes: List<RegisteredType>
+    source: string
+    namespace: string
+    imports: List<string>
+    generics: List<string>
+    errors: List<CompileError>
+
+    public resolveTypeName(name: string): string {
+        if this.generics.contains(name) {
+            return name
+        }
+
+        let candidates = List.empty<RegisteredType>()
+        for test in this.allTypes {
+            if test.name == name {
+                if this.imports.contains(test.namespace) || test.namespace == this.namespace {
+                    candidates.push(test)
+                }
+            }
+        }
+
+        if candidates.length == 0 {
+            // not found error
+        } else if candidates.length > 1 {
+            // ambiguous error
+        } else {
+            let candidate = candidates.get(0)
+            return string.format(candidate.namespace, "::", candidate.name)
+        }
+
+        this.errors.push(CompileError.create(this.source, this.at, "No such type could be found with the identifier"))
+
+        return "{error}"
+    }
+
+    public resolveTypeName(name: AstToken<string>): AstToken<string> {
+        this.at = name.loc
+        return new AstToken<string> {
+            loc = name.loc
+            node = this.resolveTypeName(name.node)
+        }
+    }
+
+    public resolve(qual: AstToken<QualifiedIdent>): AstToken<QualifiedIdent> {
+        this.at = qual.loc
+        return new AstToken<QualifiedIdent> {
+            loc = qual.loc
+            node = this.resolve(qual.node)
+        }
+    }
+
+    public resolve(qual: QualifiedIdent): QualifiedIdent {
+        let resolvedGenerics = List.withCapacity<ComplexType>(qual.generics.length)
+        for generic in qual.generics {
+            resolvedGenerics.push(this.resolve(generic))
+        }
+        return QualifiedIdent.withGenerics(this.resolveTypeName(qual.name), resolvedGenerics)
+    }
+
+    public resolve(type: AstToken<ComplexType>): AstToken<ComplexType> {
+        this.at = type.loc
+        return new AstToken<ComplexType> {
+            loc = type.loc
+            node = this.resolve(type.node)
+        }
+    }
+
+    public resolve(type: ComplexType): ComplexType {
+        let root = type.root
+        return match root {
+            Object { ident, } => type.withRoot(new ComplexType.Basic {
+                basic = new BasicType.Object {
+                    ident = this.resolve(ident)
+                }
+            })
+            _ => type
+        }
+    }
+}
+
+public interface Resolvable {
+    resolve(trc: TypeResolveContext)
 }
 
 public class TypeMetadataCompiler {
     programs: List<AstKeidProgram>
 
-    findRegisteredTypes(): List<RegisteredType> {
+    public static create(): TypeMetadataCompiler => new TypeMetadataCompiler {
+        programs = List.empty<AstKeidProgram>()
+    }
+
+    public include(program: AstKeidProgram) {
+        this.programs.push(program)
+    }
+
+    public resolveAll(): List<CompileError> {
+        let errors = List.empty<CompileError>()
+        let allTypes = this.findAllTypes()
+        for program in this.programs {
+            let imports = List.withCapacity<string>(program.imports.length)
+            for import in program.imports {
+                imports.push(import.node)
+            }
+            let trc = new TypeResolveContext {
+                at = TokenLocation.create(0, 0)
+                allTypes
+                source = program.source
+                namespace = program.namespace.node
+                imports
+                errors
+                generics = List.empty<string>()
+            }
+            for class in program.classes {
+                trc.generics.clear()
+                if class.generics != null {
+                    for generic in class.generics! {
+                        trc.generics.push(generic.name.node)
+                    }
+                }
+
+                class.resolve(trc)
+            }
+        }
+        return errors
+    }
+
+    findAllTypes(): List<RegisteredType> {
         let registeredTypes = List.empty<RegisteredType>()
-        let id: usize = 0
         for program in this.programs {
             for class in program.classes {
-                let name = string.format(program.namespace.node, "::", class.name)
                 registeredTypes.push(new RegisteredType {
-                    name
-                    kind = class.kind.
-                    id
+                    namespace = program.namespace.node
+                    name = class.name.node
+                    kind = class.kind.node
+                    id = registeredTypes.length
                 })
-                id += 1
             }
         }
         return registeredTypes

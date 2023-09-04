@@ -3,7 +3,9 @@ namespace keidc::ast
 import (
     core::collections
     core::string
+    keidc::common
     keidc::ksdl
+    keidc::registry
     keidc::types
 )
 
@@ -32,11 +34,9 @@ public class AstClassField {
 implement ToString for AstClassField {
     toString(): string {
         let sb = StringBuilder.empty()
-        sb.append("AstClassField(name=")
         sb.append(this.name.node)
-        sb.append(", type=")
+        sb.append(": ")
         sb.append(this.type.node.toString())
-        sb.append(")")
         return sb.toString()
     }
 }
@@ -64,31 +64,70 @@ public class AstFunction {
     body: List<AstToken<AstStatement>>
 }
 
+implement Resolvable for AstFunction {
+    resolve(trc: TypeResolveContext) {
+        for param in this.params {
+            param.type = trc.resolve(param.type)
+        }
+        if this.returnType != null {
+            this.returnType = trc.resolve(this.returnType!)
+        }
+    }
+}
+
 public class AstClass {
     kind: AstToken<ObjectKind>
     modifiers: List<AstToken<Modifier>>
     name: AstToken<string>
     generics: ?List<AstGenericDecl>
-    superclass: ?AstToken<QualifiedIdent>
+    superclass: ?AstToken<string>
+    superclassGenerics: ?List<AstToken<ComplexType>>
     constructor: ?List<AstToken<AstStatement>>
     destructor: ?List<AstToken<AstStatement>>
     fields: List<AstClassField>
     methods: List<AstFunction>
 }
 
+implement Resolvable for AstClass {
+    resolve(trc: TypeResolveContext) {
+        this.name.node = string.format(trc.namespace, "::", this.name.node)
+        if this.superclass != null {
+            this.superclass = trc.resolveTypeName(this.superclass!)
+        }
+        if this.superclassGenerics != null {
+            for i in range.create(this.superclassGenerics!.length) {
+                let superclassGeneric = this.superclassGenerics!.get(i)
+                this.superclassGenerics!.set(i, trc.resolve(superclassGeneric))
+            }
+        }
+        for field in this.fields {
+            field.type = trc.resolve(field.type)
+        }
+        for method in this.methods {
+            method.resolve(trc)
+        }
+    }
+}
+
 implement ToString for AstClass {
     toString(): string {
         let sb = StringBuilder.empty()
-        sb.append("AstClass(type=")
-        sb.append(this.type.node.toString())
+        sb.append("AstClass(kind=")
+        sb.append(this.kind.node.toString())
         sb.append(", name=")
         sb.append(this.name.node)
-        sb.append(", modifiers=[")
+        sb.append(", superclass=")
+        if this.superclass == null {
+            sb.append("null")
+        } else {
+            sb.append(this.superclass!.node.toString())
+        }
+        sb.append(", modifiers=")
         for modifier in this.modifiers {
             sb.append(modifier.node.toString())
-            sb.append(", ")
+            sb.append(" ")
         }
-        sb.append("], fields=[")
+        sb.append(", fields=[")
         for field in this.fields {
             sb.append(field.toString())
             sb.append(", ")
@@ -183,6 +222,7 @@ public enum AstExpr {
 }
 
 public class AstKeidProgram {
+    source: string
     namespace: AstToken<string>
     imports: List<AstToken<string>>
     classes: List<AstClass>
@@ -198,10 +238,11 @@ implement ToString for AstKeidProgram {
             sb.append(import.node)
             sb.append(", ")
         }
-        sb.append("], classes=[")
+        sb.append("], classes=[\n")
         for class in this.classes {
+            sb.append("  ")
             sb.append(class.toString())
-            sb.append(", ")
+            sb.append(",\n")
         }
         sb.append("])")
         return sb.toString()

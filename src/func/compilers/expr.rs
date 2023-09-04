@@ -29,12 +29,7 @@ pub trait ExprCompiler {
     fn compile_sizeof_expr(&mut self, ty: &ComplexType) -> Result<TypedValue>;
     fn resolve_static_field_reference(&mut self, sfr: &Qualifier) -> Result<TypedValue>;
     fn resolve_enum_variant(&mut self, declaring_type: &GenericIdentifier, member: &str) -> Result<ResolvedEnumMember>;
-    fn compile_new_enum_member(
-        &mut self,
-        declaring_type: &GenericIdentifier,
-        member: &str,
-        data: Option<Vec<NewCallField>>,
-    ) -> Result<TypedValue>;
+    fn compile_new_enum_member(&mut self, declaring_type: &GenericIdentifier, member: &str, data: Option<Vec<NewCallField>>) -> Result<TypedValue>;
     fn compile_match_expr(&mut self, mtch: &MatchExpr, type_hint: Option<&ComplexType>) -> Result<TypedValue>;
     fn load_local_var(&mut self, var: &LocalVar) -> Result<TypedValue>;
 }
@@ -47,9 +42,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
         Ok(match &expr.token {
             Expr::SignedIntLit(val) => self.compile_integer_literal_expr(*val, type_hint)?,
             Expr::StringLit(str) => self.compile_string_literal_expr(str)?,
-            Expr::CharLit(ch) => {
-                TypedValue::new(BasicType::Char.to_complex(), self.cpl.context.const_int(self.cpl.context.get_i32_type(), *ch as u64))
-            }
+            Expr::CharLit(ch) => TypedValue::new(BasicType::Char.to_complex(), self.cpl.context.const_int(self.cpl.context.get_i32_type(), *ch as u64)),
             Expr::Ident(ident) => {
                 let field_ref = self.resolve_static_field_reference(&Qualifier(vec![ident.clone()]))?;
                 let container = TypedValueContainer(field_ref);
@@ -143,7 +136,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                 for next_member in members.iter().skip(skip) {
                     self.loc(&next_member.value.loc);
 
-                    current = self.unbox_object(current)?;
+                    current = self.try_unbox_object(current)?;
 
                     match (next_member.ty, current.ty.clone()) {
                         (MemberType::Class, ComplexType::Array(element_type)) => match &next_member.value.token {
@@ -158,17 +151,10 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                                     let length = self.emit(Insn::Load(length_ptr, BasicType::USize.as_llvm_type(self.cpl)));
                                     current = TypedValue::new(BasicType::USize.to_complex(), length);
                                 } else {
-                                    return Err(compiler_error!(
-                                        self,
-                                        "No such field `{}` in type `{}`",
-                                        field_name.token.0,
-                                        current.ty.to_string()
-                                    ));
+                                    return Err(compiler_error!(self, "No such field `{}` in type `{}`", field_name.token.0, current.ty.to_string()));
                                 }
                             }
-                            Expr::FuncCall(_) => {
-                                return Err(compiler_error!(self, "Cannot invoke method on array type `{}`", current.ty.to_string()))
-                            }
+                            Expr::FuncCall(_) => return Err(compiler_error!(self, "Cannot invoke method on array type `{}`", current.ty.to_string())),
                             x => unimplemented!("{:#?}", x),
                         },
                         (MemberType::Array, ComplexType::Array(_)) => match &next_member.value.token {
@@ -196,12 +182,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                                                 current = self.compile_instance_func_call(fc, &instance)?;
                                             }
                                             Expr::Ident(field) => {
-                                                return Err(compiler_error!(
-                                                    self,
-                                                    "Could not resolve accessor `{}::{}`",
-                                                    ident.to_string(),
-                                                    field.token.0
-                                                ))
+                                                return Err(compiler_error!(self, "Could not resolve accessor `{}::{}`", ident.to_string(), field.token.0))
                                             }
                                             x => unreachable!("{:?}", x),
                                         }
@@ -217,6 +198,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                                             continue;
                                         }
                                         Expr::Ident(field_name) => {
+                                            self.loc(&field_name.loc);
                                             if field_name.token.0 == "variant" {
                                                 let length_ptr = self.emit(Insn::GetElementPtr(
                                                     current.val,
@@ -228,12 +210,9 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                                                 current = TypedValue::new(BasicType::UInt32.to_complex(), length);
                                                 continue;
                                             } else {
-                                                return Err(compiler_error!(
-                                                    self,
-                                                    "No such field `{}` in type `{}`",
-                                                    field_name.token.0,
-                                                    current.ty.to_string()
-                                                ));
+                                                let accessor = self.resolve_interface_accessor(&instance, ident, field_name)?;
+                                                current = accessor.load(self)?;
+                                                continue;
                                             }
                                         }
                                         x => unreachable!("{:?}", x),
@@ -277,8 +256,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                 current
             }
             Expr::Range(range) => {
-                let obj =
-                    self.instantiate_object(BasicType::Object(GenericIdentifier::from_name("core::collections::Range")).to_complex())?;
+                let obj = self.instantiate_object(BasicType::Object(GenericIdentifier::from_name("core::collections::Range")).to_complex())?;
                 let class_impl = self.cpl.type_provider.get_class_by_name(&GenericIdentifier::from_complex_type(&obj.ty)).unwrap();
 
                 let start = self.compile_expr(&range.start, Some(&BasicType::Int32.to_complex()))?;
@@ -294,9 +272,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
 
                 obj
             }
-            Expr::Null => {
-                TypedValue::new(ComplexType::Basic(BasicType::Null), self.cpl.context.const_null_ptr(self.cpl.context.get_void_type()))
-            }
+            Expr::Null => TypedValue::new(ComplexType::Basic(BasicType::Null), self.cpl.context.const_null_ptr(self.cpl.context.get_void_type())),
             Expr::Psuedo(typed_value) => typed_value.clone(),
             Expr::New(new) => self.compile_new_call(new)?,
             Expr::NewArray(arr) => {
@@ -310,17 +286,13 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                 let element_type = self.resolve_type(&arr.element_type.complex)?;
 
                 let const_length = self.cpl.context.const_int(BasicType::USize.as_llvm_type(self.cpl), arr.initial_values.len() as _);
-                let const_null =
-                    TypedValue::new(BasicType::Null.to_complex(), self.cpl.context.const_null(element_type.as_llvm_type(self.cpl)));
+                let const_null = TypedValue::new(BasicType::Null.to_complex(), self.cpl.context.const_null(element_type.as_llvm_type(self.cpl)));
                 let length = TypedValue::new(BasicType::USize.to_complex(), const_length);
 
                 let array_value = self.compile_new_array(&element_type, &const_null, &length)?;
                 for i in 0..arr.initial_values.len() {
                     let element_value = self.compile_expr(&arr.initial_values[i], Some(&element_type))?;
-                    let const_i = TypedValue::new(
-                        BasicType::USize.to_complex(),
-                        self.cpl.context.const_int(BasicType::USize.as_llvm_type(self.cpl), i as _),
-                    );
+                    let const_i = TypedValue::new(BasicType::USize.to_complex(), self.cpl.context.const_int(BasicType::USize.as_llvm_type(self.cpl), i as _));
                     self.store_array_element(&array_value, &element_value, &const_i, true)?;
                 }
                 array_value
@@ -433,8 +405,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
             }
         }
 
-        let mut prealloc_result =
-            TypedValue::new(BasicType::Void.to_complex(), self.cpl.context.const_null_ptr(self.cpl.context.get_void_type()));
+        let mut prealloc_result = TypedValue::new(BasicType::Void.to_complex(), self.cpl.context.const_null_ptr(self.cpl.context.get_void_type()));
         if !match_result_types.is_empty() && match_result_types[0].0 != BasicType::Void.to_complex() {
             let allocated = self.emit(Insn::Alloca(match_result_types[0].0.as_llvm_type(self.cpl)));
             prealloc_result = TypedValue::new(match_result_types[0].0.clone(), allocated);
@@ -494,8 +465,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                 } => {
                     let resolved = self.resolve_enum_variant(&GenericIdentifier::from_complex_type(&value.ty), &member.token.0)?;
 
-                    let specific_variant_type =
-                        self.cpl.context.get_abi_enum_type_specific_element(self.cpl, &resolved.enum_impl, resolved.variant_id);
+                    let specific_variant_type = self.cpl.context.get_abi_enum_type_specific_element(self.cpl, &resolved.enum_impl, resolved.variant_id);
                     let enum_ptr = self.emit(Insn::BitCast(value.val, self.cpl.context.get_pointer_type(specific_variant_type)));
                     for (i, field) in resolved.data_type.unwrap().into_iter().enumerate() {
                         let field_ptr = self.emit(Insn::GetElementPtr(enum_ptr, specific_variant_type, (i + 2) as u32)); // ID 2 to offset the classinfo and variant ID
@@ -603,12 +573,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
         }
     }
 
-    fn compile_new_enum_member(
-        &mut self,
-        declaring_type: &GenericIdentifier,
-        member: &str,
-        data: Option<Vec<NewCallField>>,
-    ) -> Result<TypedValue> {
+    fn compile_new_enum_member(&mut self, declaring_type: &GenericIdentifier, member: &str, data: Option<Vec<NewCallField>>) -> Result<TypedValue> {
         let resolved = self.resolve_enum_variant(declaring_type, member)?;
         if data.is_none() && let Some(data_ty) = resolved.data_type {
             return Err(compiler_error!(self, "Enum member `{}::{}` required associated data type `{}` but no data was provided", declaring_type.name, member, BasicType::AnonymousStruct(data_ty).to_string()));
@@ -636,23 +601,21 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
 
         if let Some(data) = data {
             if let Some(data_ref) = &resolved.enum_impl.elements[resolved.variant_id].data {
-                let specific_variant_type =
-                    self.cpl.context.get_abi_enum_type_specific_element(self.cpl, &resolved.enum_impl, resolved.variant_id);
+                let specific_variant_type = self.cpl.context.get_abi_enum_type_specific_element(self.cpl, &resolved.enum_impl, resolved.variant_id);
                 let enum_ptr = self.emit(Insn::BitCast(enum_ptr, self.cpl.context.get_pointer_type(specific_variant_type)));
 
                 for field in &data {
-                    let (field_offset, corresponding_field) =
-                        match data_ref.iter().enumerate().find(|e| e.1.name == field.field_name.token.0) {
-                            Some(field) => field,
-                            None => {
-                                return Err(compiler_error!(
-                                    self,
-                                    "Enum variant `{}` associated data has no field `{}`",
-                                    resolved.enum_impl.elements[resolved.variant_id].name,
-                                    field.field_name.token.0
-                                ))
-                            }
-                        };
+                    let (field_offset, corresponding_field) = match data_ref.iter().enumerate().find(|e| e.1.name == field.field_name.token.0) {
+                        Some(field) => field,
+                        None => {
+                            return Err(compiler_error!(
+                                self,
+                                "Enum variant `{}` associated data has no field `{}`",
+                                resolved.enum_impl.elements[resolved.variant_id].name,
+                                field.field_name.token.0
+                            ))
+                        }
+                    };
                     let field_ptr = self.emit(Insn::GetElementPtr(
                         enum_ptr,
                         specific_variant_type,
@@ -668,18 +631,10 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                     self.store(Operator::Equals, arg_value, &TypedValue::new(corresponding_field.ty.clone(), field_ptr))?;
                 }
             } else {
-                return Err(compiler_error!(
-                    self,
-                    "Enum variant `{}` takes no data",
-                    resolved.enum_impl.elements[resolved.variant_id].name
-                ));
+                return Err(compiler_error!(self, "Enum variant `{}` takes no data", resolved.enum_impl.elements[resolved.variant_id].name));
             }
         } else if resolved.enum_impl.elements[resolved.variant_id].data.is_some() {
-            return Err(compiler_error!(
-                self,
-                "Enum variant `{}` takes associated data",
-                resolved.enum_impl.elements[resolved.variant_id].name,
-            ));
+            return Err(compiler_error!(self, "Enum variant `{}` takes associated data", resolved.enum_impl.elements[resolved.variant_id].name,));
         }
 
         Ok(TypedValue::new(BasicType::Object(declaring_type.clone()).to_complex(), enum_ptr))
@@ -701,20 +656,15 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                         for resolved_interface_impl in resolved_interface_impls {
                             let source_interface = self.cpl.type_provider.get_source_interface_impl(&resolved_interface_impl);
                             if source_interface.interface_name == "core::object::Default" {
-                                let interface_id =
-                                    self.cpl.type_provider.get_resolved_interface_id(&GenericIdentifier::from_name_with_args(
-                                        &source_interface.interface_name,
-                                        &resolved_interface_impl.interface_generic_impls,
-                                    ));
-                                let create_default_ptr =
-                                    self.get_interface_method_ptr(&InterfaceInvocation::Static(ty.clone()), interface_id, 0)?;
+                                let interface_id = self.cpl.type_provider.get_resolved_interface_id(&GenericIdentifier::from_name_with_args(
+                                    &source_interface.interface_name,
+                                    &resolved_interface_impl.interface_generic_impls,
+                                ));
+                                let create_default_ptr = self.get_interface_method_ptr(&InterfaceInvocation::Static(ty.clone()), interface_id, 0)?;
                                 let callable = self
                                     .cpl
                                     .type_provider
-                                    .get_function_by_name(
-                                        &GenericIdentifier::from_name_with_args("core::object::Default::default", &[]),
-                                        &[],
-                                    )
+                                    .get_function_by_name(&GenericIdentifier::from_name_with_args("core::object::Default::default", &[]), &[])
                                     .unwrap();
                                 let result = self.call_function(create_default_ptr, &callable, &[])?;
                                 return Ok(TypedValue::new(ty.clone(), result));
@@ -751,14 +701,57 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
             ComplexType::Array(element_type) => {
                 let slice_type = self.cpl.context.get_abi_slice_type(element_type.as_llvm_type(self.cpl), &element_type.to_string());
                 let array_ptr_ptr = self.emit(Insn::GetElementPtr(val.val, slice_type, 2)); // element 2 is the pointer to the heap data
-                let array_data_type =
-                    self.cpl.context.get_abi_array_data_type(element_type.as_llvm_type(self.cpl), &element_type.to_string());
+                let array_data_type = self.cpl.context.get_abi_array_data_type(element_type.as_llvm_type(self.cpl), &element_type.to_string());
                 let array_ptr = self.emit(Insn::Load(array_ptr_ptr, self.cpl.context.get_pointer_type(array_data_type)));
                 let data_ptr_ptr = self.emit(Insn::GetElementPtr(array_ptr, array_data_type, 1)); // functionally this is like a `T*`, a pointer to an array
                 let data_ptr = self.emit(Insn::Load(data_ptr_ptr, BasicType::USize.as_llvm_type(self.cpl)));
 
-                let ty =
-                    BasicType::Object(GenericIdentifier::from_name_with_args("core::mem::Pointer", &[*element_type.clone()])).to_complex();
+                let ty = BasicType::Object(GenericIdentifier::from_name_with_args("core::mem::Pointer", &[*element_type.clone()])).to_complex();
+                let pointer_struct = self.instantiate_object(ty)?;
+                let address_ptr = self.emit(Insn::GetElementPtr(pointer_struct.val, pointer_struct.ty.as_llvm_type(self.cpl), 1));
+                self.emit(Insn::Store(data_ptr, address_ptr));
+
+                pointer_struct
+            }
+            ComplexType::Basic(BasicType::Object(ident)) => {
+                let struct_type = match self.cpl.type_provider.get_class_by_name(ident) {
+                    Some(class_impl) => match class_impl.class_type {
+                        ClassType::Class | ClassType::Interface => self.cpl.context.get_abi_class_data_type(self.cpl, &class_impl),
+                        ClassType::Struct => self.cpl.context.get_abi_class_data_type(self.cpl, &class_impl),
+                        ClassType::Enum => unreachable!(),
+                    },
+                    None => match self.cpl.type_provider.get_enum_by_name(ident) {
+                        Some(enum_impl) => self.cpl.context.get_abi_enum_type_any_element(self.cpl, &enum_impl),
+                        None => unreachable!(),
+                    },
+                };
+
+                // take a pointer to the first element of the struct
+                let data_ptr = self.emit(Insn::GetElementPtr(val.val, struct_type, 0));
+
+                let ty = BasicType::Object(GenericIdentifier::from_name_with_args("core::mem::Pointer", &[val.ty.clone()])).to_complex();
+                let pointer_struct = self.instantiate_object(ty)?;
+                let address_ptr = self.emit(Insn::GetElementPtr(pointer_struct.val, pointer_struct.ty.as_llvm_type(self.cpl), 1));
+                self.emit(Insn::Store(data_ptr, address_ptr));
+
+                pointer_struct
+            }
+            ComplexType::Nullable(_) => {
+                // take a pointer to the first element of the nullable struct
+                let data_ptr = self.emit(Insn::GetElementPtr(val.val, val.ty.as_llvm_type(&self.cpl), 0));
+
+                let ty = BasicType::Object(GenericIdentifier::from_name_with_args("core::mem::Pointer", &[val.ty.clone()])).to_complex();
+                let pointer_struct = self.instantiate_object(ty)?;
+                let address_ptr = self.emit(Insn::GetElementPtr(pointer_struct.val, pointer_struct.ty.as_llvm_type(self.cpl), 1));
+                self.emit(Insn::Store(data_ptr, address_ptr));
+
+                pointer_struct
+            }
+            ComplexType::Basic(basic) => {
+                let data_ptr = self.emit(Insn::Alloca(basic.as_llvm_type(&self.cpl)));
+                self.copy(val, &TypedValue::new(basic.clone().to_complex(), data_ptr))?;
+
+                let ty = BasicType::Object(GenericIdentifier::from_name_with_args("core::mem::Pointer", &[basic.clone().to_complex()])).to_complex();
                 let pointer_struct = self.instantiate_object(ty)?;
                 let address_ptr = self.emit(Insn::GetElementPtr(pointer_struct.val, pointer_struct.ty.as_llvm_type(self.cpl), 1));
                 self.emit(Insn::Store(data_ptr, address_ptr));
@@ -783,10 +776,8 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                     let addr_ptr = self.emit(Insn::IntToPtr(addr_int, ty.clone().to_reference().as_llvm_type(self.cpl)));
                     let val = if ty.is_struct(&self.cpl.type_provider) {
                         let dest = self.emit(Insn::Alloca(ty.as_llvm_type(&self.cpl)));
-                        let const_size = self.cpl.context.const_int(
-                            self.cpl.context.get_isize_type(),
-                            self.cpl.context.target.get_type_size(ty.as_llvm_type(&self.cpl)),
-                        );
+                        let const_size =
+                            self.cpl.context.const_int(self.cpl.context.get_isize_type(), self.cpl.context.target.get_type_size(ty.as_llvm_type(&self.cpl)));
                         self.emit(Insn::Memmove(addr_ptr, dest, const_size)); // copy the bytes from the pointer to the local stack
                         dest
                     } else {
@@ -836,8 +827,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                 .get_function_by_name(
                     &GenericIdentifier::from_name_with_args("core::array::copyFromPtr", &[BasicType::UInt8.to_complex()]),
                     &[
-                        BasicType::Object(GenericIdentifier::from_name_with_args("core::mem::Pointer", &[BasicType::UInt8.to_complex()]))
-                            .to_complex(),
+                        BasicType::Object(GenericIdentifier::from_name_with_args("core::mem::Pointer", &[BasicType::UInt8.to_complex()])).to_complex(),
                         BasicType::USize.to_complex(),
                     ],
                 )
@@ -870,8 +860,7 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
         );
         let new_string_ref = self.get_function_ref(&new_string_impl)?;
         let string_instance = self.call_function(new_string_ref, &new_string_impl, &[str_val, str_len])?;
-        let string_instance =
-            TypedValue::new(BasicType::Object(GenericIdentifier::from_name("core::string::String")).to_complex(), string_instance);
+        let string_instance = TypedValue::new(BasicType::Object(GenericIdentifier::from_name("core::string::String")).to_complex(), string_instance);
 
         Ok(string_instance)
     }

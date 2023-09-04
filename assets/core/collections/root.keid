@@ -15,27 +15,3 @@ public interface PositionalStorage<T> {
 
     get capacity: usize
 }
-
-public class ArrayIterator<T> {
-    arr: [T]
-    idx: usize
-
-    static create<T>(arr: [T]): ArrayIterator<T> {
-        return new ArrayIterator<T> {
-            arr
-            idx = 0
-        }
-    }
-}
-
-implement <T> Iterator<T> for ArrayIterator<T> {
-    get next: ?T {
-        if this.idx >= this.arr.length {
-            return null
-        }
-
-        let element = this.arr[this.idx]
-        this.idx += 1
-        return element
-    }
-}

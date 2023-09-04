@@ -162,7 +162,7 @@ impl Compiler {
         for i in 0..func.params.len() {
             if is_interface && i == 0 {
                 // interface functions always take a direct pointer to the object instance
-                // TODO: should instance struct functions (interface or otherwise) by pass-by-reference for their own instance? Probably!
+                // TODO: should instance struct functions (interface or otherwise) be pass-by-reference for their own instance?
                 continue;
             }
             if func.params[i].is_struct(&self.type_provider)

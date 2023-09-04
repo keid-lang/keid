@@ -11,7 +11,7 @@ import (
 )
 
 public class FooClass<A, B, C, D> {
-    field1: uint32
+    public field1: uint32
 
     constructor {
         let foo = 5
@@ -26,6 +26,7 @@ public class FooClass<A, B, C, D> {
     }
 
     field2: string
+    field3: B
 
     doSomething(): string {
         io.println("Doing something!")
@@ -37,7 +38,7 @@ public struct FooStruct<T> {
     someValue: T
 }
 
-public struct ChildFooStruct extends FooStruct<std::string::String> {
+public struct ChildFooStruct extends FooStruct<FooEnum> {
     otherValue: int64
 }
 

@@ -6,6 +6,7 @@ import (
     core::string
     core::object
     keidc::ast
+    keidc::common
     keidc::ksdl
     keidc::types
     std::fs
@@ -177,7 +178,17 @@ class KeidParser {
         return decls
     }
 
-    parseGenericArgs(match: RuleMatch): List<ComplexType> {
+    parseGenericArgs(match: RuleMatch): List<AstToken<ComplexType>> {
+        let args = List.empty<AstToken<ComplexType>>()
+        if match.hasGroup("generics") {
+            for arg in match.getGroupValue("generics").getGroup("args") {
+                args.push(this.parseValueType(arg))
+            }
+        }
+        return args
+    }
+
+    parseGenericArgsNodes(match: RuleMatch): List<ComplexType> {
         let args = List.empty<ComplexType>()
         if match.hasGroup("generics") {
             for arg in match.getGroupValue("generics").getGroup("args") {
@@ -309,7 +320,7 @@ class KeidParser {
             }
             "BasicType" => {
                 let path = this.parseString(match.getGroupValue("path"))
-                let generics = this.parseGenericArgs(match)
+                let generics = this.parseGenericArgsNodes(match)
                 let basic = match path.node {
                     "void"    => BasicType.Void
                     "bool"    => BasicType.Bool
@@ -432,17 +443,13 @@ class KeidParser {
             generics = this.parseGenericDecls(match.getGroupValue("generics"))
         }
 
-        let superclass: ?AstToken<QualifiedIdent> = null
+        let superclass: ?AstToken<string> = null
+        let superclassGenerics: ?List<AstToken<ComplexType>> = null
         if match.hasGroup("extends") {
             let extendsDecl = match.getGroupValue("extends")
             let superclassDecl = extendsDecl.getGroupValue("superclass")
-            let superclassName = superclassDecl.token.getText(this.source)
-            let superclassGenerics = this.parseGenericArgs(extendsDecl)
-
-            superclass = new AstToken<QualifiedIdent> {
-                node = QualifiedIdent.withGenerics(superclassName, superclassGenerics)
-                loc = superclassDecl.token
-            }
+            superclass = this.parseString(superclassDecl)
+            superclassGenerics = this.parseGenericArgs(extendsDecl)
         }
 
         let constructor: ?List<AstToken<AstStatement>> = null
@@ -474,6 +481,7 @@ class KeidParser {
             name
             generics
             superclass
+            superclassGenerics
             constructor
             destructor
             fields
@@ -499,6 +507,7 @@ class KeidParser {
         }
 
         return new AstKeidProgram {
+            source = this.source
             namespace
             imports
             classes

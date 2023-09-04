@@ -116,6 +116,21 @@ fn read_object_instance(rtdbg: &RuntimeDebugState, data: *mut KeidAbiClassData) 
 }
 
 #[no_mangle]
+pub extern "C" fn rtdbg_memdump(obj: *mut u8, count: usize) {
+    let mut hex_bytes = String::new();
+    unsafe {
+        for i in 1..count + 1 {
+            let hex = format!("{:02X}", *obj.offset(i as isize - 1));
+            hex_bytes.insert_str(0, &hex);
+            if i % 8 == 0 {
+                hex_bytes.insert(0, ' ');
+            }
+        }
+    }
+    println!("[rtdbg_memdump] {} bytes / {}", count, hex_bytes.trim_start());
+}
+
+#[no_mangle]
 pub extern "C" fn rtdbg_register_object(rtdbg: *mut RuntimeDebugState, data: *mut KeidAbiClassData) {
     if rtdbg.is_null() {
         println!("  [librtdbg] Fatal error: rtdbg instance cannot be null");
@@ -145,11 +160,7 @@ pub extern "C" fn rtdbg_register_object(rtdbg: *mut RuntimeDebugState, data: *mu
 }
 
 #[no_mangle]
-pub extern "C" fn rtdbg_change_scope(
-    rtdbg: *mut RuntimeDebugState,
-    data: *mut KeidAbiClassData,
-    scope_type: ScopeType,
-) {
+pub extern "C" fn rtdbg_change_scope(rtdbg: *mut RuntimeDebugState, data: *mut KeidAbiClassData, scope_type: ScopeType) {
     if rtdbg.is_null() {
         println!("  [librtdbg] Fatal error: rtdbg instance cannot be null");
         rtdbg_fail();
@@ -157,25 +168,22 @@ pub extern "C" fn rtdbg_change_scope(
     let mut rtdbg = unsafe { Box::from_raw(rtdbg) };
     let (is_struct, class_name) = read_object_instance(&rtdbg, data);
     if is_struct {
-        println!(
-            "  [librtdbg] Ignoring scope change of stack-allocated struct (at {:p}) with type {}",
-            data, class_name
-        );
+        println!("  [librtdbg] Ignoring scope change of stack-allocated struct (at {:p}) with type {}", data, class_name);
         return;
     }
     let debug_obj = match rtdbg.objects.get(&(data as *mut _)) {
         Some(debug_obj) => debug_obj,
         None => {
-            println!(
-                "  [librtdbg] Fatal runtime error: attempted changing scope of unregistered object of type {} at {:p}",
-                class_name, data as *mut _
-            );
+            println!("  [librtdbg] Fatal runtime error: attempted changing scope of unregistered object of type {} at {:p}", class_name, data as *mut _);
             rtdbg_fail();
         }
     };
     let real_ref_count = unsafe { (*data).ref_count };
     if real_ref_count != debug_obj.ref_count {
-        println!("  [librtdbg] Fatal runtime error: librtdbg tracked reference count = {}, but the real memory value = {} for object #{} (type {})", debug_obj.ref_count, real_ref_count, debug_obj.object_id, class_name);
+        println!(
+            "  [librtdbg] Fatal runtime error: librtdbg tracked reference count = {}, but the real memory value = {} for object #{} (type {})",
+            debug_obj.ref_count, real_ref_count, debug_obj.object_id, class_name
+        );
         rtdbg_fail();
     }
     let new_ref_count = match scope_type {
@@ -195,10 +203,7 @@ pub extern "C" fn rtdbg_change_scope(
     // );
 
     if new_ref_count == 0 {
-        println!(
-            "  [librtdbg] Deregistering object #{} (type {}) as its ref count is now 0",
-            debug_obj.object_id, class_name
-        );
+        println!("  [librtdbg] Deregistering object #{} (type {}) as its ref count is now 0", debug_obj.object_id, class_name);
         rtdbg.dead_objects.insert(
             data as *mut _,
             DeadObject {

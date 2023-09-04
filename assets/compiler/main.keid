@@ -5,12 +5,24 @@ import (
     core::string
     std::fs
     std::os
-    keidc::ksdl
     keidc::ast
+    keidc::common
+    keidc::registry
+    keidc::parser
+    keidc::ksdl
+    keidc::types
 )
 
-struct Foo {
-    bar: int32
+enum Foonum {
+    Hello
+    World
+}
+
+implement ToString for Foonum {
+    toString(): string => match this {
+        Hello => "Hello"
+        World => "World"
+    }
 }
 
 public extern function main(): int32 {
@@ -18,12 +30,23 @@ public extern function main(): int32 {
     let programText = String.fromUtf8(programFile.readAllBytes())
     programFile.close()
 
-    // let f = new Foo { bar = 5, }
-    // TODO: this should not be allowed
-    // f.bar = 6
-
     let ast = keidc::parser.parseKeidSource(programText)
-    std::io.println("AST: ", ast.toString())
+    std::io.println("AST: ", ast.toString(), "\n")
+
+    let tmc = TypeMetadataCompiler.create()
+    tmc.include(ast)
+    let resolveErrors = tmc.resolveAll()
+    
+    std::io.println("Resolved AST: ", tmc.programs.get(0).toString())
+    
+    if resolveErrors.length > 0 {
+        for resolveError in resolveErrors {
+            std::io.println(resolveError.toString())
+        }
+
+        os.exit(1)
+    }
+
 
     os.exit(0)
 
@@ -67,22 +90,6 @@ public extern function main(): int32 {
 
     // // core::object::Class tests
     // core::object::test.testClassFromInstance()
-
-    // let bt4 = new ComplexType.Nullable {
-    //     element = new ComplexType.Array {
-    //         element = new ComplexType.Basic {
-    //             type = new BasicType.Object {
-    //                 ident = new QualifiedIdent {
-    //                     name = "keidc::Test"
-    //                     generics = List.empty<ComplexType>()
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-    // test.assertEqual(bt4.toString(), "?[keidc::Test]")
-
-    // std::io.println("Successfully ran all tests.")
 
     return 0
 }

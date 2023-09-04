@@ -59,15 +59,21 @@ public class Rule {
                 _ => {}
             }
         }
+        let token = new TokenLocation {
+            start
+            length = reader.cursor - start
+        }
 
-        let length = reader.cursor - start
+        // strip trailing spaces from the token
+        let text = token.getText(reader.sourceText)
+        while text.chars[token.length - 1] == ' ' {
+            token.length -= 1
+        }
+
         return new RuleResult.Success {
             match = new RuleMatch {
                 rule = this.name
-                token = new TokenLocation {
-                    start
-                    length
-                }
+                token
                 groups = state.groups
             }
         }

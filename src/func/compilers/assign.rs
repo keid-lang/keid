@@ -35,8 +35,17 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
 
             let addr_ptr = self.emit(Insn::GetElementPtr(pointer.val, pointer.ty.as_llvm_type(self.cpl), 1)); // pointer to the `address` field in the Pointer<T> struct
             let addr_int = self.emit(Insn::Load(addr_ptr, BasicType::USize.as_llvm_type(self.cpl))); // this Load loads the address stored in the Pointer<T> struct
-            let addr_ptr = self.emit(Insn::IntToPtr(addr_int, element.to_reference().as_llvm_type(self.cpl)));
-            self.emit(Insn::Store(rhs.val, addr_ptr));
+            let addr_ptr = self.emit(Insn::IntToPtr(addr_int, element.clone().to_reference().as_llvm_type(self.cpl)));
+            
+            if element.is_struct(&self.cpl.type_provider) {
+                let const_size = self.cpl.context.const_int(
+                    self.cpl.context.get_isize_type(),
+                    self.cpl.context.target.get_type_size(element.as_llvm_type(&self.cpl)),
+                );
+                self.emit(Insn::Memmove(rhs.val, addr_ptr, const_size)); // copy the bytes from the local stack to the pointer
+            } else {
+                self.emit(Insn::Store(rhs.val, addr_ptr));
+            }
 
             return Ok(());
         }
@@ -124,7 +133,7 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                     _ => {
                         return Err(compiler_error!(
                             self,
-                            "[ER7] The `.` operator is forbidden on type `{}`",
+                            "[ER8] The `.` operator is forbidden on type `{}`",
                             previous_result.ty.to_string()
                         ))
                     }
