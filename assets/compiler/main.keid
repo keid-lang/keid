@@ -26,7 +26,7 @@ implement ToString for Foonum {
 }
 
 public extern function main(): int32 {
-    let programFile = File.open("../keid/assets/test/syntaxtest.keid", FileOpenMode.ReadOnly)
+    let programFile = File.open("../keid/assets/compiler/common.keid", FileOpenMode.ReadOnly)
     let programText = String.fromUtf8(programFile.readAllBytes())
     programFile.close()
 

@@ -24,10 +24,6 @@ source_filename = "intrinsics.ll"
 ;  ptr (pointer to global virtual method array containing interface implementations)
 %KeidAbiInterfaceImpl = type { i32, ptr, ptr }
 
-%"core::mem::Pointer<uint8>" = type { ptr, i64 }
-%"[uint8]#Slice" = type { i64, i64, ptr }
-%"[core::string::String]#Heap" = type { i64, ptr }
-
 @null_value_error = private unnamed_addr constant [62 x i8] c"NullValueError: attempted non-null assertion on a null value\0A\00", align 1
 @missing_class_info_error = private unnamed_addr constant [91 x i8] c"MissingClassInfoError: attempted retrieval of null class info pointer in object or struct\0A\00", align 1
 @find_interface_method_null_error = private unnamed_addr constant [85 x i8] c"NullValueError: attempted retrieval of interface method pointer from a null pointer\0A\00", align 1
@@ -42,19 +38,6 @@ source_filename = "intrinsics.ll"
 
 @"core::runtime::hasInit" = external global i1
 @keid.classinfo = external global [0 x %KeidAbiClassInfo]
-
-; Creates a new `core::string::String` object given a pointer to the string's UTF-8 bytes and total byte length.
-define ptr @keid_new_string(ptr %bytes, i64 %length) {
-block.main:
-  %ptr_bits = ptrtoint ptr %bytes to i64
-  %"core::mem::Pointer<uint8> ptr" = alloca %"core::mem::Pointer<uint8>", align 8
-  call void @"core::mem::Pointer::to<uint8>(usize)"(i64 %ptr_bits, ptr %"core::mem::Pointer<uint8> ptr")
-  %"[uint8] slice" = alloca %"[uint8]#Slice", align 8
-  call void @"core::array::copyFromPtr<uint8>(core::mem::Pointer<uint8>, usize)"(ptr byval(%"core::mem::Pointer<uint8>") %"core::mem::Pointer<uint8> ptr", i64 %length, ptr %"[uint8] slice")
-  %"core::string::String str" = call ptr @"core::string::String::fromUtf8([uint8])"(ptr byval(%"[uint8]#Slice") %"[uint8] slice")
-
-  ret ptr %"core::string::String str"
-}
 
 ; Utility function for throwing out-of-bounds errors.
 define void @keid.throw_out_of_bounds(i64 %index, i64 %length) {
@@ -435,8 +418,5 @@ declare void @rtdbg_dump_basic_type(ptr)
 ; keid core library functions
 declare void @"keid.init()"()
 declare void @"keid.main()"()
-declare void @"core::array::copyFromPtr<uint8>(core::mem::Pointer<uint8>, usize)"(ptr, i64, ptr)
-declare void @"core::mem::Pointer::to<uint8>(usize)"(i64, ptr)
-declare ptr @"core::string::String::fromUtf8([uint8])"(ptr)
 declare void @"core::runtime::printStackFrames()"()
 declare void @"core::error::Error::print(core::error::Error)"(ptr)

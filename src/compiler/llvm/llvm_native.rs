@@ -16,12 +16,17 @@ use llvm_sys::analysis::*;
 use llvm_sys::core::*;
 use llvm_sys::debuginfo::*;
 use llvm_sys::execution_engine::*;
+use llvm_sys::initialization::*;
 use llvm_sys::ir_reader::*;
 use llvm_sys::linker::LLVMLinkModules2;
 use llvm_sys::prelude::*;
 use llvm_sys::target::*;
 use llvm_sys::target_machine::*;
+use llvm_sys::transforms::aggressive_instcombine::*;
+use llvm_sys::transforms::ipo::*;
 use llvm_sys::transforms::pass_manager_builder::*;
+use llvm_sys::transforms::scalar::*;
+use llvm_sys::transforms::util::*;
 
 use super::get_eval_only;
 use super::Insn;
@@ -212,7 +217,7 @@ impl Context {
         }
     }
 
-    pub fn create_const_array(&self, element_type: OpaqueType, values: &[OpaqueValue]) -> OpaqueValue {
+    pub fn const_array(&self, element_type: OpaqueType, values: &[OpaqueValue]) -> OpaqueValue {
         unsafe {
             let mut inner_values: Vec<LLVMValueRef> = values.iter().map(|par| par.0).collect();
             let inner_values = inner_values.as_mut_ptr();
@@ -220,7 +225,7 @@ impl Context {
         }
     }
 
-    pub fn create_const_struct(&self, struct_type: OpaqueType, elements: &mut [OpaqueValue]) -> OpaqueValue {
+    pub fn const_struct(&self, struct_type: OpaqueType, elements: &mut [OpaqueValue]) -> OpaqueValue {
         unsafe {
             let elements_len = elements.len() as u32;
             let elements_ptr = elements.as_mut_ptr();
@@ -439,8 +444,8 @@ impl Context {
                 }
                 let struct_type = self.get_struct_type(&abi_name, &[]);
 
-                let ref_count_type = self.get_isize_type();
                 let info_type = self.get_pointer_type(self.get_abi_class_info_type());
+                let ref_count_type = self.get_isize_type();
                 let mut field_types = Vec::with_capacity(class_impl.fields.len());
                 field_types.push(info_type);
                 field_types.push(ref_count_type);
@@ -509,8 +514,8 @@ impl Context {
         unsafe { OpaqueType(LLVMPointerType(pointee_type.0, 0)) }
     }
 
-    pub fn get_byval_pointer_type(&self, pointee_type: OpaqueType) -> OpaqueType {
-        unsafe { OpaqueType(LLVMPointerType(pointee_type.0, 0)) }
+    pub fn get_type_of_value(&self, val: OpaqueValue) -> OpaqueType {
+        unsafe { OpaqueType(LLVMTypeOf(val.0)) }
     }
 
     pub fn get_abi_array_data_type(&self, element_type: OpaqueType, element_type_name: &str) -> OpaqueType {
@@ -835,9 +840,6 @@ impl Module {
 
     pub fn to_object_code(&self, target: &LLVMTargetData) -> Result<LLVMArray> {
         unsafe {
-            let pm = PassManager::new(3);
-            pm.run(self.mdl);
-
             let mut error_message: *mut _ = std::ptr::null_mut();
             let mut buf: LLVMMemoryBufferRef = std::ptr::null_mut();
             if LLVMTargetMachineEmitToMemoryBuffer(
@@ -859,6 +861,18 @@ impl Module {
                 data_ptr: buf_start as *mut _,
                 size: buf_len,
             })
+        }
+    }
+
+    pub fn get_all_functions(&self) -> Vec<LLVMValueRef> {
+        unsafe {
+            let mut all = Vec::new();
+            let mut current = LLVMGetFirstFunction(self.mdl);
+            while current != std::ptr::null_mut() {
+                all.push(current);
+                current = LLVMGetNextFunction(current);
+            }
+            all
         }
     }
 }
@@ -1273,33 +1287,134 @@ impl Drop for LLVMTargetData {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PassManagerKind {
+    Module,
+    Function,
+}
+
 pub struct PassManager {
+    kind: PassManagerKind,
     pm: LLVMPassManagerRef,
 }
 
-impl PassManager {
-    pub fn new(opt_level: u32) -> PassManager {
-        unsafe {
-            let pm = LLVMCreatePassManager();
+pub fn initialize_pass_registry() {
+    unsafe {
+        let registry = LLVMGetGlobalPassRegistry();
+        LLVMInitializeCore(registry);
+        LLVMInitializeTransformUtils(registry);
+        LLVMInitializeScalarOpts(registry);
+        LLVMInitializeInstCombine(registry);
+        LLVMInitializeIPO(registry);
+        LLVMInitializeInstrumentation(registry);
+        LLVMInitializeAnalysis(registry);
+        LLVMInitializeAggressiveInstCombiner(registry);
+        LLVMInitializeIPA(registry);
+        LLVMInitializeCodeGen(registry);
+        LLVMInitializeTarget(registry);
+    }
+}
 
+impl PassManager {
+    fn add_passes(pm: LLVMPassManagerRef) {
+        unsafe {
+            LLVMAddMergeFunctionsPass(pm);
+            LLVMAddFunctionAttrsPass(pm);
+            LLVMAddFunctionInliningPass(pm);
+            LLVMAddAlwaysInlinerPass(pm);
+            LLVMAddSCCPPass(pm);
+            LLVMAddGlobalOptimizerPass(pm);
+            LLVMAddPruneEHPass(pm);
+            LLVMAddIPSCCPPass(pm);
+            LLVMAddStripDeadPrototypesPass(pm);
+            LLVMAddAggressiveDCEPass(pm);
+            LLVMAddCFGSimplificationPass(pm);
+            LLVMAddDeadArgEliminationPass(pm);
+            LLVMAddNewGVNPass(pm);
+            LLVMAddIndVarSimplifyPass(pm);
+            LLVMAddInstructionCombiningPass(pm);
+            LLVMAddJumpThreadingPass(pm);
+            LLVMAddLICMPass(pm);
+            LLVMAddLoopDeletionPass(pm);
+            LLVMAddLoopRotatePass(pm);
+            LLVMAddMemCpyOptPass(pm);
+            LLVMAddPromoteMemoryToRegisterPass(pm);
+            LLVMAddInstructionSimplifyPass(pm);
+            LLVMAddAggressiveInstCombinerPass(pm);
+            LLVMAddDeadArgEliminationPass(pm);
+            LLVMAddGlobalDCEPass(pm);
+        }
+    }
+
+    fn populate(kind: PassManagerKind, pm: LLVMPassManagerRef, opt_level: u32) {
+        unsafe {
             let pmb = LLVMPassManagerBuilderCreate();
             LLVMPassManagerBuilderSetOptLevel(pmb, opt_level);
             LLVMPassManagerBuilderSetSizeLevel(pmb, 0);
             LLVMPassManagerBuilderSetDisableUnitAtATime(pmb, i32::from(false));
             LLVMPassManagerBuilderSetDisableUnrollLoops(pmb, i32::from(false));
-
-            LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm);
+            match kind {
+                PassManagerKind::Module => LLVMPassManagerBuilderPopulateModulePassManager(pmb, pm),
+                PassManagerKind::Function => LLVMPassManagerBuilderPopulateFunctionPassManager(pmb, pm),
+            }
             LLVMPassManagerBuilderDispose(pmb);
+        }
+    }
+
+    pub fn for_module(opt_level: u32) -> PassManager {
+        unsafe {
+            let pm = LLVMCreatePassManager();
+            Self::populate(PassManagerKind::Module, pm, opt_level);
+            Self::add_passes(pm);
 
             PassManager {
+                kind: PassManagerKind::Module,
                 pm,
             }
         }
     }
 
-    pub fn run(&self, module: LLVMModuleRef) {
+    pub fn for_function(opt_level: u32, module: LLVMModuleRef) -> PassManager {
         unsafe {
-            LLVMRunPassManager(self.pm, module);
+            let pm = LLVMCreateFunctionPassManagerForModule(module);
+            Self::populate(PassManagerKind::Function, pm, opt_level);
+            Self::add_passes(pm);
+
+            PassManager {
+                kind: PassManagerKind::Function,
+                pm,
+            }
+        }
+    }
+
+    pub fn initialize_function(&self) -> bool {
+        unsafe {
+            (match self.kind {
+                PassManagerKind::Function => LLVMInitializeFunctionPassManager(self.pm),
+                other => panic!("not a function pass manager: {:#?}", other),
+            }) != 0
+        }
+    }
+
+    pub fn run_module(&self, module: LLVMModuleRef) -> bool {
+        unsafe {
+            (match self.kind {
+                PassManagerKind::Module => LLVMRunPassManager(self.pm, module),
+                other => panic!("not a module pass manager: {:#?}", other),
+            }) == 1
+        }
+    }
+
+    pub fn run_function(&self, function: LLVMValueRef) -> bool {
+        unsafe {
+            if match self.kind {
+                PassManagerKind::Function => LLVMRunFunctionPassManager(self.pm, function),
+                other => panic!("not a function pass manager: {:#?}", other),
+            } != 0
+            {
+                return true;
+            }
+            LLVMFinalizeFunctionPassManager(self.pm) != 0
         }
     }
 }

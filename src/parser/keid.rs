@@ -1147,6 +1147,10 @@ pub fn parse_qualified_type(code: &str) -> Result<QualifiedType> {
     }
 }
 
+pub fn parse_tokens(code: &str) -> Result<Pairs<Rule>> {
+    Ok(SyntaxParser::parse(Rule::program, &code)?)
+}
+
 pub fn parse(file_name: &str, code: &str) -> Result<KeidFile> {
     let code = preprocessor::preprocess(
         code,

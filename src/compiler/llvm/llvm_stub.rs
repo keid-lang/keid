@@ -3,7 +3,7 @@ use crate::common::types::BasicType;
 use crate::common::TypedValue;
 use crate::compiler::{Compiler, Linkage};
 use crate::tree::ast::Varargs;
-use crate::tree::ResolvedClassNode;
+use crate::tree::*;
 use anyhow::Result;
 use std::collections::HashMap;
 
@@ -38,7 +38,7 @@ impl Target {
 pub struct OpaqueType;
 #[derive(Clone, Copy, Debug)]
 pub struct OpaqueFunctionType;
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OpaqueValue;
 #[derive(Clone, Copy, Debug)]
 pub struct OpaqueFunctionValue;
@@ -70,9 +70,9 @@ pub struct Context {
 pub fn initialize() {}
 
 impl Context {
-    pub fn new(_: LLVMTargetData) -> Context {
+    pub fn new(target: LLVMTargetData) -> Context {
         Context {
-            target: LLVMTargetData,
+            target,
             global_variables: Vec::new(),
         }
     }
@@ -83,11 +83,11 @@ impl Context {
         }
     }
 
-    pub fn create_const_array(&self, _: OpaqueType, _: &[OpaqueValue]) -> OpaqueValue {
+    pub fn const_array(&self, _: OpaqueType, _: &[OpaqueValue]) -> OpaqueValue {
         OpaqueValue {}
     }
 
-    pub fn create_const_struct(&self, _: OpaqueType, _: &mut [OpaqueValue]) -> OpaqueValue {
+    pub fn const_struct(&self, _: OpaqueType, _: &mut [OpaqueValue]) -> OpaqueValue {
         OpaqueValue {}
     }
 
@@ -199,11 +199,27 @@ impl Context {
         OpaqueType {}
     }
 
+    pub fn get_abi_enum_type_any_element(&self, _: &Compiler, _: &ResolvedEnumNode) -> OpaqueType {
+        OpaqueType {}
+    }
+
+    pub fn get_abi_enum_type_specific_element(&self, _: &Compiler, _: &ResolvedEnumNode, _: usize) -> OpaqueType {
+        OpaqueType {}
+    }
+
     pub fn get_abi_array_data_type(&self, _: OpaqueType, _: &str) -> OpaqueType {
         OpaqueType {}
     }
 
     pub fn get_abi_slice_type(&self, _: OpaqueType, _: &str) -> OpaqueType {
+        OpaqueType {}
+    }
+
+    pub fn get_abi_closure_type(&self, _: &[OpaqueType]) -> OpaqueType {
+        OpaqueType {}
+    }
+
+    pub fn get_abi_any_closure_type(&self) -> OpaqueType {
         OpaqueType {}
     }
 
@@ -291,7 +307,9 @@ impl Module {
         String::new()
     }
 
-    pub fn to_object_code(&self, _: &str, _: &LLVMTargetData) -> Result<LLVMArray> {
+    pub fn verify(&self, module_name: &str) {}
+
+    pub fn to_object_code(&self, _: &LLVMTargetData) -> Result<LLVMArray> {
         panic!("to_object_code is unsupported on this platform")
     }
 }
@@ -301,19 +319,23 @@ pub struct Function;
 
 impl Function {
     pub fn create_builder(&self) -> InsnBuilder {
-        InsnBuilder {}
+        InsnBuilder {
+            is_clone: false,
+        }
     }
 
     pub fn get_param(&self, _: u32) -> OpaqueValue {
         OpaqueValue {}
     }
 
+    pub fn add_param_attribute(&self, _: usize, _: OpaqueType, _: &str) {}
+
     pub fn as_val(&self) -> OpaqueFunctionValue {
         OpaqueFunctionValue {}
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BuilderBlock;
 
 impl BuilderBlock {
@@ -323,13 +345,19 @@ impl BuilderBlock {
 
     pub fn append(&self) {}
 
+    pub fn has_predecessor(&self) -> bool {
+        false
+    }
+
     pub fn as_val(&self) -> OpaqueBasicBlock {
         OpaqueBasicBlock {}
     }
 }
 
 #[derive(Clone)]
-pub struct InsnBuilder;
+pub struct InsnBuilder {
+    pub is_clone: bool,
+}
 
 impl InsnBuilder {
     pub fn create_block(&mut self) -> BuilderBlock {
@@ -338,13 +366,17 @@ impl InsnBuilder {
 
     pub fn use_block_at_start(&self, _: &BuilderBlock) {}
 
-    pub fn use_block(&self, _: &BuilderBlock) {}
+    pub fn append_block(&self, _: &BuilderBlock) {}
+
+    pub fn finish(&self) {}
 
     pub fn get_allocated_type(&self, _: OpaqueValue) -> OpaqueType {
         OpaqueType {}
     }
 
-    pub fn emit(&self, _: Insn, _: u32, _: u32) -> OpaqueValue {
+    pub fn add_call_site_attribute(&self, _: OpaqueValue, _: usize, _: OpaqueType, _: &str) {}
+
+    pub fn emit(&self, _: Insn) -> OpaqueValue {
         OpaqueValue {}
     }
 }
@@ -358,11 +390,15 @@ impl LLVMArray {
 }
 
 #[derive(Clone)]
-pub struct LLVMTargetData;
+pub struct LLVMTargetData {
+    pub is_opaque_pointers: bool,
+}
 
 impl LLVMTargetData {
     pub fn new(_: &str, _: bool) -> Result<LLVMTargetData> {
-        Ok(LLVMTargetData)
+        Ok(LLVMTargetData {
+            is_opaque_pointers: true,
+        })
     }
 
     pub fn is_llvm_ir(&self) -> bool {

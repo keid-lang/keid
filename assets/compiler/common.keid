@@ -14,7 +14,6 @@ public class CompileError {
     public static create(source: string, token: TokenLocation, message: string): CompileError => new CompileError { source, token, message, }
 }
 
-
 implement ToString for CompileError {
     toString(): string {
         return string.format(this.message, " at `", this.token.getText(this.source), "` @", this.token.start.toString(), "+", this.token.length.toString())

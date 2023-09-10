@@ -125,61 +125,62 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
     }
 
     /// Given a **pointer** to an object type or nullable object type, load the object pointer at the provided pointer, and change its scope accordingly.
-    fn try_change_scope(&mut self, object: &TypedValue, scope_change: ScopeChange) -> Result<bool> {
-        let scope_block = self.builder.create_block();
-        let rotated_parent_block = self.builder.create_block();
+    fn try_change_scope(&mut self, _object: &TypedValue, _scope_change: ScopeChange) -> Result<bool> {
+        // let scope_block = self.builder.create_block();
+        // let rotated_parent_block = self.builder.create_block();
 
-        let (object_val, rotate) = match &object.ty {
-            ComplexType::Nullable(box ComplexType::Basic(BasicType::Object(ref ident))) => {
-                let nullability_ptr = self.emit(Insn::GetElementPtr(object.val, object.ty.as_llvm_type(self.cpl), 1)); // nullable type nullability
-                let nullability = self.emit(Insn::Load(nullability_ptr, self.cpl.context.get_i8_type()));
-                let const_zero = self.cpl.context.const_int(self.cpl.context.get_i8_type(), 0);
-                let is_null = self.emit(Insn::ICmp(IntPredicate::LLVMIntEQ, nullability, const_zero));
+        // let (object_val, rotate) = match &object.ty {
+        //     ComplexType::Nullable(box ComplexType::Basic(BasicType::Object(ref ident))) => {
+        //         let nullability_ptr = self.emit(Insn::GetElementPtr(object.val, object.ty.as_llvm_type(self.cpl), 1)); // nullable type nullability
+        //         let nullability = self.emit(Insn::Load(nullability_ptr, self.cpl.context.get_i8_type()));
+        //         let const_zero = self.cpl.context.const_int(self.cpl.context.get_i8_type(), 0);
+        //         let is_null = self.emit(Insn::ICmp(IntPredicate::LLVMIntEQ, nullability, const_zero));
 
-                // if the value is null, then skip the `scope_block`
-                self.emit(Insn::CondBr(is_null, rotated_parent_block.as_val(), scope_block.as_val()));
+        //         // if the value is null, then skip the `scope_block`
+        //         self.emit(Insn::CondBr(is_null, rotated_parent_block.as_val(), scope_block.as_val()));
 
-                self.builder.append_block(&scope_block);
+        //         self.builder.append_block(&scope_block);
 
-                let object_ptr = self.emit(Insn::GetElementPtr(object.val, object.ty.as_llvm_type(self.cpl), 0)); // nullable type value
-                (self.emit(Insn::Load(object_ptr, BasicType::Object(ident.clone()).as_llvm_type(self.cpl))), true)
-            }
-            ComplexType::Basic(BasicType::Object(ident)) => {
-                // keid.unscope only unscopes if the object type is a class type
-                // if we know the type to be a concrete struct type at compile time,
-                // we can omit the keid.unscope call since it will have no effect at runtime
-                match self.cpl.type_provider.get_class_by_name(ident) {
-                    Some(class) => {
-                        if class.class_type == ClassType::Struct || class.class_type == ClassType::Enum {
-                            return Ok(false);
-                        }
-                    }
-                    None => match self.cpl.type_provider.get_enum_by_name(ident) {
-                        Some(_) => return Ok(false),
-                        None => (),
-                    },
-                }
+        //         let object_ptr = self.emit(Insn::GetElementPtr(object.val, object.ty.as_llvm_type(self.cpl), 0)); // nullable type value
+        //         (self.emit(Insn::Load(object_ptr, BasicType::Object(ident.clone()).as_llvm_type(self.cpl))), true)
+        //     }
+        //     ComplexType::Basic(BasicType::Object(ident)) => {
+        //         // keid.unscope only unscopes if the object type is a class type
+        //         // if we know the type to be a concrete struct type at compile time,
+        //         // we can omit the keid.unscope call since it will have no effect at runtime
+        //         match self.cpl.type_provider.get_class_by_name(ident) {
+        //             Some(class) => {
+        //                 if class.class_type == ClassType::Struct || class.class_type == ClassType::Enum {
+        //                     return Ok(false);
+        //                 }
+        //             }
+        //             None => match self.cpl.type_provider.get_enum_by_name(ident) {
+        //                 Some(_) => return Ok(false),
+        //                 None => (),
+        //             },
+        //         }
 
-                (self.emit(Insn::Load(object.val, BasicType::Object(ident.clone()).as_llvm_type(self.cpl))), false)
-            }
-            _ => return Ok(false),
-        };
+        //         (self.emit(Insn::Load(object.val, BasicType::Object(ident.clone()).as_llvm_type(self.cpl))), false)
+        //     }
+        //     _ => return Ok(false),
+        // };
 
-        let func_name = match scope_change {
-            ScopeChange::Inside => "keid.scope",
-            ScopeChange::Outside => "keid.unscope",
-        };
-        let scope_impl = ResolvedFunctionNode::externed(func_name, &[BasicType::Void.to_complex().to_reference()], Varargs::None, BasicType::Void.to_complex());
-        let scope_func = self.get_function_ref(&scope_impl)?;
-        // TODO: fix this
-        self.emit(Insn::Call(scope_func, scope_impl.as_llvm_type(self.cpl), vec![object_val]));
+        // let func_name = match scope_change {
+        //     ScopeChange::Inside => "keid.scope",
+        //     ScopeChange::Outside => "keid.unscope",
+        // };
+        // let scope_impl = ResolvedFunctionNode::externed(func_name, &[BasicType::Void.to_complex().to_reference()], Varargs::None, BasicType::Void.to_complex());
+        // let scope_func = self.get_function_ref(&scope_impl)?;
+        // // TODO: fix this
+        // // self.emit(Insn::Call(scope_func, scope_impl.as_llvm_type(self.cpl), vec![object_val]));
 
-        if rotate {
-            self.emit(Insn::Br(rotated_parent_block.as_val()));
-            self.builder.append_block(&rotated_parent_block);
-        }
+        // if rotate {
+        //     self.emit(Insn::Br(rotated_parent_block.as_val()));
+        //     self.builder.append_block(&rotated_parent_block);
+        // }
 
-        Ok(true)
+        // Ok(true)
+        Ok(false)
     }
 
     fn parse_generic_args(&mut self, generics: &Option<GenericArgs>) -> Result<Vec<ComplexType>> {

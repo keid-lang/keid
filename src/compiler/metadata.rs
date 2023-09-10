@@ -79,7 +79,7 @@ impl ClassInfoStorage {
         let mut vtable_pointers = Vec::new();
 
         // temporary vtable, replaced with global at the end of this function
-        let vtable = context.create_const_array(vtable_item_type, &[]);
+        let vtable = context.const_array(vtable_item_type, &[]);
 
         let mut vtable_offset = 0;
         for i in 0..self.classes.len() {
@@ -105,7 +105,7 @@ impl ClassInfoStorage {
                 });
                 self.module.initialize_global(interface_name_global, interface_name_array);
 
-                interface_impl_structs.push(context.create_const_struct(
+                interface_impl_structs.push(context.const_struct(
                     context.get_abi_interface_impl_type(),
                     &mut [
                         context.const_int(
@@ -128,7 +128,7 @@ impl ClassInfoStorage {
             "keid.interface_impls",
             context.get_array_type(context.get_abi_interface_impl_type(), interface_impl_structs.len()),
         );
-        let global_interface_impl_array = context.create_const_array(context.get_abi_interface_impl_type(), &interface_impl_structs);
+        let global_interface_impl_array = context.const_array(context.get_abi_interface_impl_type(), &interface_impl_structs);
         self.module.initialize_global(global_interface_impl, global_interface_impl_array);
 
         let mut interface_impl_offset = 0;
@@ -215,7 +215,7 @@ impl ClassInfoStorage {
             }
             let class_bitflags = context.const_int(context.get_i32_type(), class_bitflags as _);
 
-            class_info_structs.push(context.create_const_struct(
+            class_info_structs.push(context.const_struct(
                 info_array_type,
                 &mut [
                     class_info.destructor_ptr,                                                        // destructor
@@ -230,10 +230,10 @@ impl ClassInfoStorage {
 
         let array_type = context.get_array_type(context.get_abi_class_info_type(), class_info_structs.len());
         let global_class_info = self.module.create_global(context, "keid.classinfo", array_type);
-        let global_class_info_array = context.create_const_array(info_array_type, &class_info_structs);
+        let global_class_info_array = context.const_array(info_array_type, &class_info_structs);
         self.module.initialize_global(global_class_info, global_class_info_array);
 
-        let vtable_value = context.create_const_array(vtable_item_type, &vtable_pointers);
+        let vtable_value = context.const_array(vtable_item_type, &vtable_pointers);
         let replacement_vtable =
             self.module.create_global(context, "keid.vtable", context.get_array_type(vtable_item_type, vtable_pointers.len()));
         context.replace_all_uses(vtable, replacement_vtable);

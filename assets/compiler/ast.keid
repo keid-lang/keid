@@ -75,6 +75,43 @@ implement Resolvable for AstFunction {
     }
 }
 
+public class AstImplement {
+    generics: ?List<AstGenericDecl>
+    interface: AstToken<string>
+    interfaceGenerics: ?List<AstToken<ComplexType>>
+    target: AstToken<string>
+    targetGenerics: ?List<AstToken<ComplexType>>
+    methods: List<AstFunction>
+}
+
+implement ToString for AstImplement {
+    toString(): string {
+        return string.format("AstImplement(", this.interface.node, " for ", this.target.node, ")")
+    }
+}
+
+implement Resolvable for AstImplement {
+    resolve(trc: TypeResolveContext) {
+        this.interface = trc.resolveTypeName(this.interface)
+        this.target = trc.resolveTypeName(this.target)
+        if this.interfaceGenerics != null {
+            for i in range.create(this.interfaceGenerics!.length) {
+                let interfaceGeneric = this.interfaceGenerics!.get(i)
+                this.interfaceGenerics!.set(i, trc.resolve(interfaceGeneric))
+            }
+        }
+        if this.targetGenerics != null {
+            for i in range.create(this.targetGenerics!.length) {
+                let targetGeneric = this.targetGenerics!.get(i)
+                this.targetGenerics!.set(i, trc.resolve(targetGeneric))
+            }
+        }
+        for method in this.methods {
+            method.resolve(trc)
+        }
+    }
+}
+
 public class AstClass {
     kind: AstToken<ObjectKind>
     modifiers: List<AstToken<Modifier>>
@@ -105,6 +142,30 @@ implement Resolvable for AstClass {
         }
         for method in this.methods {
             method.resolve(trc)
+        }
+    }
+}
+
+public class AnonymousTypeField {
+    name: AstToken<string>
+    type: AstToken<ComplexType>
+}
+
+public class AstEnumVariant {
+    name: AstToken<string>
+    data: ?List<AnonymousTypeField>
+}
+
+public class AstEnum extends AstClass {
+    variants: List<AstEnumVariant>
+}
+
+implement Resolvable for AstEnum {
+    resolve(trc: TypeResolveContext) {
+        super.resolve(trc)
+
+        for variant in this.variants {
+            variant.resolve(trc)
         }
     }
 }
@@ -226,6 +287,7 @@ public class AstKeidProgram {
     namespace: AstToken<string>
     imports: List<AstToken<string>>
     classes: List<AstClass>
+    impls: List<AstImplement>
 }
 
 implement ToString for AstKeidProgram {
@@ -242,6 +304,12 @@ implement ToString for AstKeidProgram {
         for class in this.classes {
             sb.append("  ")
             sb.append(class.toString())
+            sb.append(",\n")
+        }
+        sb.append("], impls=[\n")
+        for impl in this.impls {
+            sb.append("  ")
+            sb.append(impl.toString())
             sb.append(",\n")
         }
         sb.append("])")

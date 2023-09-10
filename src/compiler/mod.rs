@@ -432,25 +432,28 @@ impl Compiler {
         false
     }
 
-    pub fn interpret(mut self) {
-        let base_module = self.units.remove(0).mdl;
-        while !self.units.is_empty() {
-            let unit = self.units.remove(0);
+    pub fn create_artifacts(&mut self, root: &str, target: &LLVMTargetData) -> Vec<CompilationArtifact> {
+        const OPT_LEVEL: u32 = 3;
 
-            println!("Linking module for interpreter: {}", unit.path_name);
-            unit.mdl.link_into(&base_module);
+        // for unit in &self.units {
+        // for function in unit.mdl.get_all_functions() {
+        // let fpm = PassManager::for_function(OPT_LEVEL, unit.mdl.as_val());
+        // if fpm.initialize_function() {
+        //     panic!("initialize_function failed");
+        // }
+        // if fpm.run_function(function) {
+        //     panic!("run_function failed");
+        // }
+        // }
+        // }
+
+        for unit in &self.units {
+            let mpm = PassManager::for_module(OPT_LEVEL);
+            if !mpm.run_module(unit.mdl.as_val()) {
+                panic!("run_module failed");
+            }
         }
 
-        std::fs::write("interpreter.ll", base_module.to_llvm_ir()).unwrap();
-
-        println!("Creating new ExecutionEngine...");
-        let engine = ExecutionEngine::new(base_module.as_val());
-        println!("Executing _keid_start in interpreter...");
-        engine.call_function("_keid_start");
-        println!("Interpreter exited.");
-    }
-
-    pub fn create_artifacts(&mut self, root: &str, target: &LLVMTargetData) -> Vec<CompilationArtifact> {
         let mut artifacts = Vec::with_capacity(self.units.len());
         let config = bincode::config::standard();
         for unit in &self.units {

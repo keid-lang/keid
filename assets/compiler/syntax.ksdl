@@ -2,6 +2,8 @@
 // The parser for this file can be found in `parser.keid`.
 // See "syntax.def.README.md" for documentation regarding the format of this file.
 
+ALIAS NewlineOrComma OR(REPEATED LITERAL NEWLINE, LITERAL COMMA)
+
 RULE HexInteger CONTIGUOUS
     LITERAL 0x
     MOVE
@@ -12,9 +14,13 @@ RULE DecimalInteger CONTIGUOUS
     COMPOUND(RANGE 1-9, OPTIONAL REPEATED RANGE 0-9)
 END RULE
 
+RULE ZeroInteger CONTIGUOUS
+    LITERAL 0
+END RULE
+
 RULE Integer CONTIGUOUS
     $sign = OPTIONAL OR(LITERAL +, LITERAL -)
-    $value = OR(RULE HexInteger, RULE DecimalInteger)
+    $value = OR(RULE HexInteger, RULE DecimalInteger, RULE ZeroInteger)
 END RULE
 
 RULE String
@@ -115,6 +121,7 @@ END RULE
 
 RULE FuncParamsDecl
     LITERAL (
+    MOVE
     OPTIONAL REPEATED LITERAL NEWLINE
     OPTIONAL REPEATED COMPOUND($params = RULE FuncParamDecl, LITERAL COMMA, OPTIONAL REPEATED LITERAL NEWLINE)
     OPTIONAL OR($varargs = RULE FuncVarargsDecl, $params = RULE FuncParamDecl, $nativeVarargs = RULE FuncNativeVarargsDecl)
@@ -123,12 +130,26 @@ RULE FuncParamsDecl
     LITERAL )
 END RULE
 
-RULE FunctionDecl
+RULE MethodDecl
     ALIAS Attributes
     $modifiers = OPTIONAL REPEATED RULE Modifier
     $name = RULE Identifier
     $generics = OPTIONAL RULE GenericDecls
     $params = RULE FuncParamsDecl
+    MOVE
+    OPTIONAL COMPOUND(LITERAL :, $returnType = ALIAS ValueType)
+    $body = OR(RULE CodeBlock, RULE ArrowBlock)
+END RULE
+
+RULE FunctionDecl
+    ALIAS Attributes
+    $modifiers = OPTIONAL REPEATED RULE Modifier
+    LITERAL function
+    MOVE
+    $name = RULE Identifier
+    $generics = OPTIONAL RULE GenericDecls
+    $params = RULE FuncParamsDecl
+    MOVE
     OPTIONAL COMPOUND(LITERAL :, $returnType = ALIAS ValueType)
     $body = OR(RULE CodeBlock, RULE ArrowBlock)
 END RULE
@@ -173,10 +194,9 @@ RULE FuncCallExpr
     LITERAL (
     MOVE
     OPTIONAL REPEATED LITERAL NEWLINE
-    OPTIONAL REPEATED COMPOUND($params = RULE Expr, LITERAL COMMA, OPTIONAL REPEATED LITERAL NEWLINE)
-    OPTIONAL REPEATED LITERAL NEWLINE
+    OPTIONAL REPEATED COMPOUND($params = RULE Expr, ALIAS NewlineOrComma)
     $params = OPTIONAL RULE Expr
-    OPTIONAL REPEATED LITERAL NEWLINE
+    OPTIONAL ALIAS NewlineOrComma
     LITERAL )
 END RULE
 
@@ -186,7 +206,30 @@ RULE GroupingExpr
     LITERAL )
 END RULE
 
-ALIAS ExprOperand OR(RULE FuncCallExpr, RULE GroupingExpr, RULE Null, RULE Bool, RULE Integer, RULE Char, RULE String, RULE Identifier)
+RULE MatchExprArm
+    $test = RULE Expr
+    LITERAL =>
+    $statement = ALIAS BlockStatement
+END RULE
+
+RULE MatchExpr
+    LITERAL match
+    MOVE
+    $matchee = RULE Expr
+    LITERAL {
+    REPEATED LITERAL NEWLINE
+    OPTIONAL REPEATED COMPOUND($arms = RULE MatchExprArm, REPEATED LITERAL NEWLINE)
+    LITERAL }
+END RULE
+
+RULE NewExpr
+    LITERAL new
+    MOVE
+    $type = RULE QualifiedPath
+    $fields = RULE FieldSet
+END RULE
+
+ALIAS ExprOperand OR(RULE FuncCallExpr, RULE GroupingExpr, RULE MatchExpr, RULE NewExpr, RULE Null, RULE Bool, RULE Integer, RULE Char, RULE String, RULE ExplicitQualifiedPath, RULE Identifier)
 
 RULE LetStatementMode
     OR(LITERAL let, LITERAL const)
@@ -207,14 +250,39 @@ RULE ReturnStatement
     $operand = RULE Expr
 END RULE
 
-// ALIAS BlockStatement OR(RULE TryStatement, RULE BreakStatement, RULE ContinueStatement, RULE IfStatement, RULE ForLoop, RULE WhileLoop, RULE IndefiniteLoop, RULE UnsafeBlock, RULE FixedBlock, RULE CodeBlock, RULE AssignStatement, RULE ImportStatement, RULE LetStatement, RULE ReturnStatement, RULE UnreachableStatement, RULE ThrowStatement, RULE Expr)
-ALIAS BlockStatement OR(RULE ReturnStatement, RULE LetStatement, RULE Expr)
+RULE IfStatement
+    LITERAL if
+    MOVE
+    $tests = RULE Expr
+    $conditionalBlocks = RULE CodeBlock
+    OPTIONAL REPEATED COMPOUND(LITERAL else, LITERAL if, $tests = RULE Expr, $conditionalBlocks = RULE CodeBlock)
+    OPTIONAL COMPOUND(LITERAL else, $fallback = RULE CodeBlock)
+END RULE
+
+RULE ForLoop
+    LITERAL for
+    MOVE
+    $elementName = RULE Identifier
+    LITERAL in
+    $iterable = RULE Expr
+    $block = RULE CodeBlock
+END RULE
+
+// ALIAS BlockStatement OR(RULE TryStatement, RULE BreakStatement, RULE ContinueStatement, RULE WhileLoop, RULE IndefiniteLoop, RULE UnsafeBlock, RULE FixedBlock, RULE CodeBlock, RULE AssignStatement, RULE ImportStatement, RULE LetStatement, RULE ReturnStatement, RULE UnreachableStatement, RULE ThrowStatement, RULE Expr)
+ALIAS BlockStatement OR(RULE ReturnStatement, RULE LetStatement, RULE IfStatement, RULE ForLoop, RULE Expr)
+
+RULE LineComment
+    LITERAL //
+    UNTIL LITERAL NEWLINE
+END RULE
+
+ALIAS NewlineOrComment OR(LITERAL NEWLINE, RULE LineComment)
 
 RULE CodeBlock
     LITERAL {
     MOVE
     REPEATED LITERAL NEWLINE
-    REPEATED COMPOUND($statements = ALIAS BlockStatement, REPEATED LITERAL NEWLINE)
+    REPEATED COMPOUND($statements = ALIAS BlockStatement, REPEATED ALIAS NewlineOrComment)
     LITERAL }
 END RULE
 
@@ -258,10 +326,14 @@ RULE FieldDecl
     OPTIONAL COMPOUND(LITERAL =, $initialValue = RULE Expr)
 END RULE
 
-ALIAS ClassBodyStatement OR(RULE ConstructorDecl, RULE DestructorDecl, ALIAS AccessorDecl, RULE FieldDecl, RULE FunctionDecl)
+ALIAS ClassBodyStatement OR(RULE ConstructorDecl, RULE DestructorDecl, ALIAS AccessorDecl, RULE FieldDecl, RULE MethodDecl)
 
 RULE ClassDeclType
-    OR(LITERAL class, LITERAL struct, LITERAL interface, LITERAL enum)
+    OR(LITERAL class, LITERAL struct, LITERAL interface)
+END RULE
+
+RULE ClassDeclTypeEnum
+    LITERAL enum
 END RULE
 
 RULE ClassExtends
@@ -284,7 +356,74 @@ RULE ClassDecl
     LITERAL }
 END RULE
 
+RULE EnumDecl
+    $modifiers = OPTIONAL REPEATED RULE Modifier
+    $type = RULE ClassDeclTypeEnum
+    MOVE
+    $name = RULE Identifier
+    $generics = OPTIONAL RULE GenericDecls
+    LITERAL {
+    REPEATED LITERAL NEWLINE
+    OPTIONAL REPEATED COMPOUND($members = RULE EnumMemberStatement, REPEATED LITERAL NEWLINE)
+    OPTIONAL REPEATED COMPOUND($statements = ALIAS ClassBodyStatement, REPEATED LITERAL NEWLINE)
+    LITERAL }
+END RULE
+
+RULE AnonymousTypeField
+    $name = RULE Identifier
+    LITERAL :
+    $type = ALIAS ValueType
+END RULE
+
+RULE AnonymousType
+    LITERAL {
+    MOVE
+    OPTIONAL REPEATED LITERAL NEWLINE
+    OPTIONAL REPEATED COMPOUND($fields = RULE AnonymousTypeField, ALIAS NewlineOrComma)
+    LITERAL }
+END RULE
+
+RULE FieldSetField
+    $name = RULE Identifier
+    OPTIONAL COMPOUND(LITERAL =, $value = RULE Expr)
+END RULE
+
+RULE FieldSet
+    LITERAL {
+    MOVE
+    OPTIONAL REPEATED LITERAL NEWLINE
+    OPTIONAL REPEATED COMPOUND($fields = RULE FieldSetField, ALIAS NewlineOrComma)
+    LITERAL }
+END RULE
+
+RULE EnumMemberStatement
+    $name = RULE Identifier
+    $data = OPTIONAL RULE AnonymousType
+END RULE
+
+RULE ImplementDecl
+    LITERAL implement
+    MOVE
+    $generics = OPTIONAL RULE GenericDecls
+    $interface = RULE Identifier
+    $interfaceGenerics = OPTIONAL RULE GenericArgs
+    LITERAL for
+    $target = RULE Identifier
+    $targetGenerics = OPTIONAL RULE GenericArgs
+    LITERAL {
+    REPEATED LITERAL NEWLINE
+    OPTIONAL REPEATED COMPOUND($statements = ALIAS ClassBodyStatement, REPEATED LITERAL NEWLINE)
+    LITERAL }
+END RULE
+
 RULE QualifiedPath
+    RULE Identifier
+    OPTIONAL REPEATED COMPOUND(LITERAL ::, RULE Identifier)
+END RULE
+
+RULE ExplicitQualifiedPath
+    RULE Identifier
+    LITERAL ::
     RULE Identifier
     OPTIONAL REPEATED COMPOUND(LITERAL ::, RULE Identifier)
 END RULE
@@ -305,7 +444,7 @@ RULE ImportStatement
     LITERAL )
 END RULE
 
-ALIAS RootStatement OR(RULE ImportStatement, RULE ClassDecl)
+ALIAS RootStatement OR(RULE ImportStatement, RULE ClassDecl, RULE EnumDecl, RULE ImplementDecl, RULE FunctionDecl)
 
 RULE Program
     MOVE
