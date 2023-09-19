@@ -454,7 +454,7 @@ pub struct FunctionNode {
     pub function_type: FunctionContextType,
 
     /// The actual name of the function in the resulting compiled binary.
-    /// For example, `std::mem::impl::malloc` could be the `callable_name`,
+    /// For example, `std::impl::mem::malloc` could be the `callable_name`,
     /// whilst `malloc` is the external name (e.g. the name provided to the linker).
     pub external_name: String,
 

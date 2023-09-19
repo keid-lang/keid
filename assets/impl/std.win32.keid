@@ -1,5 +1,5 @@
 
-namespace std::mem::impl {
+namespace std::impl::mem {
     extern function malloc(size: usize): &void
     extern function free(ptr: &void)
 
@@ -12,13 +12,13 @@ namespace std::mem::impl {
     }
 }
 
-namespace std::os::impl {
+namespace std::impl::os {
     public function platform(): string {
         return "win32"
     }
 }
 
-namespace std::fs::impl {
+namespace std::impl::fs {
     extern function CreateFileA(
         lpFileName: &char,
         dwDesiredAccess: uint32,

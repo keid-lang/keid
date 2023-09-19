@@ -1,4 +1,4 @@
-namespace std::io::impl
+namespace std::impl::io
 
 import (
     core::mem

@@ -25,13 +25,19 @@ implement ToString for Foonum {
     }
 }
 
-public extern function main(): int32 {
-    let programFile = File.open("../keid/assets/compiler/common.keid", FileOpenMode.ReadOnly)
+public extern function main(): int32 {    
+    let programFile = File.open("../keid/assets/compiler2/registry.keid", FileOpenMode.ReadOnly)
     let programText = String.fromUtf8(programFile.readAllBytes())
     programFile.close()
 
+    let prevTime = std::time.getSystemTime()
     let ast = keidc::parser.parseKeidSource(programText)
+    let elapsedTime = std::time.getSystemTime() - prevTime
+    
+    std::io.println("Parsing took ", elapsedTime.milliseconds.toString(), "ms")
     std::io.println("AST: ", ast.toString(), "\n")
+
+    let startResolveTime = std::time.getSystemTime()
 
     let tmc = TypeMetadataCompiler.create()
     tmc.include(ast)
@@ -39,6 +45,9 @@ public extern function main(): int32 {
     
     std::io.println("Resolved AST: ", tmc.programs.get(0).toString())
     
+    let endResolveTime = std::time.getSystemTime() - startResolveTime
+    std::io.println("Type resolver took ", endResolveTime.milliseconds.toString(), "ms")
+
     if resolveErrors.length > 0 {
         for resolveError in resolveErrors {
             std::io.println(resolveError.toString())
@@ -46,7 +55,6 @@ public extern function main(): int32 {
 
         os.exit(1)
     }
-
 
     os.exit(0)
 

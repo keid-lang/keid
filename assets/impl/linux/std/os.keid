@@ -1,4 +1,4 @@
-namespace std::os::impl
+namespace std::impl::os
 
 import (
     core::runtime

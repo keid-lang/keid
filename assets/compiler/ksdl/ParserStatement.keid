@@ -232,6 +232,7 @@ implement ParserStatement for CompoundStatement {
     execute(reader: TokenReader, state: RuleState): StatementResult {
         let readerStart = reader.cursor
         for statement in this.statements {
+            reader.skipWhitespace()
             match statement.execute(reader, state) {
                 ImmediateFailure { rule, statement, result, } => return new StatementResult.ImmediateFailure { rule, statement, result, }
                 Failure => {

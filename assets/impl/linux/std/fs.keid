@@ -1,4 +1,4 @@
-namespace std::fs::impl
+namespace std::impl::fs
 
 import (
     core::mem
@@ -21,10 +21,8 @@ extern function fwrite(buf: Pointer<uint8>, size: usize, count: usize, fd: usize
 extern function fclose(fd: usize): uint32
 
 function getIoError(prefix: string): Error {
-    unsafe {
-        let msg = std::sys::impl.getErrorMessage(std::sys::impl.getErrorCode())
-        return error.io(string.format(prefix, " (", msg, ")"))
-    }
+    let msg = std::impl::sys.getErrorMessage(std::impl::sys.getErrorCode())
+    return error.io(string.format(prefix, " (", msg, ")"))
 }
 
 public function openFile(path: string, mode: string): usize {

@@ -269,7 +269,7 @@ RULE ForLoop
 END RULE
 
 // ALIAS BlockStatement OR(RULE TryStatement, RULE BreakStatement, RULE ContinueStatement, RULE WhileLoop, RULE IndefiniteLoop, RULE UnsafeBlock, RULE FixedBlock, RULE CodeBlock, RULE AssignStatement, RULE ImportStatement, RULE LetStatement, RULE ReturnStatement, RULE UnreachableStatement, RULE ThrowStatement, RULE Expr)
-ALIAS BlockStatement OR(RULE ReturnStatement, RULE LetStatement, RULE IfStatement, RULE ForLoop, RULE Expr)
+ALIAS BlockStatement OR(RULE LineComment, RULE ReturnStatement, RULE LetStatement, RULE IfStatement, RULE ForLoop, RULE Expr)
 
 RULE LineComment
     LITERAL //

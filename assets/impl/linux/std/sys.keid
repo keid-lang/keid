@@ -1,4 +1,4 @@
-namespace std::sys::impl
+namespace std::impl::sys
 
 import (
     core::mem

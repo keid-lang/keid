@@ -35,7 +35,7 @@ public class File {
         }
         return new File {
             mode
-            handle = std::fs::impl.openFile(path, modeStr)
+            handle = std::impl::fs.openFile(path, modeStr)
             open = true
         }
     }
@@ -52,17 +52,17 @@ public class File {
             return
         }
 
-        std::fs::impl.closeFile(this.handle)
+        std::impl::fs.closeFile(this.handle)
         this.open = false
     }
 
     public seek(offset: usize) {
-        std::fs::impl.seekFile(this.handle, offset)
+        std::impl::fs.seekFile(this.handle, offset)
     }
 
     /// Reads all the bytes in the file from start to end, regardless of the current cursor position.
     public readAllBytes(): [uint8] {
-        let pos = std::fs::impl.getSeekFilePos(this.handle)
+        let pos = std::impl::fs.getSeekFilePos(this.handle)
         this.seek(0)
 
         let buf = new uint8[0; this.length]
@@ -76,7 +76,7 @@ public class File {
     /// Writes all the bytes to the file, beginning at the start of the file.
     /// This function does not affect the cursor position.
     public writeAllBytes(bytes: [uint8]) {
-        let pos = std::fs::impl.getSeekFilePos(this.handle)
+        let pos = std::impl::fs.getSeekFilePos(this.handle)
         this.seek(0)
         this.write(bytes)
         this.seek(pos)
@@ -85,7 +85,7 @@ public class File {
     public get length: usize {
         this.assertOpen()
 
-        return std::fs::impl.getFileLength(this.handle)
+        return std::impl::fs.getFileLength(this.handle)
     }
 }
 
@@ -93,7 +93,7 @@ implement Reader for File {
     read(buf: [uint8]): isize {
         this.assertOpen()
 
-        return std::fs::impl.readFileBytes(this.handle, buf)
+        return std::impl::fs.readFileBytes(this.handle, buf)
     }
 }
 
@@ -101,6 +101,6 @@ implement Writer for File {
     write(buf: [uint8]): isize {
         this.assertOpen()
 
-        return std::fs::impl.writeFileBytes(this.handle, buf)
+        return std::impl::fs.writeFileBytes(this.handle, buf)
     }
 }

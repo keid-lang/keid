@@ -2,5 +2,5 @@ namespace std::io
 
 public function println(format: string, ...args: [string]) {
     let message = core::string.format(format, ...args)
-    std::io::impl.println(message)
+    std::impl::io.println(message)
 }

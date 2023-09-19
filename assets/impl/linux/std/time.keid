@@ -1,0 +1,35 @@
+namespace std::impl::time
+
+import (
+    core::error
+    core::mem
+)
+
+type c_time_t      = usize
+type c_suseconds_t = usize
+
+struct c_timeval {
+    tv_sec: c_time_t
+    tv_usec: c_suseconds_t
+}
+
+extern function gettimeofday(time: Pointer<c_timeval>, timezone: Pointer<void>): int32
+
+public function getSystemTime(): std::time::Duration {
+    let timeOfDay = new c_timeval {
+        tv_sec = 0
+        tv_usec = 0
+    }
+
+    unsafe {
+        fixed let timeOfDayPtr: Pointer<c_timeval> = ref timeOfDay {
+            if gettimeofday(timeOfDayPtr.forStructInterop(), Pointer.null<void>()) != 0 {
+                let msg = std::impl::sys.getErrorMessage(std::impl::sys.getErrorCode())
+                throw Error.create(msg)
+            }
+        }
+    }
+
+    let millis = (timeOfDay.tv_sec * 1000) + (timeOfDay.tv_usec / 1000)
+    return std::time::Duration.fromMilliseconds(millis)
+}

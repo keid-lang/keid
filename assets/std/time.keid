@@ -1,0 +1,25 @@
+namespace std::time
+
+import (
+    core::ops
+)
+
+public function getSystemTime(): Duration => std::impl::time.getSystemTime()
+
+public struct Duration {
+    milliseconds: usize
+
+    public static fromMilliseconds(milliseconds: usize): Duration => new Duration { milliseconds, }
+}
+
+implement Add<Duration> for Duration {
+    type Output = Duration
+
+    add(other: Duration): Duration => Duration.fromMilliseconds(this.milliseconds + other.milliseconds)
+}
+
+implement Subtract<Duration> for Duration {
+    type Output = Duration
+
+    subtract(other: Duration): Duration => Duration.fromMilliseconds(this.milliseconds - other.milliseconds)
+}
