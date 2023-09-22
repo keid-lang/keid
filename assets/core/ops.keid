@@ -39,3 +39,8 @@ public interface IndexAssign<K> {
 
     indexAssign(key: K, element: Element)
 }
+
+public interface ContextMonitor {
+    enter()
+    exit()
+}

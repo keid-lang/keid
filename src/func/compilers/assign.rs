@@ -36,12 +36,12 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
             let addr_ptr = self.emit(Insn::GetElementPtr(pointer.val, pointer.ty.as_llvm_type(self.cpl), 1)); // pointer to the `address` field in the Pointer<T> struct
             let addr_int = self.emit(Insn::Load(addr_ptr, BasicType::USize.as_llvm_type(self.cpl))); // this Load loads the address stored in the Pointer<T> struct
             let addr_ptr = self.emit(Insn::IntToPtr(addr_int, element.clone().to_reference().as_llvm_type(self.cpl)));
-            
+
             if element.is_struct(&self.cpl.type_provider) {
-                let const_size = self.cpl.context.const_int(
-                    self.cpl.context.get_isize_type(),
-                    self.cpl.context.target.get_type_size(element.as_llvm_type(&self.cpl)),
-                );
+                let const_size = self
+                    .cpl
+                    .context
+                    .const_int(self.cpl.context.get_isize_type(), self.cpl.context.target.get_type_size(element.as_llvm_type(&self.cpl)));
                 self.emit(Insn::Memmove(rhs.val, addr_ptr, const_size)); // copy the bytes from the local stack to the pointer
             } else {
                 self.emit(Insn::Store(rhs.val, addr_ptr));
@@ -165,58 +165,62 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
     }
 
     fn compile_let(&mut self, lt: &Let) -> Result<()> {
-        if self.resolve_ident(&lt.name).is_ok() {
-            return Err(compiler_error!(self, "Duplicate identifier: {}", lt.name.token.0));
-        } else {
-            self.state.get_current_block_mut().locals.push(LocalVar {
-                name: lt.name.token.0.clone(),
-                value: self.cpl.context.const_unknown(),
-            });
+        'bindings: for binding in &lt.bindings {
+            if self.resolve_ident(&binding.name).is_ok() {
+                return Err(compiler_error!(self, "Duplicate identifier: {}", binding.name.token.0));
+            } else {
+                self.state.get_current_block_mut().locals.push(LocalVar {
+                    name: binding.name.token.0.clone(),
+                    value: self.cpl.context.const_unknown(),
+                });
+            }
+
+            let (initial_ref, var_type) = match (&binding.var_type, &binding.initial_value) {
+                (Some(var_type), Some(initial_value)) => {
+                    self.loc(&var_type.loc);
+                    let var_type = self.resolve_type(&var_type.complex)?;
+                    let initial_ref = self.compile_expr(initial_value, Some(&var_type))?;
+                    let initial_ref = self.implicit_cast(initial_ref, &var_type)?;
+
+                    self.loc(&initial_value.loc);
+                    self.assert_assignable_to(&initial_ref.ty, &var_type)?;
+
+                    (initial_ref, var_type)
+                }
+                (Some(_var_type), None) => {
+                    panic!("Variables without an initial value are WIP: {:#?}", lt);
+                }
+                (None, Some(initial_value)) => {
+                    self.loc(&initial_value.loc);
+                    let initial_ref = self.compile_expr(initial_value, None)?;
+                    let var_type = initial_ref.ty.clone();
+                    if var_type == BasicType::Void.to_complex() {
+                        return Err(compiler_error!(self, "Illegal variable type `void`"));
+                    }
+                    (initial_ref, var_type)
+                }
+                (None, None) => unreachable!(),
+            };
+
+            self.try_scope(&TypedValue::new(var_type.clone(), initial_ref.val))?;
+
+            let var_ref = self.emit(Insn::Alloca(var_type.as_llvm_type(self.cpl)));
+            let typed_local_var = TypedValue::new(var_type, var_ref);
+            self.copy(&initial_ref, &typed_local_var)?;
+
+            for i in (0..self.state.block_stack.len()).rev() {
+                let locals = &mut self.state.block_stack[i].locals;
+                for local in locals {
+                    if local.name == binding.name.token.0 {
+                        local.value = typed_local_var;
+                        continue 'bindings;
+                    }
+                }
+            }
+
+            panic!("failed to assign to let binding")
         }
 
-        let (initial_ref, var_type) = match (&lt.var_type, &lt.initial_value) {
-            (Some(var_type), Some(initial_value)) => {
-                self.loc(&var_type.loc);
-                let var_type = self.resolve_type(&var_type.complex)?;
-                let initial_ref = self.compile_expr(initial_value, Some(&var_type))?;
-                let initial_ref = self.implicit_cast(initial_ref, &var_type)?;
-
-                self.loc(&initial_value.loc);
-                self.assert_assignable_to(&initial_ref.ty, &var_type)?;
-
-                (initial_ref, var_type)
-            }
-            (Some(_var_type), None) => {
-                panic!("Variables without an initial value are WIP: {:#?}", lt);
-            }
-            (None, Some(initial_value)) => {
-                self.loc(&initial_value.loc);
-                let initial_ref = self.compile_expr(initial_value, None)?;
-                let var_type = initial_ref.ty.clone();
-                if var_type == BasicType::Void.to_complex() {
-                    return Err(compiler_error!(self, "Illegal variable type `void`"));
-                }
-                (initial_ref, var_type)
-            }
-            (None, None) => unreachable!(),
-        };
-
-        self.try_scope(&TypedValue::new(var_type.clone(), initial_ref.val))?;
-
-        let var_ref = self.emit(Insn::Alloca(var_type.as_llvm_type(self.cpl)));
-        let typed_local_var = TypedValue::new(var_type, var_ref);
-        self.copy(&initial_ref, &typed_local_var)?;
-
-        for i in (0..self.state.block_stack.len()).rev() {
-            let locals = &mut self.state.block_stack[i].locals;
-            for local in locals {
-                if local.name == lt.name.token.0 {
-                    local.value = typed_local_var;
-                    return Ok(());
-                }
-            }
-        }        
-
-        panic!("failed to assign to let binding")
+        Ok(())
     }
 }

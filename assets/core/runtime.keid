@@ -45,17 +45,8 @@ function popStackFrame() {
     }
 }
 
-function getStackFrames(): string {
-    unsafe {
-        let cstrFrames = keid_core_runtime_get_stack_frames()
-        let str = string.fromCStr(cstrFrames)
-        keid_core_runtime_free_stack_frames(cstrFrames)
-        return str
-    }
-}
+function getStackFrames(): string => std::unwind.getBacktrace()
 
 function printStackFrames() {
-    unsafe {
-        keid_core_runtime_print_stack_frames()
-    }
+    std::io.println(std::unwind.getBacktrace())
 }

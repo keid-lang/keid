@@ -43,6 +43,11 @@ public function copy<T>(src: Pointer<T>, dst: Pointer<T>, count: usize) {
     std::impl::mem.copy(Pointer.cast<T, void>(src), Pointer.cast<T, void>(dst), count * sizeof(T))
 }
 
+// Allocates `count` by of heap memory and returns the pointer to the allocated region.
+public function allocBytes(count: usize): Pointer<void> {
+    return std::mem::impl.alloc(count)
+}
+
 // Allocates `sizeof(T) * count` bytes of heap and returns the pointer to the allocated region.
 public function alloc<T>(count: usize): Pointer<T> {
     return Pointer.cast<void, T>(std::impl::mem.alloc(count * sizeof(T)))

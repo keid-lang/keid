@@ -1,0 +1,32 @@
+namespace core::sync
+
+import (
+    core::ops
+)
+
+public class Mutex {
+    /// Pauses the current microthread until a call to `signal` unpauses it. The mutex must be acquired to invoke this. 
+    wait() {
+
+    }
+
+    /// Unpauses a single microthread waiting on this mutex.
+    signal() {
+
+    }
+
+    /// Unpauses all microthreads waiting on this mutex.
+    signalAll() {
+
+    }
+}
+
+implement ContextMonitor for Mutex {
+    enter() {
+        // lock
+    }
+
+    exit() {
+        // unlock
+    }
+}

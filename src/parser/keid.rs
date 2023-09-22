@@ -355,15 +355,7 @@ fn parse_match_expr(mut pairs: Pairs<Rule>) -> Result<MatchExpr> {
     })
 }
 
-fn parse_let(mut pairs: Pairs<Rule>) -> Result<Let> {
-    let is_extern = if pairs.peek().unwrap().as_rule() == Rule::keyword_extern {
-        pairs.next();
-        true
-    } else {
-        false
-    };
-
-    let is_const = pairs.next().unwrap().as_rule() == Rule::keyword_const; // either "let" or "const"
+fn parse_let_binding(mut pairs: Pairs<Rule>) -> Result<LetBinding> {
     let name_pair = pairs.next().unwrap();
     let name = Identifier::from_ident(&name_pair);
 
@@ -394,12 +386,32 @@ fn parse_let(mut pairs: Pairs<Rule>) -> Result<Let> {
         }
     };
 
-    Ok(Let {
-        is_extern,
-        is_const,
+    Ok(LetBinding {
         name,
         var_type,
         initial_value,
+    })
+}
+
+fn parse_let(mut pairs: Pairs<Rule>) -> Result<Let> {
+    let is_extern = if pairs.peek().unwrap().as_rule() == Rule::keyword_extern {
+        pairs.next();
+        true
+    } else {
+        false
+    };
+
+    let is_const = pairs.next().unwrap().as_rule() == Rule::keyword_const; // either "let" or "const"
+    let mut bindings = Vec::new();
+
+    while let Some(pair) = pairs.next() {
+        bindings.push(parse_let_binding(pair.into_inner())?);
+    }
+
+    Ok(Let {
+        is_extern,
+        is_const,
+        bindings,
     })
 }
 
@@ -414,9 +426,11 @@ fn parse_field_decl(mut pairs: Pairs<Rule>) -> Result<Let> {
     Ok(Let {
         is_extern: false,
         is_const: false,
-        name,
-        var_type,
-        initial_value,
+        bindings: vec![LetBinding {
+            name,
+            var_type,
+            initial_value,
+        }],
     })
 }
 

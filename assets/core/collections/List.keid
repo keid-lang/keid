@@ -71,10 +71,12 @@ public class List<T> {
         }
     }
 
-    public remove(index: usize) {
+    public remove(index: usize): T {
         if index >= this.length {
             throw error.indexOutOfBounds(index)
         }
+
+        let toRemove = this.get(index)
 
         unsafe {
             // manually drop the reference to the object
@@ -88,6 +90,8 @@ public class List<T> {
             )
         }
         this.length -= 1
+
+        return toRemove
     }
 
     public get(index: usize): T {

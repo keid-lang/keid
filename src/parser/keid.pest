@@ -96,10 +96,11 @@ assign_statement = { keyword_deref? ~ member ~ self_operator ~ expr }
 import_statement = { keyword_import ~ "(" ~ NEWLINE+ ~ literal_qualifier ~ (NEWLINE+ ~ literal_qualifier)* ~ NEWLINE+ ~ ")" }
 namespace_statement = { keyword_namespace ~ literal_qualifier }
 
+inner_let = { ident ~ (":" ~ variable_type)? ~ ("=" ~ expr)? }
+
 let_statement = {
     keyword_extern? ~
-    (keyword_let | keyword_const) ~ ident ~ (":" ~ variable_type)?
-    ~ ("=" ~ expr)?
+    (keyword_let | keyword_const) ~ inner_let ~ ("," ~ inner_let)*
 }
 
 if_statement = {

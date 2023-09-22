@@ -336,12 +336,17 @@ pub struct Assign {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Let {
-    pub is_extern: bool,
-    pub is_const: bool,
+pub struct LetBinding {
     pub name: Token<Identifier>,
     pub var_type: Option<QualifiedType>,
     pub initial_value: Option<Token<Expr>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Let {
+    pub is_extern: bool,
+    pub is_const: bool,
+    pub bindings: Vec<LetBinding>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

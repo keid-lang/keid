@@ -10,8 +10,8 @@ use crate::tree;
 use crate::tree::ast::*;
 use crate::tree::*;
 use crate::{compiler::llvm::OpaqueFunctionValue, compiler_error_loc};
-use std::{cell::RefCell, collections::HashSet};
 use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashSet};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
 pub struct GenericIdentifier {
@@ -212,6 +212,15 @@ impl TypeProvider {
     pub fn get_namespace_members(&self, namespace: &str) -> Vec<NamespaceMember> {
         let mut members = Vec::new();
         for root in &self.roots {
+            for typedef in &root.typedefs {
+                if utils::get_type_namespace(&typedef.base_name) == namespace {
+                    members.push(NamespaceMember {
+                        name: utils::get_type_leaf(&typedef.base_name).to_owned(),
+                        member_type: NamespaceMemberType::Type,
+                    });
+                }
+            }
+
             for cls in &root.classes {
                 if utils::get_type_namespace(&cls.base_name) == namespace {
                     members.push(NamespaceMember {

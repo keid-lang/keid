@@ -1,0 +1,49 @@
+namespace std::unwind
+
+import (
+    core::mem
+    core::string
+)
+
+struct unw_context_t {}
+struct unw_cursor_t {}
+type unw_word_t   = usize
+type unw_regnum_t = int32
+
+extern function unw_getcontext(ctx: Pointer<unw_context_t>): int32
+extern function unw_init_local(cur: Pointer<unw_cursor_t>, ctx: Pointer<unw_context_t>): int32
+extern function unw_step(cur: Pointer<unw_cursor_t>): int32
+extern function unw_get_reg(cur: Pointer<unw_cursor_t>, regnum: unw_regnum_t, word: Pointer<unw_word_t>): int32
+extern function unw_get_proc_name(cur: Pointer<unw_cursor_t>, name: Pointer<uint8>, buflen: usize, off: Pointer<unw_word_t>): int32
+
+public function getBacktrace(): string {
+    let sb = StringBuilder.empty()
+
+    let context = Pointer.cast<void, unw_context_t>(mem.allocBytes(4096))
+    let cursor = Pointer.cast<void, unw_cursor_t>(mem.allocBytes(4096))
+    let symbol = new uint8[default(uint8); 255]
+    let off: unw_word_t = 0
+
+    unsafe {
+        fixed let symbolPtr = ref symbol, offPtr = ref off {
+            unw_getcontext(context)
+            unw_init_local(cursor, context)
+
+            loop {
+                let step = unw_step(cursor)
+                std::io.println("step = ", step.toString())
+                if step == 0 {
+                    break
+                }
+
+                unw_get_proc_name(cursor, symbolPtr, symbol.length, offPtr)
+                std::io.println("symbol 1 = ", array.toString<uint8>(symbol))
+
+                sb.append(String.fromCStr(symbolPtr))
+                sb.append("\n")
+            }
+        }
+    }
+
+    return sb.toString()
+}
