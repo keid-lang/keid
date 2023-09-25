@@ -635,8 +635,10 @@ impl<'a> AstConverter<'a> {
                         .collect::<Result<Vec<_>>>()
                 })
                 .unwrap_or_else(|| Ok(Vec::new()))?;
-            Some(match class.superclass_name {
-                Some(superclass_name) => GenericIdentifier::from_name_with_args(&superclass_name.to_string(), &interface_generics),
+            Some(match &class.superclass_name {
+                Some(superclass_name) => {
+                    GenericIdentifier::from_name_with_args(&self.resolve_type(ns, superclass_name, dst)?, &interface_generics)
+                }
                 None => GenericIdentifier::from_name("core::object::Object"), // if no superclass was specified, the default is the Object class
             })
         };

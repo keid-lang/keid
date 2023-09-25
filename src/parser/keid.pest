@@ -231,7 +231,7 @@ expr = _{ logic_expr | arrow_expr | reference_op | dereference_op | string | cha
 statement = _{ (try_statement | break_statement | continue_statement | if_statement | match_expr | for_loop | while_loop | indefinite_loop | unsafe_block | fixed_block | block | assign_statement | import_statement | let_statement | return_statement | unreachable_statement | throw_statement | expr) ~ newline }
 block = { (block_start ~ statement* ~ block_end) | ("{" ~ newline* ~ "}") }
 
-function_modifier = @{ "public" | "static" | "extern" | "unsafe" | "virtual" | "override" }
+function_modifier = @{ "public" | "static" | "extern" | "unsafe" | "virtual" | "override" | "abstract" }
 function_modifiers = { function_modifier+ }
 varargs = @{ "..." }
 native_varargs = @{ "..." }

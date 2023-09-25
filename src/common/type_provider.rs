@@ -501,6 +501,14 @@ impl TypeProvider {
                 }
             }
         }
+        match self.get_class_by_name(type_root) {
+            Some(cls) => {
+                if let Some(superclass) = cls.superclass {
+                    impls.extend(self.get_resolved_interface_impls(&superclass));
+                }
+            }
+            None => (),
+        }
         impls
     }
 }

@@ -387,6 +387,17 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                 self.loc(&func_name.loc);
                 Err(compiler_error!(self, "{}{}", err_text, similar_methods.join(", ")))
             } else {
+                match self.cpl.type_provider.get_class_by_name(&ident) {
+                    Some(class) => {
+                        if let Some(superclass) = class.superclass {
+                            return Ok(
+                                self.compile_instance_func_call(fc, &instance.with_type(BasicType::Object(superclass).to_complex()))?
+                            );
+                        }
+                    }
+                    None => (),
+                }
+
                 Err(compiler_error!(self, "No such instance method `{}::{}`", ident.to_string(), func_name.token.0))
             }
         } else if candidates.len() > 1 {
@@ -488,14 +499,24 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                     set_fields.push(arg.field_name.clone());
                 }
 
-                for field in &class_impl.fields {
+                let mut required_fields = Vec::new();
+                required_fields.extend(class_impl.fields.clone());
+
+                let mut superclass = class_impl.superclass.clone();
+                while let Some(sc) = superclass {
+                    let superclass_impl = self.cpl.type_provider.get_class_by_name(&sc).unwrap();
+                    required_fields.extend(superclass_impl.fields);
+                    superclass = superclass_impl.superclass.clone();
+                }
+
+                for field in &required_fields {
                     if set_fields.iter().find(|set_field| set_field.token.0 == field.name).is_none() {
                         self.loc(&nc.ty.loc);
                         return Err(compiler_error!(self, "Instantiation missing required field `{}`", field.name));
                     }
                 }
                 for field in set_fields {
-                    if class_impl.fields.iter().find(|class_field| class_field.name == field.token.0).is_none() {
+                    if required_fields.iter().find(|class_field| class_field.name == field.token.0).is_none() {
                         self.loc(&field.loc);
                         return Err(compiler_error!(self, "No such field `{}::{}`", ident.to_string(), field.token.0));
                     }

@@ -25,6 +25,14 @@ use self::utils::{FunctionCompilerUtils, ImportedMember, ScopeChange};
 pub mod utils;
 
 #[derive(Debug, Clone)]
+pub struct VirtualMethodTableEntry {
+    /// The name of the function in the node it was originally defined in (i.e. the abstract/virtual definition, not the override definition)
+    pub definition_name: GenericIdentifier,
+    /// The name of the "root-most" implementation of the function for the class, or None if the definition function is abstract and has no implementation.
+    pub implementation_name: Option<GenericIdentifier>,
+}
+
+#[derive(Debug, Clone)]
 pub struct LocalVar {
     name: String,
     value: TypedValue,
@@ -399,7 +407,7 @@ impl<'a> FunctionCompiler<'a> {
         class_instance: &TypedValue,
         ident: &GenericIdentifier,
         accessor_name: &Token<Identifier>,
-    ) -> Result<AccessorValueContainer> {
+    ) -> Result<Box<dyn ValueContainer>> {
         self.loc(&accessor_name.loc);
 
         let resolved_interface_impls = self.cpl.type_provider.get_resolved_interface_impls(ident);
@@ -410,9 +418,14 @@ impl<'a> FunctionCompiler<'a> {
                     let getter = self.cpl.type_provider.get_function_node(interface_impl.module_id, accessor.function_id).unwrap();
                     let accessor_impl =
                         getter.create_impl(&self.cpl.type_provider, &resolved_interface_impl.generic_impls).map_err(|e| compiler_error!(self, "{}", e))?;
-                    return Ok(AccessorValueContainer::new(accessor_impl, class_instance.val));
+                    return Ok(Box::new(AccessorValueContainer::new(accessor_impl, class_instance.val)));
                 }
             }
+        }
+
+        if let Some(Some(superclass)) = self.cpl.type_provider.get_class_by_name(ident).map(|class| class.superclass) {
+            let type_root = self.cpl.type_provider.get_class_by_name(&superclass).unwrap();
+            return Ok(self.resolve_class_member_ptr(class_instance, &type_root, accessor_name)?);
         }
 
         Err(compiler_error!(self, "No such class member `{}.{}`", ident.to_string(), accessor_name.token.0))
@@ -485,11 +498,11 @@ impl<'a> FunctionCompiler<'a> {
             }
 
             let source_type = self.cpl.type_provider.get_source_class(type_root);
-            return Ok(Box::new(self.resolve_interface_accessor(
+            return Ok(self.resolve_interface_accessor(
                 class_instance,
                 &GenericIdentifier::from_name_with_args(&source_type.base_name, &type_root.generic_impls),
                 field_name,
-            )?));
+            )?);
         };
 
         Ok(Box::new(AccessorValueContainer::new(getter_impl, class_instance.val)))
@@ -588,6 +601,80 @@ impl<'a> FunctionCompiler<'a> {
                 Ok(compiled_function)
             }
         }
+    }
+
+    /// 1. List all abstract and virtual functions in the hierarchy, starting with the root node.
+    /// 2. Find the "deepest" implementation of each function in the hierarchy and include the pointer to that function.
+    pub fn generate_vtable(&mut self, ident: &GenericIdentifier) -> Result<Vec<VirtualMethodTableEntry>> {
+        let mut vtable = Vec::new();
+
+        // Step 1 -- locate each virtual method definition
+        {
+            let mut current_ident = Some(ident.clone());
+            while let Some(ref ci) = current_ident {
+                match self.cpl.type_provider.get_class_by_name(ci) {
+                    Some(class_impl) => {
+                        let mut layer_vtable = Vec::new();
+                        let source_class = self.cpl.type_provider.get_source_class(&class_impl);
+                        for function_id in &source_class.functions {
+                            let function = self.cpl.type_provider.get_function_node(class_impl.module_id, *function_id).unwrap();
+                            if function.modifiers.contains(&FunctionModifier::Abstract) || function.modifiers.contains(&FunctionModifier::Virtual) {
+                                layer_vtable.push(VirtualMethodTableEntry {
+                                    definition_name: GenericIdentifier::from_name_with_args(&function.base_name, &class_impl.generic_impls),
+                                    implementation_name: None,
+                                })
+                            }
+                        }
+
+                        current_ident = class_impl.superclass.clone();
+                        vtable.insert(0, layer_vtable);
+                    }
+                    None => break,
+                }
+            }
+        }
+
+        // Step 2 -- locate each virtual method implementation
+        let mut vtable: Vec<VirtualMethodTableEntry> = vtable.into_iter().flatten().collect();
+        {
+            let mut current_ident = Some(ident.clone());
+            while let Some(ref ci) = current_ident {
+                match self.cpl.type_provider.get_class_by_name(ci) {
+                    Some(class_impl) => {
+                        let functions = self.cpl.type_provider.get_source_class(&class_impl).functions.clone();
+                        for function_id in functions {
+                            let function_name = {
+                                let function = self.cpl.type_provider.get_function_node(class_impl.module_id, function_id).unwrap();
+                                utils::get_type_leaf(&function.base_name).to_owned()
+                            };
+
+                            for vtable_entry in &mut vtable {
+                                // don't modify vtable entries which have already been assigned an implementation
+                                if vtable_entry.implementation_name.is_some() {
+                                    continue;
+                                }
+
+                                let vf_name = utils::get_type_leaf(&vtable_entry.definition_name.name);
+
+                                // TODO: check args in the future to support overloading
+                                if function_name == vf_name {
+                                    let implementation_name = {
+                                        let function = self.cpl.type_provider.get_function_node(class_impl.module_id, function_id).unwrap();
+                                        GenericIdentifier::from_name_with_args(&function.base_name, &class_impl.generic_impls)
+                                    };
+                                    vtable_entry.implementation_name = Some(implementation_name);
+                                }
+                            }
+                        }
+
+                        current_ident = class_impl.superclass.clone();
+                    }
+                    None => break,
+                }
+            }
+        }
+
+        Ok(vtable)
     }
 
     fn try_scope(&mut self, object: &TypedValue) -> Result<bool> {

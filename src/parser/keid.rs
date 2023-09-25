@@ -661,15 +661,16 @@ fn parse_block(pair: Pair<Rule>) -> Result<Vec<Token<Statement>>> {
 fn parse_modifiers(parts: Pairs<Rule>) -> Vec<FunctionModifier> {
     let mut modifiers = Vec::new();
     for inner in parts {
-        match inner.as_str().trim() {
-            "extern" => modifiers.push(FunctionModifier::Extern),
-            "static" => modifiers.push(FunctionModifier::Static),
-            "public" => modifiers.push(FunctionModifier::Public),
-            "unsafe" => modifiers.push(FunctionModifier::Unsafe),
-            "virtual" => modifiers.push(FunctionModifier::Virtual),
-            "override" => modifiers.push(FunctionModifier::Override),
+        modifiers.push(match inner.as_str().trim() {
+            "extern" => FunctionModifier::Extern,
+            "static" => FunctionModifier::Static,
+            "public" => FunctionModifier::Public,
+            "unsafe" => FunctionModifier::Unsafe,
+            "virtual" => FunctionModifier::Virtual,
+            "override" => FunctionModifier::Override,
+            "abstract" => FunctionModifier::Abstract,
             x => unreachable!("{:?}", x),
-        }
+        });
     }
     modifiers
 }

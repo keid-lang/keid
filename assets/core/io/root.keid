@@ -7,3 +7,7 @@ public interface Writer {
 public interface Reader {
     read(buffer: [uint8]): isize
 }
+
+public interface Closeable {
+    close()
+}

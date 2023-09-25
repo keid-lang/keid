@@ -6,6 +6,41 @@ import (
     std::os
 )
 
+public class FileSystemObject {
+    handle: usize
+    get open: bool => this.handle == 0
+
+    destructor {
+        this.close()
+    }
+
+    assertOpen() {
+        if !this.open {
+            throw error.io("file handle is closed")
+        }
+    }
+
+    abstract closeImpl()
+}
+
+implement Closeable for FileSystemObject {
+    close() {
+        // closing more than once is a no-op
+        if !this.open {
+            return
+        }
+
+        this.closeImpl()
+        this.handle = 0
+    }
+}
+
+public class Directory extends FileSystemObject {
+    override closeImpl() {
+        std::impl::fs.closeDirectory(this.handle)
+    }
+}
+
 public enum FileOpenMode {
     ReadOnly
     ReadWrite
@@ -15,15 +50,7 @@ public enum FileOpenMode {
     ReadAppend
 }
  
-public class File {
-    mode: FileOpenMode
-    handle: usize
-    open: bool
-
-    destructor {
-        this.close()
-    }
-
+public class File extends FileSystemObject {
     public static open(path: string, mode: FileOpenMode): File {
         let modeStr = match mode {
             ReadOnly => "r"
@@ -34,26 +61,12 @@ public class File {
             ReadAppend => "a+"
         }
         return new File {
-            mode
             handle = std::impl::fs.openFile(path, modeStr)
-            open = true
         }
     }
 
-    assertOpen() {
-        if !this.open {
-            throw error.io("file handle is closed")
-        }
-    }
-
-    public close() {
-        // closing more than once is a no-op
-        if !this.open {
-            return
-        }
-
+    override closeImpl() {
         std::impl::fs.closeFile(this.handle)
-        this.open = false
     }
 
     public seek(offset: usize) {

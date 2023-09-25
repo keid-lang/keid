@@ -13,20 +13,8 @@ import (
     keidc::types
 )
 
-enum Foonum {
-    Hello
-    World
-}
-
-implement ToString for Foonum {
-    toString(): string => match this {
-        Hello => "Hello"
-        World => "World"
-    }
-}
-
 public extern function main(): int32 {
-    let programFile = File.open("../keid/assets/compiler/common.keid.noexist", FileOpenMode.ReadOnly)
+    let programFile = File.open("../keid/assets/compiler/common.keid", FileOpenMode.ReadOnly)
     let programText = String.fromUtf8(programFile.readAllBytes())
     programFile.close()
 

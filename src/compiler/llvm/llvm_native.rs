@@ -36,9 +36,7 @@ use crate::common::types::IntoOpaqueType;
 use crate::common::TypedValue;
 use crate::compiler::Compiler;
 use crate::tree::ast::Varargs;
-use crate::tree::ClassType;
-use crate::tree::ResolvedClassNode;
-use crate::tree::ResolvedEnumNode;
+use crate::tree::*;
 
 #[derive(Debug)]
 pub struct Target {
@@ -106,6 +104,14 @@ impl OpaqueFunctionType {
 }
 
 impl OpaqueFunctionValue {
+    pub fn null() -> OpaqueFunctionValue {
+        OpaqueFunctionValue(std::ptr::null_mut())
+    }
+
+    pub fn is_null(&self) -> bool {
+        self.0.is_null()
+    }
+
     pub fn to_value(self) -> OpaqueValue {
         OpaqueValue(self.0)
     }
@@ -436,57 +442,49 @@ impl Context {
     }
 
     pub fn get_abi_class_data_type(&self, cpl: &Compiler, class_impl: &ResolvedClassNode) -> OpaqueType {
+        let abi_name = &class_impl.full_name;
+        if let Some(existing_type) = self.get_cached_struct_type(&abi_name) {
+            return existing_type;
+        }
+        let struct_type = self.get_struct_type(&abi_name, &[]);
+        let info_type = self.get_pointer_type(self.get_abi_class_info_type());
+        let mut all_field_types = Vec::new();
+        all_field_types.push(info_type);
+
         match class_impl.class_type {
             ClassType::Class | ClassType::Interface => {
-                let abi_name = &class_impl.full_name;
-                if let Some(existing_type) = self.get_cached_struct_type(&abi_name) {
-                    return existing_type;
-                }
-                let struct_type = self.get_struct_type(&abi_name, &[]);
-
-                let info_type = self.get_pointer_type(self.get_abi_class_info_type());
                 let ref_count_type = self.get_isize_type();
-                let mut field_types = Vec::with_capacity(class_impl.fields.len());
-                field_types.push(info_type);
-                field_types.push(ref_count_type);
-                for field in &class_impl.fields {
-                    field_types.push(field.ty.as_llvm_type(cpl));
-                }
-
-                self.set_struct_type_body(struct_type, &field_types);
-
-                struct_type
+                all_field_types.push(ref_count_type);
             }
-            ClassType::Struct => {
-                let abi_name = &class_impl.full_name;
-                if let Some(existing_type) = self.get_cached_struct_type(&abi_name) {
-                    return existing_type;
-                }
-                let struct_type = self.get_struct_type(&abi_name, &[]);
-
-                let info_type = self.get_pointer_type(self.get_abi_class_info_type());
-                let mut field_types = Vec::with_capacity(class_impl.fields.len() + 1);
-                field_types.push(info_type);
-                for field in &class_impl.fields {
-                    field_types.push(field.ty.as_llvm_type(cpl));
-                }
-
-                self.set_struct_type_body(struct_type, &field_types);
-
-                struct_type
-            }
+            ClassType::Struct => (),
             ClassType::Enum => {
                 panic!("no get_abi_class_data_type for enums (use get_abi_enum_type_any_element)")
             }
         }
+
+        let mut class_hierarchy = Vec::new();
+        class_hierarchy.push(class_impl.fields.iter().map(|field| field.ty.as_llvm_type(cpl)).collect::<Vec<OpaqueType>>());
+
+        let mut superclass = class_impl.superclass.clone();
+        while let Some(sc) = superclass {
+            let superclass_impl = cpl.type_provider.get_class_by_name(&sc).unwrap();
+            class_hierarchy.insert(0, superclass_impl.fields.iter().map(|field| field.ty.as_llvm_type(cpl)).collect::<Vec<OpaqueType>>());
+            superclass = superclass_impl.superclass.clone();
+        }
+
+        all_field_types.extend(class_hierarchy.into_iter().flatten());
+
+        self.set_struct_type_body(struct_type, &all_field_types);
+
+        struct_type
     }
 
     pub fn get_abi_class_info_type(&self) -> OpaqueType {
         self.get_struct_type(
             "KeidAbiClassInfo",
             &[
-                self.get_pointer_type(self.get_i8_type()),                 // destructor
-                self.get_pointer_type(self.get_i8_type()),                 // vtable
+                self.get_pointer_type(self.get_void_type()),               // destructor
+                self.get_pointer_type(self.get_void_type()),               // vtable
                 self.get_i32_type(),                                       // interfaces length
                 self.get_pointer_type(self.get_abi_interface_impl_type()), // interfaces
                 self.get_pointer_type(self.get_i8_type()),                 // class name

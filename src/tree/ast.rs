@@ -196,6 +196,7 @@ pub enum FunctionModifier {
     Unsafe,
     Virtual,
     Override,
+    Abstract,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -1,16 +1,11 @@
 use std::fmt::Write;
 
-use super::llvm::{Context, Linkage, Module, OpaqueValue};
+use super::llvm::*;
 use crate::{
     common::{GenericIdentifier, TypeProvider},
-    func::utils,
-    tree::{ClassType, GenericNode, ResolvedClassNode, ResolvedEnumNode},
+    func::{utils, VirtualMethodTableEntry},
+    tree::*,
 };
-
-pub struct VirtualMethodInfo {
-    pub method_id: usize,
-    pub func_ptr: OpaqueValue,
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClassInfoData {
@@ -45,7 +40,6 @@ impl ClassInfoData {
 pub struct ClassInfo {
     pub data: ClassInfoData,
     pub destructor_ptr: OpaqueValue,
-    pub virtual_methods: Vec<VirtualMethodInfo>,
 }
 
 pub struct ClassInfoStorage {
@@ -190,6 +184,11 @@ impl ClassInfoStorage {
             };
             interface_impl_offset += resolved_interface_impls.len();
 
+            // virtual methods
+            {
+                println!("{:#?}", class_info.vtable);
+            }
+
             // if there are no virtual methods, the vtable pointer is null
             // let vtable_pointer = if vtable_pointers.len() == vtable_len {
             //     context.const_null_ptr(vtable_item_type)
@@ -246,7 +245,6 @@ impl ClassInfoStorage {
             self.classes.push(ClassInfo {
                 data: data.clone(),
                 destructor_ptr: context.const_null_ptr(context.get_void_type()),
-                virtual_methods: Vec::new(),
             });
 
             new_index
@@ -266,6 +264,14 @@ impl ClassInfoStorage {
     pub fn set_destructor(&mut self, module_id: usize, class_id: usize, destructor_ptr: OpaqueValue) {
         if let Some(class) = self.classes.iter_mut().find(|class| class.data.module_id == module_id && class.data.source_id == class_id) {
             class.destructor_ptr = destructor_ptr;
+        } else {
+            panic!("no class found")
+        }
+    }
+
+    pub fn set_vtable(&mut self, module_id: usize, class_id: usize, vtable: Vec<VirtualMethodTableEntry>) {
+        if let Some(class) = self.classes.iter_mut().find(|class| class.data.module_id == module_id && class.data.source_id == class_id) {
+            class.vtable = vtable;
         } else {
             panic!("no class found")
         }

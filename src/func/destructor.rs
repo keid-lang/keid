@@ -10,21 +10,6 @@ impl<'a> DestructorCompiler for FunctionCompiler<'a> {
         let metadata_func = self.cpl.class_info.module.add_function(&self.func.external_name, self.func.as_llvm_type(self.cpl), 0);
         let metadata_func_ptr = self.cpl.context.const_func_ptr(metadata_func.as_val());
 
-        let source = self.get_source_function();
-        let (fields, destructor): (Vec<_>, _) = {
-            let class = self.cpl.type_provider.get_declaring_class(source).unwrap();
-            self.cpl.class_info.set_destructor(class.module_id, class.id, metadata_func_ptr);
-            (
-                class
-                    .fields
-                    .iter()
-                    .map(|field| crate::tree::extract_type(&self.cpl.type_provider, field.ty.clone(), &class.generic_defs, &self.func.generic_impls))
-                    .collect::<anyhow::Result<_>>()
-                    .map_err(|e| compiler_error!(self, "{}", e))?,
-                class.destructor.clone(),
-            )
-        };
-
         let this = self.state.block_stack[0].locals[0].value.clone();
         let this_type = match this.ty.get_root_type() {
             BasicType::Object(ident) => match self.cpl.type_provider.get_class_by_name(&ident) {
@@ -32,6 +17,24 @@ impl<'a> DestructorCompiler for FunctionCompiler<'a> {
                 None => panic!("unresolved type: {}", ident.to_string()),
             },
             _ => unreachable!(),
+        };
+
+        let source = self.get_source_function();
+        let (fields, destructor): (Vec<_>, _) = {
+            let class = self.cpl.type_provider.get_declaring_class(source).unwrap();
+            self.cpl.class_info.set_destructor(class.module_id, class.id, metadata_func_ptr);
+
+            (
+                class
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        crate::tree::extract_type(&self.cpl.type_provider, field.ty.clone(), &class.generic_defs, &self.func.generic_impls)
+                    })
+                    .collect::<anyhow::Result<_>>()
+                    .map_err(|e| compiler_error!(self, "{}", e))?,
+                class.destructor.clone(),
+            )
         };
 
         if let Some(body) = destructor {
@@ -50,7 +53,7 @@ impl<'a> DestructorCompiler for FunctionCompiler<'a> {
                         let element_ty = BasicType::Object(ident.clone()).to_complex();
                         let element_ptr = self.emit(Insn::GetElementPtr(field_ptr, field_type.as_llvm_type(&self.cpl), 0));
                         self.try_unscope(&TypedValue::new(element_ty, element_ptr))?;
-                    },
+                    }
                     _ => (),
                 }
             }

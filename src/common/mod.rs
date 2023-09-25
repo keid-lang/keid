@@ -68,6 +68,10 @@ impl TypedValue {
             val,
         }
     }
+
+    pub fn with_type(&self, ty: ComplexType) -> TypedValue {
+        TypedValue::new(ty, self.val)
+    }
 }
 
 pub trait ValueContainer {
@@ -95,7 +99,6 @@ impl ValueContainer for PreloadedTypedValueContainer {
         self.0.ty.clone()
     }
 }
-
 
 #[derive(Debug)]
 pub struct TypedValueContainer(pub TypedValue);
