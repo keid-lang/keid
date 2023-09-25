@@ -27,6 +27,7 @@ source_filename = "intrinsics.ll"
 @null_value_error = private unnamed_addr constant [62 x i8] c"NullValueError: attempted non-null assertion on a null value\0A\00", align 1
 @missing_class_info_error = private unnamed_addr constant [91 x i8] c"MissingClassInfoError: attempted retrieval of null class info pointer in object or struct\0A\00", align 1
 @find_interface_method_null_error = private unnamed_addr constant [85 x i8] c"NullValueError: attempted retrieval of interface method pointer from a null pointer\0A\00", align 1
+@find_class_method_null_error = private unnamed_addr constant [83 x i8] c"NullValueError: attempted retrieval of virtual method pointer from a null pointer\0A\00", align 1
 @illegal_ref_count_error = private unnamed_addr constant [43 x i8] c"InternalError: illegal reference count %i\0A\00", align 1
 @no_such_method_error = private unnamed_addr constant [123 x i8] c"NoSuchMethodError: attempted to invoke an invalid interface method (class name = '%s', interface id = %i, method id = %i)\0A\00", align 1
 @index_out_of_bounds_error = private unnamed_addr constant [84 x i8] c"IndexOutOfBoundsError: attempted to access index %i of a collection with length %i\0A\00", align 1
@@ -121,6 +122,39 @@ block.main:
   %class_info_ptr = getelementptr inbounds %KeidAbiStructData, ptr %object, i32 0, i32 0
   %class_info = load ptr, ptr %class_info_ptr, align 4 ; load the class info pointer from the class data
   %res = call ptr @keid.find_static_interface_method(ptr %class_info, i32 %interface_id, i32 %method_id)
+  ret ptr %res 
+}
+
+define ptr @keid.find_static_class_method(ptr %class_info, i32 %method_id) {
+block.check_null:
+  %is_null = icmp eq ptr %class_info, null
+  br i1 %is_null, label %block.break_null, label %block.main
+block.break_null:
+  call i32 @printf(ptr @find_class_method_null_error)
+  call void @"core::runtime::printStackFrames()"()
+  call void @exit(i32 1)
+  unreachable
+block.main:
+  %method_array_ptr_ptr = getelementptr inbounds %KeidAbiClassInfo, ptr %class_info, i32 0, i32 1 ; get a pointer to the method array pointer
+  %method_array_ptr = load ptr, ptr %method_array_ptr_ptr, align 4 ; load the pointer to the method array pointer
+  %method_array_item_ptr = getelementptr inbounds [0 x ptr], ptr %method_array_ptr, i32 0, i32 %method_id ; get a pointer to the method pointer
+  %method_array_item = load ptr, ptr %method_array_item_ptr, align 4 ; load the pointer to the method pointer
+  ret ptr %method_array_item
+}
+
+define ptr @keid.find_virtual_class_method(ptr %object, i32 %method_id) {
+block.check_null:
+  %is_null = icmp eq ptr %object, null
+  br i1 %is_null, label %block.break_null, label %block.main
+block.break_null:
+  call i32 @printf(ptr @find_class_method_null_error)
+  call void @"core::runtime::printStackFrames()"()
+  call void @exit(i32 1)
+  unreachable
+block.main:
+  %class_info_ptr = getelementptr inbounds %KeidAbiStructData, ptr %object, i32 0, i32 0
+  %class_info = load ptr, ptr %class_info_ptr, align 4 ; load the class info pointer from the class data
+  %res = call ptr @keid.find_static_class_method(ptr %class_info, i32 %method_id)
   ret ptr %res 
 }
 

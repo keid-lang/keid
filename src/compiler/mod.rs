@@ -366,6 +366,54 @@ impl Compiler {
                 }
 
                 // Compiler Phase 3
+                // queue virtual methods, similar to phase 2
+                loop {
+                    let mut queued = 0;
+                    for class in self.type_provider.get_all_resolved_classes() {
+                        let (module_id, functions) = match self.type_provider.get_class_by_name(&class) {
+                            Some(class) => {
+                                let source = self.type_provider.get_source_class(&class);
+                                (source.module_id, source.functions.clone())
+                            }
+                            None => continue,
+                        };
+                        for function_id in functions {
+                            let node = self.type_provider.get_function_node(module_id, function_id).unwrap();
+                            if node.modifiers.contains(&FunctionModifier::Virtual) || node.modifiers.contains(&FunctionModifier::Override) {
+                                let name = GenericIdentifier::from_name_with_args(&node.base_name, &class.generic_args.as_slice());
+                                let params = node
+                                    .params
+                                    .iter()
+                                    .map(|param| {
+                                        extract_type(&self.type_provider, param.ty.clone(), &node.generic_defs, &class.generic_args)
+                                    })
+                                    .collect::<anyhow::Result<Vec<ComplexType>>>()
+                                    .unwrap();
+                                match self.type_provider.get_function_by_name(&name, &params) {
+                                    Some(func) => {
+                                        if self.type_provider.get_compiled_function(&func.external_name).is_none() {
+                                            self.queue_function_compilation(func);
+                                            queued += 1;
+                                        }
+                                    }
+                                    None => {
+                                        panic!("no such function: {}({})", name.to_string(), utils::iter_join(&params))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if queued == 0 {
+                        break;
+                    }
+
+                    if self.compile_loop() {
+                        return true;
+                    }
+                }
+
+                // Compiler Phase 4
                 // queue class destructors for compilation
                 let class_names: Vec<_> = self
                     .class_info

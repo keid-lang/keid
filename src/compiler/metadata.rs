@@ -3,7 +3,7 @@ use std::fmt::Write;
 use super::llvm::*;
 use crate::{
     common::{GenericIdentifier, TypeProvider},
-    func::{utils, VirtualMethodTableEntry},
+    func::utils,
     tree::*,
 };
 
@@ -185,17 +185,35 @@ impl ClassInfoStorage {
             interface_impl_offset += resolved_interface_impls.len();
 
             // virtual methods
-            {
-                println!("{:#?}", class_info.vtable);
-            }
+            // let vtable_pointer = {
+            //     let class_vtable = utils::generate_vtable(type_provider, &class_info.data.ident);
+            //     let class_vtable_len = class_vtable.len();
 
-            // if there are no virtual methods, the vtable pointer is null
-            // let vtable_pointer = if vtable_pointers.len() == vtable_len {
-            //     context.const_null_ptr(vtable_item_type)
-            // } else {
-            //     context.const_get_element_ptr_dynamic(vtable_item_type, vtable, vtable_len)
+            //     if class_vtable_len == 0 {
+            //         context.const_null_ptr(vtable_item_type)
+            //     } else {
+            //         for vtable_entry in class_vtable {
+            //             // let node_impl = node.create_impl(type_provider, &class_info.data.ident.generic_args).unwrap();
+            //             let node_impl = type_provider.get_functions_by_name(&vtable_entry.implementation_name.unwrap()).remove(0).unwrap();
+            //             let externed_function = self
+            //                 .module
+            //                 .add_function(
+            //                     &node_impl.external_name,
+            //                     context.get_function_type(&[], node_impl.varargs, context.get_void_type()),
+            //                     0,
+            //                 )
+            //                 .as_val()
+            //                 .to_value();
+            //             context.set_linkage(externed_function, Linkage::LLVMExternalLinkage);
+            //             vtable_pointers.push(externed_function);
+            //         }
+
+            //         let vtable_pointer = context.const_get_element_ptr_dynamic(vtable_item_type, vtable, vtable_offset);
+            //         vtable_offset += class_vtable_len;
+            //         vtable_pointer
+            //     }
             // };
-            let vtable_pointer = context.const_null_ptr(vtable_item_type); // there are no class-level virtual methods currently
+            let vtable_pointer = context.const_null_ptr(vtable_item_type);
 
             let class_name_str = class_info.data.ident.to_string();
             let class_name_array = context.const_string(&class_name_str);
@@ -264,14 +282,6 @@ impl ClassInfoStorage {
     pub fn set_destructor(&mut self, module_id: usize, class_id: usize, destructor_ptr: OpaqueValue) {
         if let Some(class) = self.classes.iter_mut().find(|class| class.data.module_id == module_id && class.data.source_id == class_id) {
             class.destructor_ptr = destructor_ptr;
-        } else {
-            panic!("no class found")
-        }
-    }
-
-    pub fn set_vtable(&mut self, module_id: usize, class_id: usize, vtable: Vec<VirtualMethodTableEntry>) {
-        if let Some(class) = self.classes.iter_mut().find(|class| class.data.module_id == module_id && class.data.source_id == class_id) {
-            class.vtable = vtable;
         } else {
             panic!("no class found")
         }

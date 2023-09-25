@@ -323,6 +323,40 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
             let func_ident = GenericIdentifier::from_name_with_args(&name, &generic_args);
             match self.find_function(&func_ident, &fc.args, Some(instance.clone()))? {
                 Some((func, args)) => {
+                    {
+                        let source = self.cpl.type_provider.get_source_function(&func);
+                        if source.modifiers.contains(&FunctionModifier::Abstract)
+                            || source.modifiers.contains(&FunctionModifier::Virtual)
+                            || source.modifiers.contains(&FunctionModifier::Override)
+                        {
+                            let vtable = utils::generate_vtable(&self.cpl.type_provider, &ident);
+                            let method_id = vtable
+                                .iter()
+                                .enumerate()
+                                .find(|item| item.1.definition_name.name == source.base_name)
+                                .map(|item| item.0)
+                                .unwrap();
+
+                            let find_class_method_impl = ResolvedFunctionNode::externed(
+                                "keid.find_virtual_class_method",
+                                &[
+                                    BasicType::Void.to_complex().to_reference(), // pointer
+                                    BasicType::Int32.to_complex(),
+                                ],
+                                Varargs::None,
+                                BasicType::Void.to_complex().to_reference(), // pointer,
+                            );
+                            let find_class_method_ref = self.get_function_ref(&find_class_method_impl)?;
+                            let method_id_const = self.cpl.context.const_int(self.cpl.context.get_i32_type(), method_id as _);
+
+                            let find_args = vec![instance.val, method_id_const];
+                            let method_ptr =
+                                self.emit(Insn::Call(find_class_method_ref, find_class_method_impl.as_llvm_type(self.cpl), find_args));
+                            let res = self.call_function(method_ptr.to_function(), &func, &args)?;
+                            return Ok(TypedValue::new(func.return_type.clone(), res));
+                        }
+                    }
+
                     let func_ref = self.get_function_ref(&func)?;
                     let res = self.call_function(func_ref, &func, &args)?;
                     return Ok(TypedValue::new(func.return_type.clone(), res));

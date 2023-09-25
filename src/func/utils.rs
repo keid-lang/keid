@@ -783,3 +783,82 @@ pub fn get_type_namespace(ty: &str) -> &str {
 pub fn get_type_leaf(ty: &str) -> &str {
     &ty[ty.rfind("::").map(|i| i + 2).unwrap_or(0)..ty.len()]
 }
+
+/// 1. List all abstract and virtual functions in the hierarchy, starting with the root node.
+/// 2. Find the "deepest" implementation of each function in the hierarchy and include the pointer to that function.
+pub fn generate_vtable(type_provider: &TypeProvider, ident: &GenericIdentifier) -> Vec<VirtualMethodTableEntry> {
+    let mut vtable = Vec::new();
+
+    // Step 1 -- locate each virtual method definition
+    {
+        let mut current_ident = Some(ident.clone());
+        while let Some(ref ci) = current_ident {
+            match type_provider.get_class_by_name(ci) {
+                Some(class_impl) => {
+                    let mut layer_vtable = Vec::new();
+                    let source_class = type_provider.get_source_class(&class_impl);
+                    for function_id in &source_class.functions {
+                        let function = type_provider.get_function_node(class_impl.module_id, *function_id).unwrap();
+                        if function.modifiers.contains(&FunctionModifier::Abstract)
+                            || function.modifiers.contains(&FunctionModifier::Virtual)
+                        {
+                            layer_vtable.push(VirtualMethodTableEntry {
+                                definition_name: GenericIdentifier::from_name_with_args(&function.base_name, &class_impl.generic_impls),
+                                implementation_name: None,
+                            })
+                        }
+                    }
+
+                    current_ident = class_impl.superclass.clone();
+                    vtable.insert(0, layer_vtable);
+                }
+                None => break,
+            }
+        }
+    }
+
+    // Step 2 -- locate each virtual method implementation
+    let mut vtable: Vec<VirtualMethodTableEntry> = vtable.into_iter().flatten().collect();
+    {
+        let mut current_ident = Some(ident.clone());
+        while let Some(ref ci) = current_ident {
+            match type_provider.get_class_by_name(ci) {
+                Some(class_impl) => {
+                    let functions = type_provider.get_source_class(&class_impl).functions.clone();
+                    for function_id in functions {
+                        let function_name = {
+                            let function = type_provider.get_function_node(class_impl.module_id, function_id).unwrap();
+                            if function.modifiers.contains(&FunctionModifier::Abstract) {
+                                continue;
+                            }
+                            utils::get_type_leaf(&function.base_name).to_owned()
+                        };
+
+                        for vtable_entry in &mut vtable {
+                            // don't modify vtable entries which have already been assigned an implementation
+                            if vtable_entry.implementation_name.is_some() {
+                                continue;
+                            }
+
+                            let vf_name = utils::get_type_leaf(&vtable_entry.definition_name.name);
+
+                            // TODO: check args in the future to support overloading
+                            if function_name == vf_name {
+                                let implementation_name = {
+                                    let function = type_provider.get_function_node(class_impl.module_id, function_id).unwrap();
+                                    GenericIdentifier::from_name_with_args(&function.base_name, &class_impl.generic_impls)
+                                };
+                                vtable_entry.implementation_name = Some(implementation_name);
+                            }
+                        }
+                    }
+
+                    current_ident = class_impl.superclass.clone();
+                }
+                None => break,
+            }
+        }
+    }
+
+    vtable
+}
