@@ -21,6 +21,7 @@ extern function fwrite(buf: Pointer<uint8>, size: usize, count: usize, fd: usize
 extern function fclose(fd: usize): uint32
 extern function opendir(name: Pointer<uint8>): usize
 extern function closedir(fd: usize): uint32
+extern function readdir(fd: usize)
 
 function getIoError(prefix: string): Error {
     let msg = std::impl::sys.getErrorMessage(std::impl::sys.getErrorCode())
@@ -101,5 +102,11 @@ public function writeFileBytes(fd: usize, buf: [uint8]): isize {
             }
             return written
         }
+    }
+}
+
+public function listDirectory(fd: usize): [string] {
+    unsafe {
+
     }
 }

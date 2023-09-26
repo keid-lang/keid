@@ -35,15 +35,16 @@ implement Closeable for FileSystemObject {
     }
 }
 
-public class Directory extends FileSystemObject {
-    public static open(path: string): Directory {
-        return new Directory {
-            handle = std::impl::fs.openDirectory(path)
-        }
-    }
+public class Directory {
+    path: string
 
-    override closeImpl() {
-        std::impl::fs.closeDirectory(this.handle)
+    public static at(path: string): Directory => new Directory { path, }
+
+    public listFiles(): [string] {
+        let handle = std::impl::fs.openDirectory(path)
+        let files = std::impl::fs.listDirectory(handle)
+        std::impl::fs.closeDirectory(handle)
+        return files
     }
 }
 

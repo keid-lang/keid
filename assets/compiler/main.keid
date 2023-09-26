@@ -14,8 +14,7 @@ import (
 )
 
 public extern function main(): int32 {
-    let directory = Directory.open("../keid")
-    directory.close()
+    // std::io.println(core::array.toString<string>(Directory.at("../keid").listFiles()))
 
     let programFile = File.open("../keid/assets/compiler/common.keid", FileOpenMode.ReadOnly)
     let programText = String.fromUtf8(programFile.readAllBytes())
@@ -47,14 +46,12 @@ public extern function main(): int32 {
         os.exit(1)
     }
 
-    os.exit(0)
-
     // core::array tests
     // core::array::test.testArrayLength()
     // core::array::test.testArrayEquals()
     // core::array::test.testSingleElementCopy()
     // core::array::test.testMultipleElementCopy()
-    // core::array::test.testArrayToString()
+    core::array::test.testArrayToString()
 
     // // core::string::format() tests
     // core::string::test.testIdentityFormat()
