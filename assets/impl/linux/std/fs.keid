@@ -19,6 +19,8 @@ extern function ftell(fd: usize): usize
 extern function fread(buf: Pointer<uint8>, count: usize, length: usize, fd: usize): isize
 extern function fwrite(buf: Pointer<uint8>, size: usize, count: usize, fd: usize): isize
 extern function fclose(fd: usize): uint32
+extern function opendir(name: Pointer<uint8>): usize
+extern function closedir(fd: usize): uint32
 
 function getIoError(prefix: string): Error {
     let msg = std::impl::sys.getErrorMessage(std::impl::sys.getErrorCode())
@@ -27,14 +29,24 @@ function getIoError(prefix: string): Error {
 
 public function openFile(path: string, mode: string): usize {
     unsafe {
-        fixed let pathPtr = ref path.toNullTerminated() {
-            fixed let modePtr = ref mode.toNullTerminated() {
-                let fd = fopen(pathPtr, modePtr)
-                if fd == 0 {
-                    throw getIoError("opening file")
-                }
-                return fd
+        fixed let pathPtr = ref path.toNullTerminated(), modePtr = ref mode.toNullTerminated() {
+            let fd = fopen(pathPtr, modePtr)
+            if fd == 0 {
+                throw getIoError("opening file")
             }
+            return fd
+        }
+    }
+}
+
+public function openDirectory(path: string): usize {
+    unsafe {
+        fixed let pathPtr = ref path.toNullTerminated() {
+            let fd = opendir(pathPtr)
+            if fd == 0 {
+                throw getIoError("opening directory")
+            }
+            return fd
         }
     }
 }
@@ -42,6 +54,12 @@ public function openFile(path: string, mode: string): usize {
 public function closeFile(fd: usize): uint32 {
     unsafe {
         return fclose(fd)
+    }
+}
+
+public function closeDirectory(fd: usize): uint32 {
+    unsafe {
+        return closedir(fd)
     }
 }
 

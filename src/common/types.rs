@@ -186,7 +186,7 @@ impl ToString for BasicType {
             BasicType::Unknown => "{unknown}",
             BasicType::Function(ft) => {
                 return format!(
-                    "function ({})",
+                    "function({})",
                     utils::iter_join(&ft.params.iter().map(|param| param.to_string()).collect::<Vec<String>>())
                 )
             }

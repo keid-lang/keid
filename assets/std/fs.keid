@@ -8,7 +8,7 @@ import (
 
 public class FileSystemObject {
     handle: usize
-    get open: bool => this.handle == 0
+    get open: bool => this.handle != 0
 
     destructor {
         this.close()
@@ -36,6 +36,12 @@ implement Closeable for FileSystemObject {
 }
 
 public class Directory extends FileSystemObject {
+    public static open(path: string): Directory {
+        return new Directory {
+            handle = std::impl::fs.openDirectory(path)
+        }
+    }
+
     override closeImpl() {
         std::impl::fs.closeDirectory(this.handle)
     }

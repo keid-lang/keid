@@ -1,4 +1,4 @@
-use std::fmt::Write;
+use std::{collections::HashMap, fmt::Write};
 
 use super::llvm::*;
 use crate::{
@@ -45,6 +45,7 @@ pub struct ClassInfo {
 pub struct ClassInfoStorage {
     pub classes: Vec<ClassInfo>,
     pub module: Module,
+    pub externed_functions: HashMap<String, OpaqueValue>,
 }
 
 const TYPE_STRUCT: i32 = 0x01;
@@ -57,7 +58,23 @@ impl ClassInfoStorage {
         ClassInfoStorage {
             classes: Vec::new(),
             module,
+            externed_functions: HashMap::new(),
         }
+    }
+
+    fn extern_function(&mut self, context: &Context, node_impl: &ResolvedFunctionNode) -> OpaqueValue {
+        if let Some(existing) = self.externed_functions.get(&node_impl.external_name) {
+            return *existing;
+        }
+
+        let externed_function = self
+            .module
+            .add_function(&node_impl.external_name, context.get_function_type(&[], node_impl.varargs, context.get_void_type()), 0)
+            .as_val()
+            .to_value();
+        context.set_linkage(externed_function, Linkage::LLVMExternalLinkage);
+        self.externed_functions.insert(node_impl.external_name.clone(), externed_function);
+        externed_function
     }
 
     pub fn create_class_info_storage(&mut self, context: &mut Context, type_provider: &TypeProvider) {
@@ -91,11 +108,7 @@ impl ClassInfoStorage {
                 let interface_name_array = context.const_string(&interface_name_str);
                 let interface_name_var = format!("keid.interface_name.{}", interface_name_str);
                 let interface_name_global = self.module.get_global(&interface_name_var).unwrap_or_else(|| {
-                    self.module.create_global(
-                        context,
-                        &interface_name_var,
-                        context.get_array_type(context.get_i8_type(), interface_name_str.len() + 1),
-                    )
+                    self.module.create_global(context, &interface_name_var, context.get_array_type(context.get_i8_type(), interface_name_str.len() + 1))
                 });
                 self.module.initialize_global(interface_name_global, interface_name_array);
 
@@ -109,7 +122,7 @@ impl ClassInfoStorage {
                                 &resolved_interface_impl.interface_generic_impls,
                             )) as _,
                         ), // interface ID
-                        interface_name_global, // interface name
+                        interface_name_global,                                                          // interface name
                         context.const_get_element_ptr_dynamic(vtable_item_type, vtable, vtable_offset), // points to the start of this impl's functions in the vtable
                     ],
                 ));
@@ -126,10 +139,11 @@ impl ClassInfoStorage {
         self.module.initialize_global(global_interface_impl, global_interface_impl_array);
 
         let mut interface_impl_offset = 0;
+        let mut virtual_class_function_count = 0;
         for i in 0..self.classes.len() {
-            let class_info = &self.classes[i];
+            let data = self.classes[i].data.clone();
 
-            let resolved_interface_impls = type_provider.get_resolved_interface_impls(&class_info.data.ident);
+            let resolved_interface_impls = type_provider.get_resolved_interface_impls(&data.ident);
             for resolved_interface_impl in &resolved_interface_impls {
                 let interface_impl = type_provider.get_source_interface_impl(resolved_interface_impl);
 
@@ -142,16 +156,13 @@ impl ClassInfoStorage {
                 functions.dedup();
 
                 for source_function_id in functions {
-                    let source_function_name =
-                        type_provider.get_function_node(source_interface.module_id, source_function_id).unwrap().base_name.clone();
+                    let source_function_name = type_provider.get_function_node(source_interface.module_id, source_function_id).unwrap().base_name.clone();
                     for impl_function_id in &interface_impl.functions {
                         let node = type_provider.get_function_node(resolved_interface_impl.module_id, *impl_function_id).unwrap();
 
                         // only add the function if it has the correct name from the source interface
                         // this maintains the order of the functions regardless of implementation
-                        if node.base_name != source_function_name
-                            && !node.base_name.starts_with(&format!("{}#__impl#", source_function_name))
-                        {
+                        if node.base_name != source_function_name && !node.base_name.starts_with(&format!("{}#__impl#", source_function_name)) {
                             continue;
                         }
 
@@ -161,16 +172,7 @@ impl ClassInfoStorage {
                         }
 
                         let node_impl = node.create_impl(type_provider, &resolved_interface_impl.generic_impls).unwrap();
-                        let externed_function = self
-                            .module
-                            .add_function(
-                                &node_impl.external_name,
-                                context.get_function_type(&[], node.varargs, context.get_void_type()),
-                                0,
-                            )
-                            .as_val()
-                            .to_value();
-                        context.set_linkage(externed_function, Linkage::LLVMExternalLinkage);
+                        let externed_function = self.extern_function(context, &node_impl);
                         vtable_pointers.push(externed_function);
                     }
                 }
@@ -185,37 +187,20 @@ impl ClassInfoStorage {
             interface_impl_offset += resolved_interface_impls.len();
 
             // virtual methods
-            // let vtable_pointer = {
-            //     let class_vtable = utils::generate_vtable(type_provider, &class_info.data.ident);
-            //     let class_vtable_len = class_vtable.len();
+            let vtable_pointer = {
+                let class_vtable = utils::generate_vtable(type_provider, &data.ident);
 
-            //     if class_vtable_len == 0 {
-            //         context.const_null_ptr(vtable_item_type)
-            //     } else {
-            //         for vtable_entry in class_vtable {
-            //             // let node_impl = node.create_impl(type_provider, &class_info.data.ident.generic_args).unwrap();
-            //             let node_impl = type_provider.get_functions_by_name(&vtable_entry.implementation_name.unwrap()).remove(0).unwrap();
-            //             let externed_function = self
-            //                 .module
-            //                 .add_function(
-            //                     &node_impl.external_name,
-            //                     context.get_function_type(&[], node_impl.varargs, context.get_void_type()),
-            //                     0,
-            //                 )
-            //                 .as_val()
-            //                 .to_value();
-            //             context.set_linkage(externed_function, Linkage::LLVMExternalLinkage);
-            //             vtable_pointers.push(externed_function);
-            //         }
+                if class_vtable.len() == 0 {
+                    context.const_null_ptr(vtable_item_type)
+                } else {
+                    let vtable_pointer = context.const_get_element_ptr_dynamic(vtable_item_type, vtable, vtable_offset + virtual_class_function_count);
+                    virtual_class_function_count += class_vtable.len();
+                    vtable_pointer
+                }
+            };
+            // let vtable_pointer = context.const_null_ptr(vtable_item_type);
 
-            //         let vtable_pointer = context.const_get_element_ptr_dynamic(vtable_item_type, vtable, vtable_offset);
-            //         vtable_offset += class_vtable_len;
-            //         vtable_pointer
-            //     }
-            // };
-            let vtable_pointer = context.const_null_ptr(vtable_item_type);
-
-            let class_name_str = class_info.data.ident.to_string();
+            let class_name_str = data.ident.to_string();
             let class_name_array = context.const_string(&class_name_str);
             let class_name_global = self.module.create_global(
                 context,
@@ -225,9 +210,9 @@ impl ClassInfoStorage {
             self.module.initialize_global(class_name_global, class_name_array);
 
             let mut class_bitflags = 0;
-            if class_info.data.class_type == ClassType::Struct {
+            if data.class_type == ClassType::Struct {
                 class_bitflags |= TYPE_STRUCT;
-            } else if class_info.data.class_type == ClassType::Enum {
+            } else if data.class_type == ClassType::Enum {
                 class_bitflags |= TYPE_ENUM;
             }
             let class_bitflags = context.const_int(context.get_i32_type(), class_bitflags as _);
@@ -235,7 +220,7 @@ impl ClassInfoStorage {
             class_info_structs.push(context.const_struct(
                 info_array_type,
                 &mut [
-                    class_info.destructor_ptr,                                                        // destructor
+                    self.classes[i].destructor_ptr,                                                   // destructor
                     vtable_pointer,                                                                   // vtable
                     context.const_int(context.get_i32_type(), resolved_interface_impls.len() as u64), // interfaces length
                     interfaces_ptr,                                                                   // interfaces
@@ -245,14 +230,28 @@ impl ClassInfoStorage {
             ));
         }
 
+        // push all virtual methods to the end of the vtable
+        for i in 0..self.classes.len() {
+            let class_info = &self.classes[i];
+            let class_vtable = utils::generate_vtable(type_provider, &class_info.data.ident);
+            let class_vtable_len = class_vtable.len();
+
+            if class_vtable_len > 0 {
+                for vtable_entry in class_vtable {
+                    let node_impl = type_provider.get_functions_by_name(&vtable_entry.implementation_name.unwrap()).remove(0).unwrap();
+                    let externed_function = self.extern_function(context, &node_impl);
+                    vtable_pointers.push(externed_function);
+                }
+            }
+        }
+
         let array_type = context.get_array_type(context.get_abi_class_info_type(), class_info_structs.len());
         let global_class_info = self.module.create_global(context, "keid.classinfo", array_type);
         let global_class_info_array = context.const_array(info_array_type, &class_info_structs);
         self.module.initialize_global(global_class_info, global_class_info_array);
 
         let vtable_value = context.const_array(vtable_item_type, &vtable_pointers);
-        let replacement_vtable =
-            self.module.create_global(context, "keid.vtable", context.get_array_type(vtable_item_type, vtable_pointers.len()));
+        let replacement_vtable = self.module.create_global(context, "keid.vtable", context.get_array_type(vtable_item_type, vtable_pointers.len()));
         context.replace_all_uses(vtable, replacement_vtable);
         self.module.initialize_global(replacement_vtable, vtable_value);
     }
@@ -272,11 +271,7 @@ impl ClassInfoStorage {
     pub fn get_abi_class_info_ptr(&mut self, context: &Context, module: &Module, data: &ClassInfoData) -> OpaqueValue {
         let classinfo_index = self.get_abi_class_info_offset(context, data);
         let info_array_type = context.get_abi_class_info_type();
-        context.const_get_element_ptr_dynamic(
-            info_array_type,
-            module.get_global("keid.classinfo").expect("missing keid.classinfo"),
-            classinfo_index,
-        )
+        context.const_get_element_ptr_dynamic(info_array_type, module.get_global("keid.classinfo").expect("missing keid.classinfo"), classinfo_index)
     }
 
     pub fn set_destructor(&mut self, module_id: usize, class_id: usize, destructor_ptr: OpaqueValue) {

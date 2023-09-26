@@ -14,19 +14,12 @@ import (
 )
 
 public extern function main(): int32 {
-    let programText = ""
-    try {
-        std::io.println("A")
-        let programFile = File.open("../keid/assets/compiler/common.keid", FileOpenMode.ReadOnly)
-        std::io.println("B")
-        programText = String.fromUtf8(programFile.readAllBytes())
-        std::io.println("C")
-        programFile.close()
-        std::io.println("D")
-    } catch ex {
-        std::io.println("caught exception")
-        std::io.println(ex.toString())
-    }
+    let directory = Directory.open("../keid")
+    directory.close()
+
+    let programFile = File.open("../keid/assets/compiler/common.keid", FileOpenMode.ReadOnly)
+    let programText = String.fromUtf8(programFile.readAllBytes())
+    programFile.close()
 
     let prevTime = std::time.getSystemTime()
     let ast = keidc::parser.parseKeidSource(programText)
