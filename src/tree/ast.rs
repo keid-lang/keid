@@ -427,7 +427,7 @@ pub struct WhileLoop {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FixedBlock {
+pub struct WithBlock {
     pub variable: Let,
     pub block: Vec<Token<Statement>>,
 }
@@ -451,7 +451,7 @@ pub enum Statement {
     ArrowExpr(Token<Expr>),
     Block(Vec<Token<Statement>>),
     UnsafeBlock(Vec<Token<Statement>>),
-    FixedBlock(FixedBlock),
+    WithBlock(WithBlock),
     IndefiniteLoop(Vec<Token<Statement>>),
     Unreachable,
     Throw(Token<Expr>),
@@ -494,6 +494,9 @@ pub enum Operator {
     Not,
     NonNullAssertion,
     Spread,
+    BitAnd,
+    BitOr,
+    BitXor,
 }
 
 #[derive(Debug, Clone, PartialEq)]

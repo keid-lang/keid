@@ -146,6 +146,16 @@ public class TypeMetadataCompiler {
 
                 class.resolve(trc)
             }
+            for impl in program.impls {
+                trc.generics.clear()
+                if impl.generics != null {
+                    for generic in impl.generics! {
+                        trc.generics.push(generic.name.node)
+                    }
+                }
+
+                impl.resolve(trc)
+            }
         }
         return errors
     }

@@ -320,8 +320,7 @@ impl<'a> AstConverter<'a> {
                 base_name.to_string()
             }
         };
-        let mut func_generic_defs: Vec<GenericDefNode> =
-            func.generics.unwrap_or_default().into_iter().map(|def| GenericDefNode::from_ast(&def)).collect();
+        let mut func_generic_defs: Vec<GenericDefNode> = self.parse_generic_decls(ns, func.generics.as_ref(), dst)?;
         let mut this_node = None;
 
         if function_type == FunctionContextType::Instance && let Some(class) = class {
@@ -459,10 +458,8 @@ impl<'a> AstConverter<'a> {
     }
 
     fn parse_interface_impl(&self, ns: &str, interface_impl: InterfaceImpl, dst: &mut KeidModuleNode) -> Result<()> {
-        let generic_defs: Vec<GenericDefNode> = interface_impl
-            .generics
-            .map(|decls| decls.into_iter().map(|decl| GenericDefNode::from_ast(&decl)).collect())
-            .unwrap_or_default();
+        let generic_defs: Vec<GenericDefNode> = self.parse_generic_decls(ns, interface_impl.generics.as_ref(), dst)?;
+
         let decl_parent = DeclParent::Class {
             name: String::new(),
             generic_defs: generic_defs.clone(),
@@ -558,10 +555,38 @@ impl<'a> AstConverter<'a> {
         Ok(())
     }
 
+    fn parse_generic_decls(&self, ns: &str, decls: Option<&Vec<GenericDecl>>, dst: &mut KeidModuleNode) -> Result<Vec<GenericDefNode>> {
+        decls
+            .map(|decls| decls.into_iter().map(|decl| self.parse_generic_decl(ns, &decl, dst)).collect::<Result<_>>())
+            .unwrap_or_else(|| Ok(Vec::new()))
+    }
+
+    fn parse_generic_decl(&self, ns: &str, decl: &GenericDecl, dst: &mut KeidModuleNode) -> Result<GenericDefNode> {
+        Ok(GenericDefNode {
+            name: decl.name.token.0.clone(),
+            interfaces: decl
+                .interfaces
+                .iter()
+                .map(|interface| {
+                    let ty = self.get_type(QualifiedType::from_qualifier(interface), None, dst, ns.to_owned());
+                    match ty {
+                        Ok(ComplexType::Basic(BasicType::Object(ident))) => Ok(ident),
+                        Ok(other) => Err(compiler_error_loc!(
+                            &decl.name.loc,
+                            "Generic type constraint `{}` is not a valid interface type",
+                            other.to_string()
+                        )),
+                        Err(e) => Err(e),
+                    }
+                })
+                .collect::<Result<Vec<GenericIdentifier>>>()?,
+        })
+    }
+
     fn parse_enum_decl(&self, ns: &str, enm: EnumDecl, dst: &mut KeidModuleNode) -> Result<()> {
         let base_name = Qualifier(enm.name).to_string();
-        let generic_defs: Vec<GenericDefNode> =
-            enm.generics.map(|decls| decls.into_iter().map(|decl| GenericDefNode::from_ast(&decl)).collect()).unwrap_or_default();
+        let generic_defs: Vec<GenericDefNode> = self.parse_generic_decls(ns, enm.generics.as_ref(), dst)?;
+
         let decl_parent = DeclParent::Class {
             name: base_name.clone(),
             generic_defs: generic_defs.clone(),
@@ -615,8 +640,8 @@ impl<'a> AstConverter<'a> {
 
     fn parse_class_decl(&self, ns: &str, class: ClassDecl, dst: &mut KeidModuleNode) -> Result<()> {
         let base_name = Qualifier(class.name).to_string();
-        let generic_defs: Vec<GenericDefNode> =
-            class.generics.map(|decls| decls.into_iter().map(|decl| GenericDefNode::from_ast(&decl)).collect()).unwrap_or_default();
+        let generic_defs: Vec<GenericDefNode> = self.parse_generic_decls(ns, class.generics.as_ref(), dst)?;
+
         let decl_parent = DeclParent::Class {
             name: base_name.clone(),
             generic_defs: generic_defs.clone(),

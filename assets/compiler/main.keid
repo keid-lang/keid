@@ -14,14 +14,14 @@ import (
 )
 
 public extern function main(): int32 {
-    // std::io.println(core::array.toString<string>(Directory.at("../keid").listFiles()))
-
-    let programFile = File.open("../keid/assets/compiler/common.keid", FileOpenMode.ReadOnly)
+    let programFile = File.open("../keid/assets/core2/string/String.keid", FileOpenMode.ReadOnly)
     let programText = String.fromUtf8(programFile.readAllBytes())
     programFile.close()
 
+    let engine = parser.createParsingEngine()
+
     let prevTime = std::time.getSystemTime()
-    let ast = keidc::parser.parseKeidSource(programText)
+    let ast = parser.parseKeidSource(engine, programText)
     let elapsedTime = std::time.getSystemTime() - prevTime
     
     std::io.println("Parsing took ", elapsedTime.milliseconds.toString(), "ms")
@@ -51,7 +51,7 @@ public extern function main(): int32 {
     // core::array::test.testArrayEquals()
     // core::array::test.testSingleElementCopy()
     // core::array::test.testMultipleElementCopy()
-    core::array::test.testArrayToString()
+    // core::array::test.testArrayToString()
 
     // // core::string::format() tests
     // core::string::test.testIdentityFormat()

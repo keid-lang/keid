@@ -15,6 +15,9 @@ lazy_static! {
         .op(Op::infix(Rule::op_null_coalesce, Assoc::Left))
         .op(Op::infix(Rule::op_or, Assoc::Left))
         .op(Op::infix(Rule::op_and, Assoc::Left))
+        .op(Op::infix(Rule::op_bit_or, Assoc::Left))
+        .op(Op::infix(Rule::op_bit_xor, Assoc::Left))
+        .op(Op::infix(Rule::op_bit_and, Assoc::Left))
         .op(Op::infix(Rule::op_equal, Assoc::Left) | Op::infix(Rule::op_not_equal, Assoc::Left))
         .op(Op::infix(Rule::op_lt, Assoc::Left)
             | Op::infix(Rule::op_lte, Assoc::Left)
@@ -74,10 +77,13 @@ fn parse_sint_lit(int: Pair<Rule>) -> Result<i64> {
     let mut str = int.as_str().to_owned();
     if str.starts_with("-0x") {
         radix = 16;
-        str = "-".to_owned() + &str[3..str.len()];
+        str = "-".to_owned() + &str[3..];
     } else if str.starts_with("0x") {
         radix = 16;
-        str = str[2..str.len()].to_owned();
+        str = str[2..].to_owned();
+    } else if str.starts_with("0o") {
+        radix = 8;
+        str = str[2..].to_owned();
     }
     Ok(i64::from_str_radix(str.as_str(), radix).map_err(|_| {
         Error::new_from_span(
@@ -240,6 +246,9 @@ fn parse_logic_expr(pairs: Pairs<Rule>) -> Result<Token<Expr>> {
                         Rule::op_lt => Operator::LessThan,
                         Rule::op_gt => Operator::GreaterThan,
                         Rule::op_as => Operator::As,
+                        Rule::op_bit_and => Operator::BitAnd,
+                        Rule::op_bit_or => Operator::BitOr,
+                        Rule::op_bit_xor => Operator::BitXor,
                         x => unreachable!("{:?}", x),
                     },
                     lhs: Box::new(lhs),
@@ -594,12 +603,12 @@ fn parse_unsafe_block(mut pairs: Pairs<Rule>) -> Result<Vec<Token<Statement>>> {
     Ok(block)
 }
 
-fn parse_fixed_block(mut pairs: Pairs<Rule>) -> Result<FixedBlock> {
-    pairs.next(); // skip "fixed" keyword
+fn parse_with_block(mut pairs: Pairs<Rule>) -> Result<WithBlock> {
+    pairs.next(); // skip "with" keyword
 
     let variable = parse_let(pairs.next().unwrap().into_inner())?;
     let block = parse_block(pairs.next().unwrap())?;
-    Ok(FixedBlock {
+    Ok(WithBlock {
         variable,
         block,
     })
@@ -632,7 +641,7 @@ fn parse_statement(pair: Pair<Rule>) -> Result<Token<Statement>> {
             Rule::while_loop => Statement::WhileLoop(parse_while_loop(inner)?),
             Rule::block => Statement::Block(parse_block(pair)?),
             Rule::unsafe_block => Statement::UnsafeBlock(parse_unsafe_block(inner)?),
-            Rule::fixed_block => Statement::FixedBlock(parse_fixed_block(inner)?),
+            Rule::with_block => Statement::WithBlock(parse_with_block(inner)?),
             Rule::indefinite_loop => Statement::IndefiniteLoop(parse_indefinite_loop(inner)?),
             Rule::unreachable_statement => Statement::Unreachable,
             Rule::throw_statement => Statement::Throw(parse_throw_statement(inner)?),

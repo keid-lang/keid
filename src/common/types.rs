@@ -31,6 +31,26 @@ pub struct FunctionType {
     pub varargs: Varargs,
 }
 
+#[macro_export]
+macro_rules! primitive_types {
+    () => {
+        BasicType::Char
+            | BasicType::UInt8
+            | BasicType::UInt16
+            | BasicType::UInt32
+            | BasicType::UInt64
+            | BasicType::Int8
+            | BasicType::Int16
+            | BasicType::Int32
+            | BasicType::Int64
+            | BasicType::USize
+            | BasicType::ISize
+            | BasicType::Float32
+            | BasicType::Float64
+            | BasicType::Bool
+    };
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Encode, Decode)]
 pub enum BasicType {
     Void,
@@ -185,10 +205,7 @@ impl ToString for BasicType {
             BasicType::Null => "null",
             BasicType::Unknown => "{unknown}",
             BasicType::Function(ft) => {
-                return format!(
-                    "function({})",
-                    utils::iter_join(&ft.params.iter().map(|param| param.to_string()).collect::<Vec<String>>())
-                )
+                return format!("function({})", utils::iter_join(&ft.params.iter().map(|param| param.to_string()).collect::<Vec<String>>()))
             }
         })
     }

@@ -6,6 +6,15 @@ import (
     std::os
 )
 
+public class Stats {
+    isFile: bool
+    isDirectory: bool
+}
+
+public function exists(path: string): bool => std::impl::fs.exists(path)
+
+public function stat(path: string): Stats => std::impl::fs.stat(path)
+
 public class FileSystemObject {
     handle: usize
     get open: bool => this.handle != 0
@@ -41,7 +50,7 @@ public class Directory {
     public static at(path: string): Directory => new Directory { path, }
 
     public listFiles(): [string] {
-        let handle = std::impl::fs.openDirectory(path)
+        let handle = std::impl::fs.openDirectory(this.path)
         let files = std::impl::fs.listDirectory(handle)
         std::impl::fs.closeDirectory(handle)
         return files

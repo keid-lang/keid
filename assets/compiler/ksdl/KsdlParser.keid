@@ -156,6 +156,9 @@ public class KsdlParser {
                 literal = " "
             }
             return StringLiteralStatement.create(literal)
+        } else if line.startsWith("KEYWORD") {
+            let keyword = line.substringAfter(8).trim()
+            return KeywordStatement.create(keyword)
         } else if line.startsWith("RANGE") {
             let range = line.substringAfter(6).trim()
             if range.length != 3 || range.chars[1] != '-' {
@@ -186,6 +189,9 @@ public class KsdlParser {
         } else if line.startsWith("UNTIL") {
             let statement = this.parseStatement(line.substringAfter(6).trim())
             return UntilStatement.create(statement)
+        } else if line.startsWith("NOT") {
+            let statement = this.parseStatement(line.substringAfter(4).trim())
+            return NotStatement.create(statement)
         }
         throw Error.create(string.format("Invalid KSDL: ", line))
     }

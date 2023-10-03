@@ -9,7 +9,7 @@ pub trait BlockCompiler {
     fn compile_while_loop(&mut self, while_loop: &WhileLoop) -> Result<()>;
     fn compile_indefinite_loop(&mut self, indef_loop: &Vec<Token<Statement>>) -> Result<()>;
     fn compile_block_statement(&mut self, block: &[Token<Statement>], block_type: BlockType) -> bool;
-    fn compile_fixed_block(&mut self, fixed: &FixedBlock) -> Result<bool>;
+    fn compile_with_block(&mut self, with: &WithBlock) -> Result<bool>;
     fn compile_throw(&mut self, expr: &Token<Expr>) -> Result<()>;
     fn compile_try_catch(&mut self, try_catch: &TryCatch) -> Result<()>;
     fn compile_continue(&mut self) -> Result<()>;
@@ -75,7 +75,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
                     returns = self.compile_block_statement(block, BlockType::Unsafe);
                     Ok(())
                 }
-                Statement::FixedBlock(fixed) => match self.compile_fixed_block(fixed) {
+                Statement::WithBlock(with) => match self.compile_with_block(with) {
                     Ok(r) => {
                         returns = r;
                         Ok(())
@@ -109,7 +109,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
         returns
     }
 
-    fn compile_fixed_block(&mut self, block: &FixedBlock) -> Result<bool> {
+    fn compile_with_block(&mut self, block: &WithBlock) -> Result<bool> {
         self.compile_let(&block.variable)?;
         let res = self.compile_block_statement(&block.block, BlockType::Generic);
 

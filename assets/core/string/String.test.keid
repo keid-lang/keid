@@ -86,7 +86,7 @@ function testStringFromCStr() {
     let myString = "Hello, I am a String."
     let myStringNul = myString.toNullTerminated()
     unsafe {
-        fixed let myStringCStr = ref myStringNul {
+        with let myStringCStr = ref myStringNul {
             let myStringFromCStr = string.fromCStr(myStringCStr) 
             test.assertEqual(myStringFromCStr, "Hello, I am a String.")
         }

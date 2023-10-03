@@ -4,7 +4,7 @@ import (
     core::ops
 )
 
-public class Mutex {
+public class Semaphore {
     /// Pauses the current microthread until a call to `signal` unpauses it. The mutex must be acquired to invoke this. 
     wait() {
 
@@ -19,6 +19,9 @@ public class Mutex {
     signalAll() {
 
     }
+}
+
+public class Mutex {
 }
 
 implement ContextMonitor for Mutex {

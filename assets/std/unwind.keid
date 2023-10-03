@@ -25,7 +25,7 @@ public function getBacktrace(): string {
     let off: unw_word_t = 0
 
     unsafe {
-        fixed let symbolPtr = ref symbol, offPtr = ref off {
+        with let symbolPtr = ref symbol, offPtr = ref off {
             unw_getcontext(context)
             unw_init_local(cursor, context)
 

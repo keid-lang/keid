@@ -46,9 +46,9 @@ public class TypeResolveContext {
         }
 
         if candidates.length == 0 {
-            // not found error
+            fix("// not found error")
         } else if candidates.length > 1 {
-            // ambiguous error
+            fix("// ambiguous error")
         } else {
             let candidate = candidates.get(0)
             return string.format(candidate.namespace, "::", candidate.name)
@@ -61,7 +61,7 @@ public class TypeResolveContext {
 
     public resolveTypeName(name: AstToken<string>): AstToken<string> {
         this.at = name.loc
-        return new AstToken<string> {
+        return AstToken<string> {
             loc = name.loc
             node = this.resolveTypeName(name.node)
         }
@@ -69,7 +69,7 @@ public class TypeResolveContext {
 
     public resolve(qual: AstToken<QualifiedIdent>): AstToken<QualifiedIdent> {
         this.at = qual.loc
-        return new AstToken<QualifiedIdent> {
+        return AstToken<QualifiedIdent> {
             loc = qual.loc
             node = this.resolve(qual.node)
         }
@@ -85,7 +85,7 @@ public class TypeResolveContext {
 
     public resolve(type: AstToken<ComplexType>): AstToken<ComplexType> {
         this.at = type.loc
-        return new AstToken<ComplexType> {
+        return AstToken<ComplexType> {
             loc = type.loc
             node = this.resolve(type.node)
         }
@@ -94,8 +94,8 @@ public class TypeResolveContext {
     public resolve(type: ComplexType): ComplexType {
         let root = type.root
         return match root {
-            Object { ident, } => type.withRoot(new ComplexType.Basic {
-                basic = new BasicType.Object {
+            Object { ident, } => type.withRoot(ComplexType.Basic {
+                basic = BasicType.Object {
                     ident = this.resolve(ident)
                 }
             })
@@ -111,7 +111,7 @@ public interface Resolvable {
 public class TypeMetadataCompiler {
     programs: List<AstKeidProgram>
 
-    public static create(): TypeMetadataCompiler => new TypeMetadataCompiler {
+    public static create(): TypeMetadataCompiler => TypeMetadataCompiler {
         programs = List.empty<AstKeidProgram>()
     }
 
@@ -127,7 +127,7 @@ public class TypeMetadataCompiler {
             for import in program.imports {
                 imports.push(import.node)
             }
-            let trc = new TypeResolveContext {
+            let trc = TypeResolveContext {
                 at = TokenLocation.create(0, 0)
                 allTypes
                 source = program.source
@@ -154,7 +154,7 @@ public class TypeMetadataCompiler {
         let registeredTypes = List.empty<RegisteredType>()
         for program in this.programs {
             for class in program.classes {
-                registeredTypes.push(new RegisteredType {
+                registeredTypes.push(RegisteredType {
                     namespace = program.namespace.node
                     name = class.name.node
                     kind = class.kind.node

@@ -1,4 +1,6 @@
 WHITESPACE = _{ " " | "\t" | "\n" }
+COMMENT = _{ ("//" ~ (!NEWLINE ~ ANY)*) | ("/*" ~ (!"*/" ~ ANY)* ~ "*/") }
+
 keyword_macro = @{ "macro" }
 
 all_chars = _{ 'a'..'z' | 'A'..'Z' | "_" | '0'..'9' }

@@ -1,7 +1,15 @@
 namespace core::ops
 
+import (
+    core::object
+)
+
 public interface Equals<T> {
     equals(other: T): bool
+}
+
+public interface Hash {
+    hash(hasher: Hasher)
 }
 
 public interface Add<T> {

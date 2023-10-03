@@ -1082,6 +1082,7 @@ impl InsnBuilder {
                 Insn::IAdd(lhs, rhs) => LLVMBuildAdd(self.bdl, lhs.0, rhs.0, insn_name),
                 Insn::IAnd(lhs, rhs) => LLVMBuildAnd(self.bdl, lhs.0, rhs.0, insn_name),
                 Insn::IOr(lhs, rhs) => LLVMBuildOr(self.bdl, lhs.0, rhs.0, insn_name),
+                Insn::IXor(lhs, rhs) => LLVMBuildXor(self.bdl, lhs.0, rhs.0, insn_name),
                 Insn::ISub(lhs, rhs) => LLVMBuildSub(self.bdl, lhs.0, rhs.0, insn_name),
                 Insn::IMul(lhs, rhs) => LLVMBuildMul(self.bdl, lhs.0, rhs.0, insn_name),
                 Insn::SDiv(lhs, rhs) => LLVMBuildSDiv(self.bdl, lhs.0, rhs.0, insn_name),

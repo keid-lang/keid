@@ -18,7 +18,7 @@ public class String {
     static unsafe getCStrLength(cstr: Pointer<uint8>): usize {
         let currentPtr = cstr
         let size: usize = 0
-        loop {
+        for {
             let nextByte = deref currentPtr
             if nextByte == 0 {
                 return size
@@ -40,24 +40,22 @@ public class String {
 
     /// Note that any changes to the new underlying array will be reflected in the string's value.
     public static fromUtf8(bytes: [uint8]): string {
-        let chars = new char[default(char); bytes.length]
-        for i in range.create(0, bytes.length) {
+        let chars = [char](default(char), bytes.length)
+        for i in range.create(bytes.length) {
             chars[i] = bytes[i] as char
         }
 
-        return new string {
-            chars
-        }
+        return string { chars, }
     }
 
     /// Returns the string as a UTF-8 encoded byte slice.
     /// No null terminator is added.
     public toUtf8(): [uint8] {
         if this.chars.length == 0 {
-            return new uint8[]
+            return [uint8]{}
         }
 
-        let utf8 = new uint8[0; this.chars.length]
+        let utf8 = [uint8](0, this.chars.length)
         for i in range.create(0, this.chars.length) {
             utf8[i] = this.chars[i] as uint8
         }
@@ -67,11 +65,11 @@ public class String {
     /// Returns an array containing the characters in the string as NUL-terminated and UTF-8 encoded.
     public toNullTerminated(): [uint8] {
         if this.chars.length == 0 {
-            return new uint8[0] // return just a null terminator
+            return [uint8] { 0 } // return just a null terminator
         }
 
         // the last char stays zero, making it null terminated
-        let terminated = new uint8[0; this.chars.length + 1]
+        let terminated = [uint8](0, this.chars.length + 1)
         for i in range.create(0, this.chars.length) {
             terminated[i] = this.chars[i] as uint8
         }
@@ -137,11 +135,9 @@ public class String {
         if end > this.length {
             throw error.indexOutOfBounds(end)
         }
-
-        // TODO: change to a non-copy slicing operation
-        let charsCopy = new char[default(char); end - start]
+        let charsCopy = [char](default(char), end - start)
         array.copy<char>(this.chars, start, charsCopy, 0, end - start)
-        return new string {
+        return string {
             chars = charsCopy
         }
     }
@@ -162,7 +158,7 @@ public class String {
         let parts = List.empty<string>()
 
         let prevCursor: usize = 0
-        loop {
+        for {
             let next = this.indexOf(delim, prevCursor)
             if next == null {
                 if prevCursor < this.length {
@@ -187,12 +183,12 @@ public class String {
             return ""
         }
         let start: usize = 0
-        while this.chars[start].isWhitespace() {
+        for this.chars[start].isWhitespace() {
             start += 1
         }
 
         let end: usize = this.length - 1
-        while this.chars[end].isWhitespace() {
+        for this.chars[end].isWhitespace() {
             end -= 1
         }
 
@@ -220,22 +216,13 @@ implement ToString for String {
     toString(): string => this
 }
 
-implement Hash for String {
-    hash(hasher: Hasher) {
-        hasher.write(this.chars.length)
-        for ch in this.chars {
-            hasher.write(ch)
-        }
-    }
-}
-
 implement Equals<String> for String {
     equals(other: string): bool {
         if this.length != other.length {
             return false
         }
 
-        for i in range.create(this.length) {
+        for i in range.create(0, this.length) {
             if this.chars[i] != other.chars[i] {
                 return false
             }

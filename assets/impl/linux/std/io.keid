@@ -9,7 +9,7 @@ extern function puts(str: Pointer<uint8>)
 public function println(message: string) {
     let cstr = message.toNullTerminated()
     unsafe {
-        fixed let cstrPtr: Pointer<uint8> = ref cstr {
+        with let cstrPtr: Pointer<uint8> = ref cstr {
             puts(cstrPtr)
         }
     }

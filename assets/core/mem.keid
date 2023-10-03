@@ -2,6 +2,7 @@ namespace core::mem
 
 import (
     core::runtime
+    core::ops
 )
 
 public struct Pointer<T> {
@@ -35,7 +36,23 @@ public struct Pointer<T> {
         return Pointer.to<T>(((this.address as isize) + val * (sizeof(T) as isize)) as usize)
     }
 
+    public offset(val: usize): Pointer<T> {
+        return Pointer.to<T>(this.address + val * sizeof(T))
+    }
+
+    public offsetBytes(bytes: isize): Pointer<T> {
+        return Pointer.to<T>(((this.address as isize) + bytes) as usize)
+    }
+
+    public offsetBytes(bytes: usize): Pointer<T> {
+        return Pointer.to<T>(this.address + bytes)
+    }
+
     public get isNull: bool => this.address == 0
+}
+
+implement <T> Equals<Pointer<T>> for Pointer<T> {
+    equals(other: Pointer<T>): bool => this.address == other.address
 }
 
 // Copies `sizeof(T) * count` bytes from `src` to `dst`.

@@ -1,8 +1,10 @@
 namespace std::impl::fs
 
 import (
+    core::collections
     core::mem
     core::error
+    core::runtime
     std::os
 )
 
@@ -13,6 +15,9 @@ const LIBC_SEEK_CUR: uint32 = 1
 /// Sets the seek offset to be at the end of the file.
 const LIBC_SEEK_END: uint32 = 2
 
+/// passed to access(); see https://linux.die.net/man/2/access
+const F_OK: int32 = 0
+
 extern function fseek(fd: usize, offset: usize, whence: uint32): uint32
 extern function fopen(pathname: Pointer<uint8>, mode: Pointer<uint8>): usize
 extern function ftell(fd: usize): usize
@@ -21,7 +26,10 @@ extern function fwrite(buf: Pointer<uint8>, size: usize, count: usize, fd: usize
 extern function fclose(fd: usize): uint32
 extern function opendir(name: Pointer<uint8>): usize
 extern function closedir(fd: usize): uint32
-extern function readdir(fd: usize)
+extern function readdir(fd: usize): Pointer<void>
+extern function access(pathname: Pointer<uint8>, mode: int32): int32
+@ExternalFunction("stat")
+extern function libc_stat(pathname: Pointer<uint8>, buffer: Pointer<void>): int32
 
 function getIoError(prefix: string): Error {
     let msg = std::impl::sys.getErrorMessage(std::impl::sys.getErrorCode())
@@ -30,7 +38,7 @@ function getIoError(prefix: string): Error {
 
 public function openFile(path: string, mode: string): usize {
     unsafe {
-        fixed let pathPtr = ref path.toNullTerminated(), modePtr = ref mode.toNullTerminated() {
+        with let pathPtr = ref path.toNullTerminated(), modePtr = ref mode.toNullTerminated() {
             let fd = fopen(pathPtr, modePtr)
             if fd == 0 {
                 throw getIoError("opening file")
@@ -42,7 +50,7 @@ public function openFile(path: string, mode: string): usize {
 
 public function openDirectory(path: string): usize {
     unsafe {
-        fixed let pathPtr = ref path.toNullTerminated() {
+        with let pathPtr = ref path.toNullTerminated() {
             let fd = opendir(pathPtr)
             if fd == 0 {
                 throw getIoError("opening directory")
@@ -87,7 +95,7 @@ public function getSeekFilePos(fd: usize): usize {
 
 public function readFileBytes(fd: usize, buf: [uint8]): isize {
     unsafe {
-        fixed let ptr: Pointer<uint8> = ref buf {
+        with let ptr: Pointer<uint8> = ref buf {
             return fread(ptr, 1, buf.length, fd)
         }
     }
@@ -95,7 +103,7 @@ public function readFileBytes(fd: usize, buf: [uint8]): isize {
 
 public function writeFileBytes(fd: usize, buf: [uint8]): isize {
     unsafe {
-        fixed let ptr: Pointer<uint8> = ref buf {
+        with let ptr: Pointer<uint8> = ref buf {
             let written = fwrite(ptr, 1, buf.length, fd)
             if written != buf.length as isize {
                 throw getIoError(string.format("writing to file (wrote ", written.toString(), " / ", buf.length.toString(), " bytes)"))
@@ -107,6 +115,49 @@ public function writeFileBytes(fd: usize, buf: [uint8]): isize {
 
 public function listDirectory(fd: usize): [string] {
     unsafe {
+        let list = List.empty<string>()
+        let entry: Pointer<void> = Pointer.null<void>()
+        loop {
+            entry = readdir(fd)
+            if entry.isNull {
+                break
+            }
+            let namePtr = Pointer.cast<void, uint8>(entry.offsetBytes(19))
+            let entryName = string.fromCStr(namePtr)
+            if entryName == "." || entryName == ".." {
+                continue
+            }
+            list.push(entryName)
+        }
+        return list.toArray()
+    }
+}
 
+public function exists(path: string): bool {
+    unsafe {
+        with let pathPtr = ref path.toNullTerminated() {
+            return access(pathPtr, F_OK) == 0
+        }
+    }
+}
+
+const ST_MODE_FILE: usize = 0o100000
+const ST_MODE_DIRECTORY: usize = 0o40000
+
+public function stat(path: string): std::fs::Stats {
+    let buffer = new usize[default(usize); 18]
+
+    unsafe {
+        with let pathPtr = ref path.toNullTerminated(), statsPtr = ref buffer {
+            if libc_stat(pathPtr, Pointer.cast<usize, void>(statsPtr)) != 0 {
+                throw getIoError("stat file or directory")
+            }
+        }
+    }
+
+    let mode = buffer[3]
+    return new std::fs::Stats {
+        isFile = (mode & ST_MODE_FILE) == ST_MODE_FILE
+        isDirectory = (mode & ST_MODE_DIRECTORY) == ST_MODE_DIRECTORY
     }
 }

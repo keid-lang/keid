@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::*;
-use crate::{common::*, compiler_error};
+use crate::{common::*, compiler_error, primitive_types};
 
 pub enum ScopeChange {
     Inside,
@@ -467,11 +467,54 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                 let null_value = self.cpl.context.const_int(self.cpl.context.get_i8_type(), 1); // 1 indicates the value is non-null
                 self.emit(Insn::Store(null_value, nullability_ptr));
 
-                return Ok(TypedValue {
-                    ty: dest_type.clone(),
-                    val: new_nullable,
-                });
+                return Ok(TypedValue::new(dest_type.clone(), new_nullable));
             }
+            (ComplexType::Basic(primitive_types!()), ComplexType::Basic(BasicType::Object(ident))) => {
+                if ident.generic_args.len() != 0 {
+                    return Ok(src);
+                }
+
+                let boxed = self.autobox_primitive(src.clone())?;
+                if boxed.ty != BasicType::Object(ident.clone()).to_complex() {
+                    return Ok(src);
+                }
+
+                return Ok(boxed);
+            }
+            (ComplexType::Basic(BasicType::Object(ident)), ComplexType::Basic(primitive_types!())) => {
+                if ident.generic_args.len() != 0 {
+                    return Ok(src);
+                }
+                let unboxed_type = match ident.name.as_str() {
+                    "core::object::Bool" => BasicType::Bool,
+                    "core::object::Char" => BasicType::Char,
+                    "core::object::Int8" => BasicType::Int8,
+                    "core::object::Int16" => BasicType::Int16,
+                    "core::object::Int32" => BasicType::Int32,
+                    "core::object::Int64" => BasicType::Int64,
+                    "core::object::UInt8" => BasicType::UInt8,
+                    "core::object::UInt16" => BasicType::UInt16,
+                    "core::object::UInt32" => BasicType::UInt32,
+                    "core::object::UInt64" => BasicType::UInt64,
+                    "core::object::Float32" => BasicType::Float32,
+                    "core::object::Float64" => BasicType::Float64,
+                    "core::object::ISize" => BasicType::ISize,
+                    "core::object::USize" => BasicType::USize,
+                    _ => return Ok(src),
+                }
+                .to_complex();
+
+                if &unboxed_type != dest_type {
+                    return Ok(src);
+                }
+
+                let value_ptr = self.emit(Insn::GetElementPtr(src.val, src.ty.as_llvm_type(self.cpl), 1)); // element 1 is the only field in the struct type
+                let unboxed_value = self.emit(Insn::Load(value_ptr, unboxed_type.as_llvm_type(&self.cpl)));
+                return Ok(TypedValue::new(unboxed_type, unboxed_value));
+            }
+            // (ComplexType::Array(src_element), ComplexType::Array(dst_element)) => {
+
+            // }
             _ => (),
         }
         Ok(src)
@@ -480,15 +523,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
     fn upcast(&mut self, src: TypedValue, parent: &str, generic_args: Option<Vec<ComplexType>>) -> Result<Option<TypedValue>> {
         let base_type = match &src.ty {
             ComplexType::Basic(BasicType::Object(ident)) => ident,
-            ComplexType::Basic(
-                BasicType::Bool
-                | BasicType::Char
-                | BasicType::Float32
-                | BasicType::Float64
-                | BasicType::Int8
-                | BasicType::Int16
-                | BasicType::Int32,
-            ) => {
+            ComplexType::Basic(primitive_types!()) => {
                 if parent == "core::object::Object" {
                     return Ok(Some(self.autobox_primitive(src)?));
                 }

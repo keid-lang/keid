@@ -281,6 +281,9 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
             ),
             Operator::BooleanAnd => (self.emit(Insn::IAnd(lhs.val, rhs.val)), BasicType::Bool.to_complex()),
             Operator::BooleanOr => (self.emit(Insn::IOr(lhs.val, rhs.val)), BasicType::Bool.to_complex()),
+            Operator::BitAnd => (self.emit(Insn::IAnd(lhs.val, rhs.val)), lhs.ty.clone()),
+            Operator::BitOr => (self.emit(Insn::IOr(lhs.val, rhs.val)), lhs.ty.clone()),
+            Operator::BitXor => (self.emit(Insn::IXor(lhs.val, rhs.val)), lhs.ty.clone()),
             op => unimplemented!("not yet implemented: `{:?}`", op),
         };
 

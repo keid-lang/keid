@@ -557,17 +557,20 @@ class KeidParser {
     }
 }
 
-public function parseKeidSource(programText: string): AstKeidProgram {
+public function createParsingEngine(): KsdlParser {
     let syntaxDefFile = File.open("../keid/assets/compiler/syntax.ksdl", FileOpenMode.ReadOnly)
     let syntaxDef = string.fromUtf8(syntaxDefFile.readAllBytes())
     syntaxDefFile.close()
 
-    let parser = KsdlParser.fromKsdl(syntaxDef)
+    return KsdlParser.fromKsdl(syntaxDef)
+}
+
+public function parseKeidSource(parser: KsdlParser, programText: string): AstKeidProgram {
     let programRule = parser.getRule("Program")
     let reader = TokenReader.create(programText)
     let parseResult = programRule.parse(reader)
     if !reader.isFinished {
-        std::io.println("At: '", reader.currentText.substringBefore(20), "'")
+        std::io.println("At: '", reader.sourceText.substring(reader.cursor, reader.cursor + 20), "'")
         throw Error.create(string.format("Failed parsing rule: ", reader.currentRule!.name))
     }
     match parseResult {

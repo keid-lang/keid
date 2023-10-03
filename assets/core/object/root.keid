@@ -2,6 +2,7 @@ namespace core::object
 
 import (
     core::string
+    core::ops
 )
 
 public interface Default {
@@ -32,6 +33,8 @@ public struct Char {
     value: char
 
     public isWhitespace(): bool => this.value == ' ' || this.value == '\n' || this.value == '\r' || this.value == '\t'
+
+    public isAlphanumeric(): bool => (this.value >= 'A' && this.value <= 'Z') || (this.value >= 'a' && this.value <= 'z') || this.value == '_'
 }
 
 implement ToString for Char {
@@ -62,6 +65,12 @@ macro $IMPL_INT_TYPE(#wrapper, #primitive)
             return sb.toString()
         }
     }
+
+    implement Hash for #wrapper {
+        hash(hasher: Hasher) {
+            hasher.write(this)
+        }
+    }
 end macro
 
 $IMPL_INT_TYPE(Int8,  int8)
@@ -75,3 +84,6 @@ $IMPL_INT_TYPE(UInt16, uint16)
 $IMPL_INT_TYPE(UInt32, uint32)
 $IMPL_INT_TYPE(UInt64, uint64)
 $IMPL_INT_TYPE(USize,  usize)
+
+// $IMPL_FLOAT_TYPE(Float32, float32)
+// $IMPL_FLOAT_TYPE(Float64, float64)

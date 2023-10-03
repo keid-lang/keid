@@ -36,6 +36,7 @@ pub enum Insn {
     ISub(OpaqueValue, OpaqueValue),
     IMul(OpaqueValue, OpaqueValue),
     IOr(OpaqueValue, OpaqueValue),
+    IXor(OpaqueValue, OpaqueValue),
     SDiv(OpaqueValue, OpaqueValue),
     SRem(OpaqueValue, OpaqueValue),
     UDiv(OpaqueValue, OpaqueValue),

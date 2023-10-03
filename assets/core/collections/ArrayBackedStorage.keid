@@ -1,5 +1,9 @@
 namespace core::collections
 
+import (
+    core::object
+)
+
 public class ArrayBackedStorage<T: Default> {
     array: [T]
 

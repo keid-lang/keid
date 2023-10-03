@@ -3,14 +3,12 @@ namespace keidc::ksdl
 public class TokenReader {
     currentRule: ?Rule
     sourceText: string
-    currentText: string
     cursor: usize
     isSkipWhitespace: bool
 
     public static create(source: string): TokenReader => new TokenReader {
         currentRule = null
         sourceText = source
-        currentText = source
         cursor = 0
         isSkipWhitespace = true
     }
@@ -24,7 +22,7 @@ public class TokenReader {
             while this.currentCharacter == ' ' {
                 this.advance(1)
                 if this.isFinished {
-                    return
+                    break
                 }
             }
         }
@@ -32,18 +30,21 @@ public class TokenReader {
 
     public startsWith(text: string): bool {
         this.skipWhitespace()
-        if this.isFinished {
+        if this.cursor + text.length > this.sourceText.length {
             return false
         }
-        return this.currentText.startsWith(text)
+        return this.sourceText.substring(this.cursor, this.cursor + text.length) == text
     }
 
     public advance(length: usize) {
         this.cursor += length
-        this.currentText = this.sourceText.substringAfter(this.cursor)
     }
 
-    public get isFinished: bool => this.currentText.length == 0
+    public retreat(length: usize) {
+        this.cursor -= length
+    }
 
-    public get currentCharacter: char => this.currentText.chars[0]
+    public get isFinished: bool => this.cursor >= this.sourceText.length
+
+    public get currentCharacter: char => this.sourceText.chars[this.cursor]
 }

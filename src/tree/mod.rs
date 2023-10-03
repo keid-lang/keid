@@ -424,19 +424,6 @@ pub struct GenericDefNode {
     pub interfaces: Vec<GenericIdentifier>,
 }
 
-impl GenericDefNode {
-    pub fn from_ast(def: &GenericDecl) -> GenericDefNode {
-        GenericDefNode {
-            name: def.name.token.0.clone(),
-            interfaces: def
-                .interfaces
-                .iter()
-                .map(|interface| GenericIdentifier::from_complex_type(&QualifiedType::from_qualifier(interface).complex))
-                .collect(),
-        }
-    }
-}
-
 /// An abstraction of an actual function implementation, including its generic parameters.
 #[derive(Debug)]
 pub struct FunctionNode {

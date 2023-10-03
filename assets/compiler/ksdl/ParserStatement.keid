@@ -54,6 +54,26 @@ implement ParserStatement for StringLiteralStatement {
     }
 }
 
+public class KeywordStatement {
+    keyword: string
+
+    public static create(keyword: string): KeywordStatement => new KeywordStatement { keyword, }
+}
+
+implement ParserStatement for KeywordStatement {
+    execute(reader: TokenReader, _: RuleState): StatementResult {
+        if reader.startsWith(this.keyword) {
+            reader.advance(this.keyword.length)
+            if !reader.currentCharacter.isAlphanumeric() {
+                return StatementResult.Matchless
+            } else {
+                reader.retreat(this.keyword.length)
+            }
+        }
+        return StatementResult.Failure
+    }
+}
+
 public class SubruleStatement {
     subrule: Rule
 
@@ -62,7 +82,6 @@ public class SubruleStatement {
 
 implement ParserStatement for SubruleStatement {
     execute(reader: TokenReader, state: RuleState): StatementResult {
-        let cursor = reader.cursor
         let ruleResult = this.subrule.parse(reader)
         return match ruleResult {
             Success { match, } => new StatementResult.Match {
@@ -126,12 +145,28 @@ implement ParserStatement for OrStatement {
             match result {
                 Failure => {
                     reader.cursor = pos
-                    reader.currentText = reader.sourceText.substringAfter(reader.cursor)
                 }
                 _ => return result
             }
         }
         return StatementResult.Failure
+    }
+}
+
+public class NotStatement {
+    statement: ParserStatement
+
+    public static create(statement: ParserStatement): NotStatement => new NotStatement { statement, }
+}
+
+implement ParserStatement for NotStatement {
+    execute(reader: TokenReader, state: RuleState): StatementResult {
+        return match this.statement.execute(reader, state) {
+            Match { matches, } => StatementResult.Failure
+            Matchless => StatementResult.Failure
+            ImmediateFailure { rule, statement, result, } => new StatementResult.ImmediateFailure { rule, statement, result, }
+            Failure => StatementResult.Matchless
+        }
     }
 }
 
@@ -206,8 +241,12 @@ implement ParserStatement for RepeatedStatement {
         }
 
         loop {
+            let pos = reader.cursor
             match this.child.execute(reader, state) {
-                Failure => break
+                Failure => {
+                    reader.cursor = pos
+                    break
+                }
                 ImmediateFailure { rule, statement, result, } => return new StatementResult.ImmediateFailure { rule, statement, result, }
                 Match { matches, } => {
                     resultMatches.extend(matches)
@@ -230,18 +269,11 @@ public class CompoundStatement {
 
 implement ParserStatement for CompoundStatement {
     execute(reader: TokenReader, state: RuleState): StatementResult {
-        let readerStart = reader.cursor
         for statement in this.statements {
             reader.skipWhitespace()
             match statement.execute(reader, state) {
                 ImmediateFailure { rule, statement, result, } => return new StatementResult.ImmediateFailure { rule, statement, result, }
-                Failure => {
-                    // if not every statement within the compound statement succeeds,
-                    // revert back to before the compound statement executed
-                    // reader.cursor = readerStart
-                    // reader.currentText = reader.sourceText.substringAfter(reader.cursor)
-                    return StatementResult.Failure
-                }
+                Failure => return StatementResult.Failure
                 _ => {}
             }
         }

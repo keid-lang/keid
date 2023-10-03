@@ -24,7 +24,7 @@ function pushStackFrame(name: string) {
         preventRecursivePush += 1
         let cstr = name.toNullTerminated()
         unsafe {
-            fixed let cstrPtr: Pointer<uint8> = ref cstr {
+            with let cstrPtr: Pointer<uint8> = ref cstr {
                 keid_core_runtime_push_stack_frame(cstrPtr)
             }
         }

@@ -101,10 +101,7 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                             };
                             let expr = self.compile_expr(arg, Some(type_hint));
                             match expr {
-                                Ok(expr) => match type_hint {
-                                    ComplexType::Basic(BasicType::Object(_)) => self.autobox_primitive(expr.clone()),
-                                    _ => self.implicit_cast(expr, &type_hint),
-                                },
+                                Ok(expr) => self.implicit_cast(expr, &type_hint),
                                 _ => expr,
                             }
                         })
@@ -137,7 +134,13 @@ impl<'a> CallCompiler for FunctionCompiler<'a> {
                 } else if i >= func.params.len() - 1 && !self.cpl.type_provider.is_assignable_to(&evaluated.ty, &varargs_element_type!()) {
                     return Ok(None);
                 }
-            } else if !self.cpl.type_provider.is_assignable_to(&evaluated.ty, &self.resolve_type(&func.params[i])?) {
+
+                if i >= func.params.len() - 1 {
+                    continue;
+                }
+            }
+
+            if !self.cpl.type_provider.is_assignable_to(&evaluated.ty, &self.resolve_type(&func.params[i])?) {
                 return Ok(None);
             }
         }
