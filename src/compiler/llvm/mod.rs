@@ -55,6 +55,8 @@ pub enum Insn {
     FloatCast(OpaqueValue, OpaqueType),        // value, dest type
     IntToFloat(OpaqueValue, OpaqueType, bool), // value, dest type, is signed
     FloatToInt(OpaqueValue, OpaqueType, bool), // value, dest type, is signed
+    INeg(OpaqueValue),
+    FNeg(OpaqueValue),
 }
 
 #[cfg(target_arch = "wasm32")]

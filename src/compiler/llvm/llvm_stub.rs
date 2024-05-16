@@ -44,6 +44,12 @@ pub struct OpaqueValue;
 pub struct OpaqueFunctionValue;
 #[derive(Clone, Copy, Debug)]
 pub struct OpaqueBasicBlock;
+#[derive(Clone, Copy, Debug)]
+pub struct LLVMPassManagerRef;
+#[derive(Clone, Copy, Debug)]
+pub struct LLVMModuleRef;
+#[derive(Clone, Copy, Debug)]
+pub struct LLVMValueRef;
 
 impl OpaqueFunctionValue {
     pub fn to_value(self) -> OpaqueValue {
@@ -75,6 +81,10 @@ impl Context {
             target,
             global_variables: Vec::new(),
         }
+    }
+
+    pub fn get_type_of_value(&self, _: OpaqueValue) -> OpaqueType {
+        OpaqueType {}
     }
 
     pub fn create_module(&self, _: &str, _: &str) -> Module {
@@ -269,6 +279,10 @@ impl Clone for Module {
 }
 
 impl Module {
+    pub fn as_val(&self) -> LLVMModuleRef {
+        LLVMModuleRef {}
+    }
+
     pub fn add_function(&self, _: &str, _: OpaqueFunctionType, _: u32) -> Function {
         Function {}
     }
@@ -307,7 +321,7 @@ impl Module {
         String::new()
     }
 
-    pub fn verify(&self, module_name: &str) {}
+    pub fn verify(&self, _: &str) {}
 
     pub fn to_object_code(&self, _: &LLVMTargetData) -> Result<LLVMArray> {
         panic!("to_object_code is unsupported on this platform")
@@ -395,7 +409,7 @@ pub struct LLVMTargetData {
 }
 
 impl LLVMTargetData {
-    pub fn new(_: &str, _: bool) -> Result<LLVMTargetData> {
+    pub fn new(_: &str, _: bool, _: bool) -> Result<LLVMTargetData> {
         Ok(LLVMTargetData {
             is_opaque_pointers: true,
         })
@@ -411,5 +425,38 @@ impl LLVMTargetData {
 
     pub fn get_type_size(&self, _: OpaqueType) -> u64 {
         8
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PassManagerKind {
+    Module,
+    Function,
+}
+
+pub struct PassManager {}
+
+impl PassManager {
+    fn add_passes(_: LLVMPassManagerRef) {
+    }
+
+    pub fn for_module(_: u32) -> PassManager {
+        PassManager {}
+    }
+
+    pub fn for_function(_: u32, _: LLVMModuleRef) -> PassManager {
+        PassManager {}
+    }
+
+    pub fn initialize_function(&self) -> bool {
+        false
+    }
+
+    pub fn run_module(&self, _: LLVMModuleRef) -> bool {
+        false
+    }
+
+    pub fn run_function(&self, _: LLVMValueRef) -> bool {
+        false
     }
 }

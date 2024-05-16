@@ -1,0 +1,51 @@
+namespace core::error
+
+import (
+    core::object
+    core::string
+)
+
+public class Error {
+    cause: ?Error
+    message: string
+    stacktrace: string
+
+    public static create(message: string): Error {
+        return new Error {
+            cause = null
+            message
+            stacktrace = runtime.getStackFrames()
+        }
+    }
+
+    public withCause(cause: Error): Error {
+        return new Error {
+            cause
+            message = this.message
+            stacktrace = this.stacktrace
+        }
+    }
+
+    public print() {
+        std::io.println(this.toString())
+    }
+}
+
+implement ToString for Error {
+    toString(): string {
+        let builder = StringBuilder.withCapacity(this.message.length + this.stacktrace.length + 1)
+        builder.append(this.message)
+        builder.append("\n")
+        builder.append(this.stacktrace)
+        if this.cause != null {
+            builder.append("Caused by: ")
+            builder.append(this.cause!.toString())
+        }
+        return builder.toString()
+    }
+}
+
+public function indexOutOfBounds(index: usize): Error => Error.create(string.format("index out of bounds: ", index.toString()))
+public function indexOutOfBounds(index: isize): Error => Error.create(string.format("index out of bounds: ", index.toString()))
+
+public function io(msg: string): Error => Error.create(string.format("IO error: ", msg))

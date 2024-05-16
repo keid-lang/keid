@@ -6,46 +6,38 @@ import (
     core::error
     core::runtime
     std::os
+    std::impl::syscall
 )
 
-/// Sets the seek offset to be `n` bytes from the start of the file.
-const LIBC_SEEK_SET: uint32 = 0
-/// Sets the seek offset to be `n` bytes from the current seek offset of the file.
-const LIBC_SEEK_CUR: uint32 = 1
-/// Sets the seek offset to be at the end of the file.
-const LIBC_SEEK_END: uint32 = 2
+const O_RDONLY: uint64 = 0x00000
+const O_WRONLY: uint64 = 0x00001
+const O_RDWR:   uint64 = 0x00002
+const O_CREAT:  uint64 = 0x00040
+const O_TRUNC:  uint64 = 0x00200
+const O_APPEND: uint64 = 0x00400
 
-/// passed to access(); see https://linux.die.net/man/2/access
-const F_OK: int32 = 0
-
-extern function fseek(fd: usize, offset: usize, whence: uint32): uint32
-extern function fopen(pathname: Pointer<uint8>, mode: Pointer<uint8>): usize
-extern function ftell(fd: usize): usize
-extern function fread(buf: Pointer<uint8>, count: usize, length: usize, fd: usize): isize
-extern function fwrite(buf: Pointer<uint8>, size: usize, count: usize, fd: usize): isize
-extern function fclose(fd: usize): uint32
 extern function opendir(name: Pointer<uint8>): usize
-extern function closedir(fd: usize): uint32
 extern function readdir(fd: usize): Pointer<void>
-extern function access(pathname: Pointer<uint8>, mode: int32): int32
-@ExternalFunction("stat")
-extern function libc_stat(pathname: Pointer<uint8>, buffer: Pointer<void>): int32
 
 function getIoError(prefix: string): Error {
     let msg = std::impl::sys.getErrorMessage(std::impl::sys.getErrorCode())
     return error.io(string.format(prefix, " (", msg, ")"))
 }
 
-public function openFile(path: string, mode: string): usize {
-    unsafe {
-        with let pathPtr = ref path.toNullTerminated(), modePtr = ref mode.toNullTerminated() {
-            let fd = fopen(pathPtr, modePtr)
-            if fd == 0 {
-                throw getIoError("opening file")
-            }
-            return fd
-        }
+public function openFile(path: string, mode: std::fs::FileOpenMode): usize {
+    let flags = match mode {
+        ReadOnly => O_RDONLY
+        ReadWrite => O_RDWR
+        ReadWriteTruncate => O_RDWR | O_TRUNC
+        WriteOnly => O_WRONLY
+        AppendOnly => O_APPEND
+        ReadAppend => O_RDONLY | O_APPEND
     }
+    let fd = syscall.open(path, flags as usize, 0)
+    if fd as isize < 0 {
+        throw getIoError("opening file")
+    }
+    return fd
 }
 
 public function openDirectory(path: string): usize {
@@ -61,56 +53,33 @@ public function openDirectory(path: string): usize {
 }
 
 public function closeFile(fd: usize): uint32 {
-    unsafe {
-        return fclose(fd)
-    }
+    return syscall.close(fd) as uint32
 }
 
 public function closeDirectory(fd: usize): uint32 {
-    unsafe {
-        return closedir(fd)
-    }
+    return syscall.close(fd) as uint32
 }
 
-public function getFileLength(fd: usize): usize {
-    unsafe {
-        fseek(fd, 0, LIBC_SEEK_END)
-        let size = ftell(fd)
-        fseek(fd, 0, LIBC_SEEK_SET)
-        return size
-    }
+public function getFileLength(fd: usize): int64 {
+    let size = syscall.seek(fd, 0, std::fs::SeekWhence.End)
+    syscall.seek(fd, 0, std::fs::SeekWhence.Start)
+    return size
 }
 
-public function seekFile(fd: usize, pos: usize) {
-    unsafe {
-        fseek(fd, pos, LIBC_SEEK_SET)
-    }
+public function seekFile(fd: usize, pos: int64, whence: std::fs::SeekWhence): int64 {
+    return syscall.seek(fd, pos, whence)
 }
 
-public function getSeekFilePos(fd: usize): usize {
-    unsafe {
-        return ftell(fd)
-    }
+public function readFileBytes(fd: usize, buf: [uint8]): int64 {
+    return syscall.read(fd, buf)
 }
 
-public function readFileBytes(fd: usize, buf: [uint8]): isize {
-    unsafe {
-        with let ptr: Pointer<uint8> = ref buf {
-            return fread(ptr, 1, buf.length, fd)
-        }
+public function writeFileBytes(fd: usize, buf: [uint8]): int64 {
+    let written = syscall.write(fd, buf)
+    if written as usize != buf.length {
+        throw getIoError(string.format("writing to file (wrote ", written.toString(), " / ", buf.length.toString(), " bytes)"))
     }
-}
-
-public function writeFileBytes(fd: usize, buf: [uint8]): isize {
-    unsafe {
-        with let ptr: Pointer<uint8> = ref buf {
-            let written = fwrite(ptr, 1, buf.length, fd)
-            if written != buf.length as isize {
-                throw getIoError(string.format("writing to file (wrote ", written.toString(), " / ", buf.length.toString(), " bytes)"))
-            }
-            return written
-        }
-    }
+    return written
 }
 
 public function listDirectory(fd: usize): [string] {
@@ -134,24 +103,18 @@ public function listDirectory(fd: usize): [string] {
 }
 
 public function exists(path: string): bool {
-    unsafe {
-        with let pathPtr = ref path.toNullTerminated() {
-            return access(pathPtr, F_OK) == 0
-        }
-    }
+    return syscall.access(path)
 }
 
-const ST_MODE_FILE: usize = 0o100000
+const ST_MODE_FILE:      usize = 0o100000
 const ST_MODE_DIRECTORY: usize = 0o40000
 
-public function stat(path: string): std::fs::Stats {
+public function stat(fd: usize, followLinks: bool): std::fs::Stats {
     let buffer = new usize[default(usize); 18]
 
-    unsafe {
-        with let pathPtr = ref path.toNullTerminated(), statsPtr = ref buffer {
-            if libc_stat(pathPtr, Pointer.cast<usize, void>(statsPtr)) != 0 {
-                throw getIoError("stat file or directory")
-            }
+    with let statsPtr = ref buffer {
+        if syscall.stat(fd, Pointer.cast<usize, void>(statsPtr), followLinks) != 0 {
+            throw getIoError("stat file or directory")
         }
     }
 

@@ -1,0 +1,186 @@
+namespace core::collections
+
+import (
+    core::error
+    core::string
+    core::mem
+    core::object
+    core::ops
+)
+
+public class List<T> {
+    storage: Pointer<T>
+    length: usize
+    capacity: usize
+
+    public static empty<T>(): List<T> {
+        return new List<T> {
+            storage = Pointer.null<T>()
+            length = 0
+            capacity = 0
+        }
+    }
+
+    public static from<T>(...elements: [T]): List<T> {
+        let list = List.withCapacity<T>(elements.length)
+        for element in elements {
+            list.push(element)
+        }
+        return list
+    }
+
+    public static withCapacity<T>(capacity: usize): List<T> {
+        return new List<T> {
+            storage = mem.alloc<T>(capacity)
+            length = 0
+            capacity
+        }
+    }
+
+    public ensureCapacity(capacity: usize) {
+        if capacity > this.capacity {
+            let newCapacity = this.capacity * 2 + 1
+            while newCapacity < capacity {
+                newCapacity *= 2
+            }
+            
+            let newStorage = mem.alloc<T>(newCapacity)
+            mem.copy<T>(this.storage, newStorage, this.length)
+            mem.dealloc<T>(this.storage)
+
+            this.storage = newStorage
+            this.capacity = newCapacity
+        }
+    }
+
+    public push(item: T) {
+        this.ensureCapacity(this.length + 1)
+        unsafe {
+            deref this.storage.offset(this.length as isize) = item
+
+            // manually take a reference to the object
+            // TODO: type check mem.scope(Pointer.cast<T, void>(this.storage.offset(this.length as isize)))
+        }
+        this.length += 1
+    }
+
+    public extend(other: List<T>) {
+        this.ensureCapacity(this.length + other.length)
+        for val in other {
+            this.push(val)
+        }
+    }
+
+    public remove(index: usize): T {
+        if index >= this.length {
+            throw error.indexOutOfBounds(index)
+        }
+
+        let toRemove = this.get(index)
+
+        unsafe {
+            // manually drop the reference to the object
+            // TODO: type check mem.unscope(Pointer.cast<T, void>(this.storage.offset(index as isize)))
+
+            // move all elements after the index one element towards the start
+            mem.copy<T>(
+                this.storage.offset(index as isize + 1),
+                this.storage.offset(index as isize),
+                this.length - index,
+            )
+        }
+        this.length -= 1
+
+        return toRemove
+    }
+
+    public get(index: usize): T {
+        if index >= this.length {
+            throw error.indexOutOfBounds(index)
+        }
+
+        unsafe {
+            return deref this.storage.offset(index as isize)
+        }
+    }
+
+    public set(index: usize, element: T) {
+        if index >= this.length {
+            throw error.indexOutOfBounds(index)
+        }
+
+        unsafe {
+            // TODO: manually take a reference to the element
+            deref this.storage.offset(index as isize) = element
+        }
+    }
+
+    public contains(value: T): bool {
+        for i in range.create(0, this.length) {
+            if this.get(i) == value {
+                return true
+            }
+        }
+        return false
+    }
+
+    public clear() {
+        this.storage = Pointer.null<T>()
+        this.length = 0
+        this.capacity = 0
+    }
+
+    public toArray(): [T] {
+        let array = new T[default(T); this.length]
+        for i in range.create(0, this.length) {
+            array[i] = this.get(i)
+        }
+        return array
+    }
+}
+
+implement <T> Iterable<T> for List<T> {
+    get iterator: Iterator<T> => ListIterator.create<T>(this)
+}
+
+implement <T: ToString + Default> ToString for List<T> {
+    toString(): string => array.toString<T>(this.toArray<T>())
+}
+
+implement <T> Index<usize> for List<T> {
+    type Element = T
+
+    index(key: usize): Element => this.get(key)
+}
+
+implement <T> IndexAssign<usize> for List<T> {
+    type Element = T
+
+    indexAssign(key: usize, element: Element) {
+        this.set(key, element)
+    }
+}
+
+public class ListIterator<T> {
+    list: List<T>
+    idx: usize
+
+    static create<T>(list: List<T>): ListIterator<T> {
+        return new ListIterator<T> {
+            list
+            idx = 0
+        }
+    }
+}
+
+implement <T> Iterator<T> for ListIterator<T> {
+    get next: ?T {
+        if this.idx >= this.list.length {
+            return null
+        }
+
+        let element = this.list.get(this.idx)
+        this.idx += 1
+        return element
+    }
+}

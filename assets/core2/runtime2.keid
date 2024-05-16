@@ -1,0 +1,46 @@
+namespace core::runtime
+
+// import (
+//     core::collections
+//     std::io
+// )
+
+// public attribute ExternalFunction(name: string)
+
+// /// True if `keid.init()` has finished executing, otherwise `false.`
+// let hasInit: bool = false
+// let preventRecursivePush: uint32 = 0
+// const stackFrames: List<string> = List::empty<string>()
+
+// function pushStackFrame(name: string) {
+//     if preventRecursivePush > 0 {
+//         return
+//     }
+//     if hasInit {
+//         preventRecursivePush += 1
+//         stackFrames.push<string>(name)
+//         preventRecursivePush -= 1
+//     }
+// }
+
+// function popStackFrame() {
+//     if preventRecursivePush > 0 {
+//         return
+//     }
+//     if hasInit {
+//         preventRecursivePush += 1
+//         stackFrames.remove<string>(stackFrames.length - 1)
+//         preventRecursivePush -= 1
+//     }
+// }
+
+// function printStackFrames() {
+//     if preventRecursivePush > 0 {
+//         return
+//     }
+//     preventRecursivePush += 1
+//     for i in range::create(0, stackFrames.length) {
+//         io::println("  at ", stackFrames.get<string>(stackFrames.length - i - 1))
+//     }
+//     preventRecursivePush -= 1
+// }

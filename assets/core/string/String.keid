@@ -187,12 +187,12 @@ public class String {
             return ""
         }
         let start: usize = 0
-        while this.chars[start].isWhitespace() {
+        while this.chars[start].isWhitespace {
             start += 1
         }
 
         let end: usize = this.length - 1
-        while this.chars[end].isWhitespace() {
+        while this.chars[end].isWhitespace {
             end -= 1
         }
 
@@ -212,7 +212,17 @@ public class String {
 
     /// Returns true if the start of this string matches the substring entirely, otherwise false.
     public startsWith(substr: string): bool {
+        if substr.length > this.length {
+            return false
+        }
         return this.indexOf(substr) == 0
+    }
+
+    public endsWith(substr: string): bool {
+        if substr.length > this.length {
+            return false
+        }
+        return this.substringAfter(this.length - substr.length) == substr
     }
 }
 

@@ -4,7 +4,6 @@ COMMENT = _{ ("//" ~ (!NEWLINE ~ ANY)*) | ("/*" ~ (!"*/" ~ ANY)* ~ "*/") }
 keyword_import = @{ "import" ~ WHITESPACE }
 keyword_function = @{ "function" ~ WHITESPACE }
 keyword_let = @{ "let" ~ WHITESPACE }
-keyword_from = @{ "from" ~ WHITESPACE }
 keyword_return_void = @{ "return" }
 keyword_return = @{ "return" ~ WHITESPACE }
 keyword_class = @{ "class" ~ WHITESPACE }
@@ -142,6 +141,7 @@ op_lt = { "<" }
 op_gt = { ">" }
 op_not = { "!" }
 op_spread = { "..." }
+op_negate = @{ "-" ~ !(" " | '0'..'9') }
 op_as = @{ "as" }
 op_null_assert = @{ "!" ~ !("=") }
 op_null_coalesce = { "??" }
@@ -178,7 +178,8 @@ self_operator = _{
 
 prefix_operator = _{
     op_not |
-    op_spread
+    op_spread |
+    op_negate
 }
 operator = _{
     op_equal |

@@ -29,10 +29,7 @@ impl<'a> UnaryCompiler for FunctionCompiler<'a> {
                 let true_const = self.cpl.context.const_int(BasicType::Bool.as_llvm_type(self.cpl), 1);
                 let inverted_bool = self.emit(Insn::Xor(expr.val, true_const));
 
-                TypedValue {
-                    ty: BasicType::Bool.to_complex(),
-                    val: inverted_bool,
-                }
+                TypedValue::new(BasicType::Bool.to_complex(), inverted_bool)
             }
             Operator::NonNullAssertion => match &expr.ty {
                 ComplexType::Nullable(inner) => {
@@ -61,6 +58,24 @@ impl<'a> UnaryCompiler for FunctionCompiler<'a> {
                     ))
                 }
             },
+            Operator::Negate => {
+                let negated = match &expr.ty {
+                    ComplexType::Basic(BasicType::Int8 | BasicType::Int16 | BasicType::Int32 | BasicType::Int64 | BasicType::ISize) => {
+                        self.emit(Insn::INeg(expr.val))
+                    }
+                    ComplexType::Basic(BasicType::Float32 | BasicType::Float64) => {
+                        self.emit(Insn::FNeg(expr.val))
+                    }
+                    ComplexType::Basic(BasicType::UInt8 | BasicType::UInt16 | BasicType::UInt32 | BasicType::UInt64 | BasicType::USize) => {
+                        return Err(compiler_error!(self, "cannot negate value of unsigned integer type `{}`", expr.ty.to_string()));
+                    }
+                    _ => {
+                        return Err(compiler_error!(self, "cannot negate value of type `{}`", expr.ty.to_string()));
+                    }
+                };
+
+                TypedValue::new(expr.ty.clone(), negated)
+            }
             x => unimplemented!("unimplemented unary operator: {:#?}", x),
         })
     }

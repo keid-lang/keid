@@ -58,13 +58,17 @@ public class KeywordStatement {
     keyword: string
 
     public static create(keyword: string): KeywordStatement => new KeywordStatement { keyword, }
+
+    static isCharIdentifierComponent(c: char): bool {
+        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_'
+    }
 }
 
 implement ParserStatement for KeywordStatement {
     execute(reader: TokenReader, _: RuleState): StatementResult {
         if reader.startsWith(this.keyword) {
             reader.advance(this.keyword.length)
-            if !reader.currentCharacter.isAlphanumeric() {
+            if !KeywordStatement.isCharIdentifierComponent(reader.currentCharacter) {
                 return StatementResult.Matchless
             } else {
                 reader.retreat(this.keyword.length)
@@ -270,6 +274,7 @@ public class CompoundStatement {
 implement ParserStatement for CompoundStatement {
     execute(reader: TokenReader, state: RuleState): StatementResult {
         for statement in this.statements {
+            reader.isSkipWhitespace = state.isSkipWhitespace
             reader.skipWhitespace()
             match statement.execute(reader, state) {
                 ImmediateFailure { rule, statement, result, } => return new StatementResult.ImmediateFailure { rule, statement, result, }

@@ -1,7 +1,7 @@
 WHITESPACE = _{ " " | "\t" | "\n" }
 COMMENT = _{ ("//" ~ (!NEWLINE ~ ANY)*) | ("/*" ~ (!"*/" ~ ANY)* ~ "*/") }
 
-keyword_macro = @{ "macro" }
+keyword_macro = @{ "macro " }
 
 all_chars = _{ 'a'..'z' | 'A'..'Z' | "_" | '0'..'9' }
 ident = @{
@@ -23,6 +23,5 @@ macro_call = { macro_name ~ "(" ~ macro_param? ~ ("," ~ macro_param)* ~ ")" }
 raw_text = { (!(keyword_macro | macro_call | EOI) ~ ANY)+ }
 
 program_statement = _{ macro_decl | macro_call | raw_text }
-// program_statement = _{ (!keyword_macro ~ ) }
 
 program = { SOI ~ program_statement* ~ EOI }

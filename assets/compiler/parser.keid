@@ -303,6 +303,9 @@ class KeidParser {
                 let statementAst = match statement.rule {
                     "ReturnStatement" => new AstStatement.Return { operand = this.parseExpr(statement.getGroupValue("operand")), }
                     "Expr" => new AstStatement.Expr { value = this.parseExpr(statement), }
+                    "UnsafeBlock" => new AstStatement.UnsafeBlock { statements = this.parseCodeBlock(statement.getGroupValue("inner")) }
+                    "LetStatement" => new AstStatement.Let { statement = this.parseLet(statement) }
+                    _ => throw Error.create("NotYetImplemented: block statement: " + statement.rule)
                 }
                 statements.push(tokenize<AstStatement>(statement, statementAst))
             }
@@ -360,6 +363,31 @@ class KeidParser {
 
     parseValueType(ast: RuleMatch): AstToken<ComplexType> => tokenize<ComplexType>(ast, this.parseValueTypeNode(ast))
 
+    parseLet(ast: RuleMatch): AstLet {
+        let kindStr = ast.getGroupValue("kind").token.getText(this.source)
+        let kind = match kindStr {
+            "let" => LetKind.Mutable
+            "const" => LetKind.Constant
+            _ => unreachable
+        }
+        let name = this.parseString(ast.getGroupValue("name"))
+        let valueType: ?AstToken<ComplexType> = null
+        if ast.hasGroup("valueType") {
+            valueType = this.parseValueType(ast.getGroupValue("valueType"))
+        }
+        let initialValue: ?AstToken<AstExpr> = null
+        if ast.hasGroup("initialValue") {
+            initialValue = this.parseExpr(ast.getGroupValue("initialValue"))
+        }
+
+        return new AstLet {
+            kind
+            name
+            valueType
+            initialValue
+        }
+    }
+
     parseClassField(ast: RuleMatch): AstClassField {
         let modifiers = this.parseModifers(ast)
         let name = this.parseString(ast.getGroupValue("name"))
@@ -413,7 +441,10 @@ class KeidParser {
             }
         }
 
-        let body = this.parseBody(decl.getGroupValue("body"))
+        let body: ?List<AstToken<AstStatement>> = null
+        if decl.hasGroup("body") {
+            body = this.parseBody(decl.getGroupValue("body"))
+        }
 
         return new AstFunction {
             modifiers
@@ -465,7 +496,7 @@ class KeidParser {
                     "FieldDecl" => {
                         fields.push(this.parseClassField(statement))
                     }
-                    "FunctionDecl" => {
+                    "MethodDecl" => {
                         methods.push(this.parseFunction(statement))
                     }
                     _ => {
@@ -519,31 +550,60 @@ class KeidParser {
         }
     }
 
+    populateMacroDecls(macroDecls: List<RuleMatch>, root: RuleMatch) {
+        for group in root.groups {
+            for value in group.values {
+                if value.rule == "MacroDecl" {
+                    macroDecls.push(value)
+                } else {
+                    this.populateMacroDecls(macroDecls, value)
+                }
+            }
+        }
+    }
+
+    preprocessProgram(ast: RuleMatch) {
+        let macroDecls = List.empty<RuleMatch>()
+        this.populateMacroDecls(macroDecls, ast)
+        std::io.println("macroDecls.length = ", macroDecls.length.toString())
+    }
+
     parseProgram(ast: RuleMatch): AstKeidProgram {
         let namespaceAst = ast.getGroupValue("namespace").getGroupValue("namespace")
         let namespace = this.parseString(namespaceAst)
         let imports = List.empty<AstToken<string>>()
         let classes = List.empty<AstClass>()
         let impls = List.empty<AstImplement>()
+        let functions = List.empty<AstFunction>()
+        let globals = List.empty<AstLet>()
 
-        for statement in ast.getGroup("statements") {
-            match statement.rule {
-                "ImportStatement" => {
-                    let modules = statement.getGroup("modules")
-                    for module in modules {
-                        imports.push(this.parseString(module))
+        if ast.hasGroup("statements") {
+            for statement in ast.getGroup("statements") {
+                std::io.println("rule = ", statement.rule)
+                match statement.rule {
+                    "ImportStatement" => {
+                        let modules = statement.getGroup("modules")
+                        for module in modules {
+                            imports.push(this.parseString(module))
+                        }
                     }
+                    "ClassDecl" => {
+                        classes.push(this.parseClass(statement))
+                    }
+                    "EnumDecl" => {
+                        classes.push(this.parseClass(statement))
+                    }
+                    "ImplementDecl" => {
+                        impls.push(this.parseImplement(statement))
+                    }
+                    "FunctionDecl" => {
+                        functions.push(this.parseFunction(statement))
+                    }
+                    "LetStatement" => {
+                        globals.push(this.parseLet(statement))
+                    }
+                    _ => throw Error.create("NotYetImplemented: root statement: " + statement.rule)
                 }
-                "ClassDecl" => {
-                    classes.push(this.parseClass(statement))
-                }
-                "EnumDecl" => {
-                    classes.push(this.parseClass(statement))
-                }
-                "ImplementDecl" => {
-                    impls.push(this.parseImplement(statement))
-                }
-                _ => unreachable
             }
         }
 
@@ -553,6 +613,8 @@ class KeidParser {
             imports
             classes
             impls
+            functions
+            globals
         }
     }
 }
@@ -566,11 +628,13 @@ public function createParsingEngine(): KsdlParser {
 }
 
 public function parseKeidSource(parser: KsdlParser, programText: string): AstKeidProgram {
-    let programRule = parser.getRule("Program")
     let reader = TokenReader.create(programText)
+    let tokens = ksdl.tokenize(reader)
+
+    let programRule = parser.getRule("Program")
     let parseResult = programRule.parse(reader)
     if !reader.isFinished {
-        std::io.println("At: '", reader.sourceText.substring(reader.cursor, reader.cursor + 20), "'")
+        std::io.println("At: '", reader.sourceText.substring(reader.cursor, math.min<usize>(reader.cursor + 30, reader.sourceText.length)), "'")
         throw Error.create(string.format("Failed parsing rule: ", reader.currentRule!.name))
     }
     match parseResult {
@@ -578,6 +642,7 @@ public function parseKeidSource(parser: KsdlParser, programText: string): AstKei
             let keidParser = new KeidParser {
                 source = programText
             }
+            keidParser.preprocessProgram(match)
             return keidParser.parseProgram(match)
         }
         HardFail { rule, statement, result, } => {

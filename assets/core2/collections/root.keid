@@ -1,0 +1,17 @@
+namespace core::collections
+
+public interface Iterator<T> {
+    get next: ?T
+}
+
+public interface Iterable<T> {
+    get iterator: Iterator<T>
+}
+
+public interface PositionalStorage<T> {
+    getElement(index: usize): T
+    setElement(index: usize, value: T)
+    ensureCapacity(capacity: usize)
+
+    get capacity: usize
+}

@@ -1,0 +1,76 @@
+namespace core::array
+
+import (
+    core::mem
+    core::string
+)
+
+public function toString<T: ToString>(arr: [T]): string {
+    if arr.length == 0 {
+        return "[]"
+    }
+
+    let strArr = new string[""; arr.length]
+    for i in range.create(arr.length) {
+        strArr[i] = arr[i].toString()
+    }
+
+    let cap: usize = 2
+    for val in strArr {
+        cap += val.length + 2
+    }
+
+    let sb = StringBuilder.withCapacity(cap)
+    sb.append("[")
+    for i in range.create(strArr.length) {
+        let val = strArr[i]
+        sb.append(val)
+        if i < strArr.length - 1 {
+            sb.append(", ")
+        }
+    }
+    sb.append("]")
+
+    return sb.toString()
+}
+
+public function copy<T>(src: [T], srcOffset: usize, dst: [T], dstOffset: usize, length: usize) {
+    with let srcPtr = ref src, dstPtr = ref dst {
+        mem.copy<T>(srcPtr.offset(srcOffset), dstPtr.offset(dstOffset), length)
+    }
+}
+
+public function equals<T>(a: [T], b: [T]): bool {
+    if a.length != b.length {
+        return false
+    }
+
+    for i in range.create(a.length) {
+        if a[i] != b[i] {
+            return false
+        }
+    }
+
+    return true
+}
+
+public function fill<T>(dst: [T], value: T) {
+    if dst.length == 0 {
+        return
+    }
+    for i in range.create(dst.length) {
+        dst[i as usize] = value
+    }
+}
+
+/// Copies `sizeof(T) * len` bytes from `ptr` into an array.
+/// A slice of type `[T]` is returned.
+/// This operation is unsafe as it depends upon deferencing arbitrary pointers.
+public unsafe function copyFromPtr<T>(ptr: Pointer<T>, len: usize): [T] {
+    let arr = new T[default(T); len]
+    with let arrPtr = ref arr {
+        mem.copy<T>(ptr, arrPtr, len)
+    }
+
+    return arr
+}

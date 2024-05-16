@@ -497,6 +497,7 @@ pub enum Operator {
     BitAnd,
     BitOr,
     BitXor,
+    Negate,
 }
 
 #[derive(Debug, Clone, PartialEq)]

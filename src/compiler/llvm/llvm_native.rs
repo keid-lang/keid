@@ -141,6 +141,7 @@ pub fn initialize() {
         LLVM_InitializeAllTargets();
         LLVM_InitializeAllTargetMCs();
         LLVM_InitializeAllAsmPrinters();
+        LLVM_InitializeAllAsmParsers();
     }
 }
 
@@ -1120,6 +1121,8 @@ impl InsnBuilder {
                         LLVMBuildFPToUI(self.bdl, val.0, ty.0, insn_name)
                     }
                 }
+                Insn::INeg(val) => LLVMBuildNeg(self.bdl, val.0, insn_name),
+                Insn::FNeg(val) => LLVMBuildFNeg(self.bdl, val.0, insn_name),
             };
 
             // let loc = llvm_sys::debuginfo::LLVMDIBuilderCreateDebugLocation(self.ctx, line, col, self.debug_file, std::ptr::null_mut());

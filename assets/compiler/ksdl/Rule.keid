@@ -8,6 +8,7 @@ import (
 public class RuleState {
     moved: bool
     groups: List<RuleMatchGroup>
+    isSkipWhitespace: bool
 }
 
 public enum RuleResult {
@@ -31,16 +32,17 @@ public class Rule {
         let state = new RuleState {
             moved = false
             groups = List.empty<RuleMatchGroup>()
+            isSkipWhitespace = !this.isContiguous
         }
 
-        reader.isSkipWhitespace = !this.isContiguous
+        reader.isSkipWhitespace = state.isSkipWhitespace
         reader.skipWhitespace()
 
         let start = reader.cursor
         for statement in this.statements {
             reader.currentRule = this
+            reader.isSkipWhitespace = state.isSkipWhitespace
             reader.skipWhitespace()            
-            reader.isSkipWhitespace = !this.isContiguous
             
             let result = statement.execute(reader, state)
             match result {

@@ -1,0 +1,76 @@
+namespace core::test
+
+import (
+    core::error
+)
+
+public function assertionError(message: string): Error => Error.create(string.format("assertion failed: ", message))
+
+function fail(msg: string) {
+    throw assertionError(msg)
+}
+
+let DEBUG_LEVEL: uint32 = 1
+
+function pass(msg: string) {
+    if DEBUG_LEVEL >= 1 {
+        std::io.println("assertion passed: ",  msg)
+    }
+    if DEBUG_LEVEL >= 2 { 
+        runtime.printStackFrames()
+    }
+}
+
+function assert(cond: bool, msg: string) {
+    if cond {
+        pass(msg)
+    } else {
+        fail(msg)
+    }
+}
+
+public function assertTrue(cond: bool) {
+    assert(cond, "expecting true")
+}
+
+public function assertFalse(cond: bool) {
+    assert(!cond, "expecting false")
+}
+
+public function assertEqual(a: string, b: string) {
+    assert(a == b, string.format("'", a, "' == '", b, "'"))
+}
+
+public function assertNotEqual(a: string, b: string) {
+    assert(a != b, string.format("'", a, "' != '", b, "'"))
+}
+
+macro $DEFINE_INT_ASSERTION(#type, #operator, #name)
+    public function assert#name(a: #type, b: #type) {
+        assert(a #operator b, string.format(a.toString(), " #operator ", b.toString()))
+    }
+
+    public function assertNull(val: ?#type) {
+        assert(val == null, string.format("null == null"))
+    }
+
+    public function assertNotNull(val: ?#type) {
+        assert(val != null, string.format("#type != null"))
+    }
+end macro
+
+macro $DEFINE_INT_ASSERTIONS(#type)
+    $DEFINE_INT_ASSERTION(#type, ==, Equal)
+    $DEFINE_INT_ASSERTION(#type, !=, NotEqual)
+end macro
+
+$DEFINE_INT_ASSERTIONS(`uint8`)
+$DEFINE_INT_ASSERTIONS(`uint16`)
+$DEFINE_INT_ASSERTIONS(`uint32`)
+$DEFINE_INT_ASSERTIONS(`uint64`)
+$DEFINE_INT_ASSERTIONS(`usize`)
+$DEFINE_INT_ASSERTIONS(`int8`)
+$DEFINE_INT_ASSERTIONS(`int16`)
+$DEFINE_INT_ASSERTIONS(`int32`)
+$DEFINE_INT_ASSERTIONS(`int64`)
+$DEFINE_INT_ASSERTIONS(`isize`)

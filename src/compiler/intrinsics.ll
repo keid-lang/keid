@@ -368,6 +368,18 @@ block.return_true:
   ret i1 true
 }
 
+define i64 @keid.syscall3(i64 %trap, i64 %a1, i64 %a2, i64 %a3) {
+block.main:
+  %result = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx}" (i64 %trap, i64 %a1, i64 %a2, i64 %a3)
+  ret i64 %result
+}
+
+define i64 @keid.syscall6(i64 %trap, i64 %a1, i64 %a2, i64 %a3, i64 %a4, i64 %a5, i64 %a6) {
+block.main:
+  %result = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},{r10},{r8},{r9}" (i64 %trap, i64 %a1, i64 %a2, i64 %a3, i64 %a4, i64 %a5, i64 %a6)
+  ret i64 %result
+}
+
 define void @_keid_start() {
 block.main:
 $IF(RTDBG, ```

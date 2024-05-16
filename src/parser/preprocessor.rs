@@ -87,6 +87,10 @@ fn intrinsic_macro_decl_if(args: &[String], ctx: &PreprocessorContext) -> String
             return args[1].clone();
         }
         String::new()
+    } else if args[0] == "true" {
+        args[1].clone()
+    } else if args[0] == "false" {
+        String::new()
     } else {
         panic!("not a boolean variable: {}", args[0])
     }

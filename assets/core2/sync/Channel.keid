@@ -1,0 +1,36 @@
+namespace core::sync
+
+// import (
+//     core::mem
+// )
+
+// public class Channel<T> {
+//     lock: Mutex
+//     buffer: List<T>
+
+//     public static create<T>(): Channel<T> => new Channel<T> { buffer = List.empty<T>(), }
+
+//     public static withCapacity<T>(capacity: usize): Channel<T> => new Channel<T> { buffer = List.withCapacity<T>(capacity) }
+
+//     public get hasData: bool => this.buffer.length > 0
+
+//     public read(): T {
+//         with lock {
+//             while !this.hasData {
+//                 lock.wait()
+//             }
+            
+//             return this.buffer.remove(0)
+//         }
+//     }
+
+//     public write(element: T) {
+//         with lock {
+//             this.buffer.push(element)
+//             lock.signal()
+//         }
+
+//         // notify the Keid runtime the channel has an item
+//         // context switch to any reading thread's blocking call to read()
+//     }
+// }

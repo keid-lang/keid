@@ -154,6 +154,10 @@ public class KsdlParser {
                 literal = ","
             } else if literal == "SPACE" {
                 literal = " "
+            } else if literal == "OPEN_PAREN" {
+                literal = "("
+            } else if literal == "CLOSE_PAREN" {
+                literal = ")"
             }
             return StringLiteralStatement.create(literal)
         } else if line.startsWith("KEYWORD") {

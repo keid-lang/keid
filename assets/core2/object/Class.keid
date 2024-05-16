@@ -1,0 +1,22 @@
+namespace core::object
+
+import (
+    core::mem
+    core::string
+)
+
+extern function keid_reflect_get_object_class_name(instance: object): Pointer<uint8>
+
+public class Class {
+    name: string
+
+    public static fromInstance(instance: object): Class {
+        unsafe {
+            let classNameCStr = keid_reflect_get_object_class_name(instance)
+            let name = String.fromCStr(classNameCStr)
+            return Class {
+                name
+            }
+        }
+    }
+}

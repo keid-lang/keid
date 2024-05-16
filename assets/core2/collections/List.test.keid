@@ -1,0 +1,51 @@
+namespace core::collections::test
+
+import (
+    core::collections
+)
+
+function testListPushOnce() {
+    let list = List.empty<string>()
+    test.assertEqual(list.length, 0)
+    test.assertEqual(list.capacity, 0)
+    list.push("Hello, World")
+    test.assertEqual(list.length, 1)
+    test.assertTrue(list.capacity >= 1)
+
+    let element = list.get(0)
+    test.assertEqual(element, "Hello, World")
+}
+
+function testListRemoveOnce() {
+    let list = List.empty<string>()
+    list.push("Hello, World")
+    list.remove(0)
+    test.assertEqual(list.length, 0)
+    test.assertTrue(list.capacity >= 1)
+}
+
+function testListRemoveMany() {
+    let list = List.empty<int32>()
+    list.push(10)
+    list.push(11)
+    list.push(12)
+    list.push(13)
+    list.push(14)
+    list.push(15)
+    test.assertEqual(list.length, 6)
+    list.remove(0)
+    list.remove(4)
+
+    test.assertEqual(list.length, 4)
+    test.assertEqual(list.get(0), 11)
+    test.assertEqual(list.get(1), 12)
+    test.assertEqual(list.get(2), 13)
+    test.assertEqual(list.get(3), 14)
+
+    list.remove(1)
+    list.remove(1)
+
+    test.assertEqual(list.length, 2)
+    test.assertEqual(list.get(0), 11)
+    test.assertEqual(list.get(1), 14)
+}

@@ -32,18 +32,18 @@ implement ToString for Bool {
 public struct Char {
     value: char
 
-    public get isWhitespace: bool => this.value == ' ' || this.value == '\n' || this.value == '\r' || this.value == '\t'
+    public get isWhitespace: bool => this.value == ' ' or this.value == '\n' or this.value == '\r' or this.value == '\t'
 
-    public get isNumber: bool => this.value >= '0' && this.value <= '9'
+    public get isAlphanumeric: bool => (this.value >= 'A' and this.value <= 'Z') or (this.value >= 'a' and this.value <= 'z') or this.value == '_'
 }
 
 implement ToString for Char {
-    toString(): string => new string {
-        chars = new char[this.value]
+    toString(): string => string {
+        chars = [char] { this.value }
     }
 }
 
-macro $IMPL_INT_TYPE(#wrapper, #primitive, #signed)
+macro $IMPL_INT_TYPE(#wrapper, #primitive)
     public struct #wrapper {
         value: #primitive
     }
@@ -56,21 +56,9 @@ macro $IMPL_INT_TYPE(#wrapper, #primitive, #signed)
             }
             
             let sb = StringBuilder.empty()
-            let insertAt: usize = 0
-
-            $IF(#signed,
-                ```
-                if current < 0 {
-                    sb.append("-")
-                    current = -current
-                    insertAt = 1
-                }
-                ```
-            )
-
             while current > 0 {
                 let digit = (current % 10) + 0x30 // converts the digit to its ascii equivalent
-                sb.insert(insertAt, String.fromUtf8(new uint8[digit as uint8]))
+                sb.insert(0, String.fromUtf8(new uint8[digit as uint8]))
                 current /= 10
             }
 
@@ -85,17 +73,17 @@ macro $IMPL_INT_TYPE(#wrapper, #primitive, #signed)
     }
 end macro
 
-$IMPL_INT_TYPE(Int8,  int8,  true)
-$IMPL_INT_TYPE(Int16, int16, true)
-$IMPL_INT_TYPE(Int32, int32, true)
-$IMPL_INT_TYPE(Int64, int64, true)
-$IMPL_INT_TYPE(ISize, isize, true)
+$IMPL_INT_TYPE(`Int8`,  `int8`)
+$IMPL_INT_TYPE(`Int16`, `int16`)
+$IMPL_INT_TYPE(`Int32`, `int32`)
+$IMPL_INT_TYPE(`Int64`, `int64`)
+$IMPL_INT_TYPE(`ISize`, `isize`)
 
-$IMPL_INT_TYPE(UInt8,  uint8,  false)
-$IMPL_INT_TYPE(UInt16, uint16, false)
-$IMPL_INT_TYPE(UInt32, uint32, false)
-$IMPL_INT_TYPE(UInt64, uint64, false)
-$IMPL_INT_TYPE(USize,  usize,  false)
+$IMPL_INT_TYPE(`UInt8`,  `uint8`)
+$IMPL_INT_TYPE(`UInt16`, `uint16`)
+$IMPL_INT_TYPE(`UInt32`, `uint32`)
+$IMPL_INT_TYPE(`UInt64`, `uint64`)
+$IMPL_INT_TYPE(`USize`,  `usize`)
 
 // $IMPL_FLOAT_TYPE(Float32, float32)
 // $IMPL_FLOAT_TYPE(Float64, float64)

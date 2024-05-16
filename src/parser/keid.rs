@@ -2,7 +2,7 @@ use crate::{tree::ast::*, tree::*};
 use anyhow::{anyhow, Result};
 use lazy_static::lazy_static;
 use pest::{error::*, iterators::*, pratt_parser::*, Parser, Span};
-use std::path::Path;
+use std::{fmt::Write, path::Path};
 
 use super::preprocessor::{self, PreprocessorContext};
 
@@ -29,6 +29,7 @@ lazy_static! {
         .op(Op::infix(Rule::op_as, Assoc::Left))
         .op(Op::prefix(Rule::op_not))
         .op(Op::prefix(Rule::op_spread))
+        .op(Op::prefix(Rule::op_negate))
         .op(Op::postfix(Rule::op_null_assert));
 }
 
@@ -57,19 +58,53 @@ fn parse_import(mut pairs: Pairs<Rule>) -> Result<Vec<Qualifier>> {
     Ok(qualifiers)
 }
 
+enum StringParserState {
+    Normal,
+    Escape,
+}
+
 fn parse_string_lit(str: Pair<Rule>) -> String {
     let raw = str.as_str();
-    let slice = &raw[1..raw.len() - 1].replace("\\n", "\n").replace("\\t", "\t").replace("\\r", "\r");
-    slice.to_owned()
+    let raw = &raw[1..raw.len() - 1];
+
+    let mut parser_state = StringParserState::Normal;
+    let mut parsed_str = String::new();
+    for c in raw.chars() {
+        match parser_state {
+            StringParserState::Normal => match c {
+                '\\' => {
+                    parser_state = StringParserState::Escape;
+                }
+                c => {
+                    write!(&mut parsed_str, "{c}").unwrap();
+                }
+            },
+            StringParserState::Escape => {
+                let m = match c {
+                    '"' => '"',
+                    '\'' => '\'',
+                    '\\' => '\\',
+                    '0' => '\0',
+                    'n' => '\n',
+                    'r' => '\r',
+                    't' => '\t',
+                    c => panic!("Invalid escape sequence '\\{}'", c),
+                };
+                write!(&mut parsed_str, "{m}").unwrap();
+                parser_state = StringParserState::Normal;
+            }
+        }
+    }
+
+    parsed_str
 }
 
 fn parse_char_lit(str: Pair<Rule>) -> char {
-    let raw = str.as_str();
-    let slice = &raw[1..raw.len() - 1].replace("\\n", "\n").replace("\\t", "\t").replace("\\r", "\r");
-    if slice.len() != 1 {
-        panic!("invalid char constant: {}", raw);
+    let str = parse_string_lit(str);
+    if str.len() != 1 {
+        panic!("invalid char constant '{}'", str);
     }
-    slice.chars().next().unwrap()
+    str.chars().next().unwrap()
 }
 
 fn parse_sint_lit(int: Pair<Rule>) -> Result<i64> {
@@ -211,6 +246,7 @@ fn parse_logic_expr(pairs: Pairs<Rule>) -> Result<Token<Expr>> {
                     op: match operator.as_rule() {
                         Rule::op_not => Operator::Not,
                         Rule::op_spread => Operator::Spread,
+                        Rule::op_negate => Operator::Negate,
                         x => unimplemented!("{:#?}", x),
                     },
                 }),
@@ -1145,9 +1181,7 @@ fn parse_program<T: AsRef<Path>>(file_path: T, pair: Pair<Rule>) -> Result<KeidF
             Rule::type_decl => {
                 program.typedefs.push(parse_type_decl(pair.into_inner(), program.namespace.clone())?);
             }
-            Rule::interface_decl => {
-                program.classes.push(parse_class_decl(pair.into_inner(), program.namespace.clone(), ClassType::Interface)?)
-            }
+            Rule::interface_decl => program.classes.push(parse_class_decl(pair.into_inner(), program.namespace.clone(), ClassType::Interface)?),
             Rule::interface_impl => program.interface_impls.push(parse_interface_impl(pair.into_inner())?),
             Rule::let_statement => program.fields.push(parse_let(pair.into_inner())?),
             Rule::struct_decl => program.classes.push(parse_class_decl(pair.into_inner(), program.namespace.clone(), ClassType::Struct)?),

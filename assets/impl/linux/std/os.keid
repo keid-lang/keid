@@ -2,17 +2,13 @@ namespace std::impl::os
 
 import (
     core::runtime
+    std::impl::syscall
 )
-
-@ExternalFunction("exit")
-extern function libc_exit(code: int32)
 
 public function platform(): string {
     return "linux"
 }
 
 public function exit(code: int32) {
-    unsafe {
-        libc_exit(code)
-    }
+    syscall.exit(code)
 }

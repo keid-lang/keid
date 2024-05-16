@@ -14,12 +14,6 @@ public class AstToken<T> {
     loc: TokenLocation
 }
 
-/// Represents a simple single identifier like "foo".
-// public type AstIdentifier    = AstToken<string>
-
-/// Represents a fully qualified (i.e. potentially with namespace) path. 
-// public type AstPathQualifier = AstToken<string>
-
 public class AstGenericDecl {
     name: AstToken<string>
 }
@@ -61,7 +55,7 @@ public class AstFunction {
     params: List<AstFunctionParam>
     returnType: ?AstToken<ComplexType>
     varargs: VarargsMode
-    body: List<AstToken<AstStatement>>
+    body: ?List<AstToken<AstStatement>>
 }
 
 implement Resolvable for AstFunction {
@@ -108,6 +102,27 @@ implement Resolvable for AstImplement {
         }
         for method in this.methods {
             method.resolve(trc)
+        }
+    }
+}
+
+public enum LetKind {
+    Mutable
+    Constant
+}
+
+public class AstLet {
+    kind: LetKind
+    name: AstToken<string>
+    valueType: ?AstToken<ComplexType>
+    initialValue: ?AstToken<AstExpr>
+}
+
+implement Resolvable for AstLet {
+    resolve(trc: TypeResolveContext) {
+        this.name.node = string.format(trc.namespace, "::", this.name.node)
+        if this.valueType != null {
+            this.valueType!.node = trc.resolve(this.valueType!.node)
         }
     }
 }
@@ -205,6 +220,12 @@ public enum AstStatement {
     Expr {
         value: AstToken<AstExpr>
     }
+    UnsafeBlock {
+        statements: List<AstToken<AstStatement>>
+    }
+    Let {
+        statement: AstLet
+    }
 }
 
 public enum AstOperator {
@@ -288,6 +309,8 @@ public class AstKeidProgram {
     imports: List<AstToken<string>>
     classes: List<AstClass>
     impls: List<AstImplement>
+    functions: List<AstFunction>
+    globals: List<AstLet>
 }
 
 implement ToString for AstKeidProgram {

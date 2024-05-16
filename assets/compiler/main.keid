@@ -13,28 +13,45 @@ import (
     keidc::types
 )
 
+function listKeidFiles(path: string, files: List<string>) {
+    for file in Directory.at(path).listFiles() {
+        let abs = string.format(path, "/", file)
+        if abs.endsWith(".keid") {
+            files.push(abs)
+        } else {
+            let fh = File.open(abs, FileOpenMode.ReadOnly)
+            if fh.stat(abs).isDirectory {
+                listKeidFiles(abs, files)
+            }
+        }
+    }
+}
+
 public extern function main(): int32 {
-    let programFile = File.open("../keid/assets/core2/string/String.keid", FileOpenMode.ReadOnly)
-    let programText = String.fromUtf8(programFile.readAllBytes())
-    programFile.close()
+    let files = List.empty<string>()
+    listKeidFiles("../keid/assets/core2", files)
 
     let engine = parser.createParsingEngine()
-
-    let prevTime = std::time.getSystemTime()
-    let ast = parser.parseKeidSource(engine, programText)
-    let elapsedTime = std::time.getSystemTime() - prevTime
+    let tmc = TypeMetadataCompiler.create()
     
-    std::io.println("Parsing took ", elapsedTime.milliseconds.toString(), "ms")
-    std::io.println("AST: ", ast.toString(), "\n")
+    for file in files {
+        let programFile = File.open(file, FileOpenMode.ReadOnly)
+        let programText = String.fromUtf8(programFile.readAllBytes())
+        programFile.close()
+
+        std::io.println("Parsing ", file, "...")
+
+        let prevTime = std::time.getSystemTime()
+        let ast = parser.parseKeidSource(engine, programText)
+        let elapsedTime = std::time.getSystemTime() - prevTime
+        tmc.include(ast)
+    
+        std::io.println("Parsing took ", elapsedTime.milliseconds.toString(), "ms")
+        std::io.println("AST: ", ast.toString(), "\n")
+    }
 
     let startResolveTime = std::time.getSystemTime()
-
-    let tmc = TypeMetadataCompiler.create()
-    tmc.include(ast)
-    let resolveErrors = tmc.resolveAll()
-    
-    std::io.println("Resolved AST: ", tmc.programs.get(0).toString())
-    
+    let resolveErrors = tmc.resolveAll()    
     let endResolveTime = std::time.getSystemTime() - startResolveTime
     std::io.println("Type resolver took ", endResolveTime.milliseconds.toString(), "ms")
 

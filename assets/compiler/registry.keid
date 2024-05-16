@@ -17,7 +17,6 @@ public class RegisteredType {
     namespace: string
     name: string
     kind: ObjectKind
-    id: usize
 
     get fullName: string => string.format(this.namespace, "::", this.name)
 }
@@ -36,11 +35,19 @@ public class TypeResolveContext {
             return name
         }
 
-        let candidates = List.empty<RegisteredType>()
+        let candidates = List.empty<string>()
+
+        // special cases for pseudo-primitive types
+        if name == "string" {
+            candidates.push("core::string::String")
+        } else if name == "object" {
+            candidates.push("core::object::Object")
+        }
+
         for test in this.allTypes {
             if test.name == name {
                 if this.imports.contains(test.namespace) || test.namespace == this.namespace {
-                    candidates.push(test)
+                    candidates.push(string.format(test.namespace, "::", test.name))
                 }
             }
         }
@@ -50,8 +57,7 @@ public class TypeResolveContext {
         } else if candidates.length > 1 {
             // ambiguous error
         } else {
-            let candidate = candidates.get(0)
-            return string.format(candidate.namespace, "::", candidate.name)
+            return candidates.get(0)
         }
 
         this.errors.push(CompileError.create(this.source, this.at, "No such type could be found with the identifier"))
@@ -168,7 +174,6 @@ public class TypeMetadataCompiler {
                     namespace = program.namespace.node
                     name = class.name.node
                     kind = class.kind.node
-                    id = registeredTypes.length
                 })
             }
         }
