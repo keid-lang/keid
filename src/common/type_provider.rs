@@ -50,6 +50,7 @@ impl GenericIdentifier {
         let basic_type = complex_type.get_root_type();
         match basic_type {
             BasicType::Object(ident) => ident,
+            BasicType::Unknown => GenericIdentifier::from_name("{unknown}"),
             _ => panic!("given type is not an object type: {:?}", basic_type),
         }
     }

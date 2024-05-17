@@ -446,7 +446,7 @@ impl<'a> FunctionCompiler<'a> {
             return Ok(self.resolve_class_member_ptr(class_instance, &type_root, accessor_name)?);
         }
 
-        Err(compiler_error!(self, "No such class member `{}.{}`", ident.to_string(), accessor_name.token.0))
+        Err(compiler_error!(self, "No such class member `{}.{}`", class_instance.ty.to_string(), accessor_name.token.0,))
     }
 
     fn resolve_class_member_ptr(

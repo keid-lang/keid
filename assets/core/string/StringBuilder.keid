@@ -42,6 +42,16 @@ public class StringBuilder {
         }
     }
 
+    public insert(index: usize, val: char) {
+        this.buffer.ensureCapacity(this.pos + 1)
+        for i in range.create(this.pos, index) {
+            let currentCh = this.buffer.getElement(i)
+            this.buffer.setElement(i + 1, currentCh)
+        }
+        this.buffer.setElement(index, val)
+        this.pos += 1
+    }
+
     public insert(index: usize, val: string) {
         this.buffer.ensureCapacity(this.pos + val.length)
         for i in range.create(this.pos, index) {

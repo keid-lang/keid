@@ -52,3 +52,9 @@ public interface ContextMonitor {
     enter()
     exit()
 }
+
+public interface Slice<K> {
+    type Output
+
+    slice(start: K, end: K): Output
+}

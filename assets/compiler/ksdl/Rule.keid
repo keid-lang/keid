@@ -5,15 +5,37 @@ import (
     core::object
 )
 
+public enum ParserMatch {
+    Rule {
+        rule: RuleMatch
+    }
+    Token {
+        token: LexerToken
+    }
+
+    public rule(): RuleMatch {
+        match this {
+            Rule { rule, } => return rule
+            _ => throw Error.create("illegal call to rule() on Token variant of ParserMatch")
+        }
+    }
+
+    public token(): LexerToken {
+        match this {
+            Token { token, } => return token
+            _ => throw Error.create("illegal call to token() on Rule variant of ParserMatch")
+        }
+    }
+}
+
 public class RuleState {
     moved: bool
     groups: List<RuleMatchGroup>
-    isSkipWhitespace: bool
 }
 
 public enum RuleResult {
     Success {
-        match: RuleMatch
+        match: ParserMatch
     }
     SoftFail
     HardFail {
@@ -26,25 +48,18 @@ public enum RuleResult {
 public class Rule {
     name: string
     statements: List<ParserStatement>
-    isContiguous: bool
 
-    public parse(reader: TokenReader): RuleResult {
+    public parse(stream: TokenStream): RuleResult {
         let state = new RuleState {
             moved = false
             groups = List.empty<RuleMatchGroup>()
-            isSkipWhitespace = !this.isContiguous
         }
 
-        reader.isSkipWhitespace = state.isSkipWhitespace
-        reader.skipWhitespace()
-
-        let start = reader.cursor
+        let start = stream.currentToken.loc.start
         for statement in this.statements {
-            reader.currentRule = this
-            reader.isSkipWhitespace = state.isSkipWhitespace
-            reader.skipWhitespace()            
+            stream.currentRule = this     
             
-            let result = statement.execute(reader, state)
+            let result = statement.execute(stream, state)
             match result {
                 Failure => {
                     if state.moved {
@@ -61,22 +76,17 @@ public class Rule {
                 _ => {}
             }
         }
-        let token = new TokenLocation {
-            start
-            length = reader.cursor - start
-        }
-
-        // strip trailing spaces from the token
-        let text = token.getText(reader.sourceText)
-        while text.chars[token.length - 1] == ' ' {
-            token.length -= 1
-        }
 
         return new RuleResult.Success {
-            match = new RuleMatch {
-                rule = this.name
-                token
-                groups = state.groups
+            match = new ParserMatch.Rule {
+                rule = new RuleMatch {
+                    rule = this.name
+                    token = new TokenLocation {
+                        start
+                        length = stream.currentToken.loc.start - start
+                    }
+                    groups = state.groups
+                }
             }
         }
     }

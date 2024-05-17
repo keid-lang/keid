@@ -10,7 +10,7 @@ public function toString<T: ToString>(arr: [T]): string {
         return "[]"
     }
 
-    let strArr = new string[""; arr.length]
+    let strArr = [string]("", arr.length)
     for i in range.create(arr.length) {
         strArr[i] = arr[i].toString()
     }

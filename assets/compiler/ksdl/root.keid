@@ -32,7 +32,7 @@ implement ToString for TokenLocation {
 
 public class RuleMatchGroup {
     variable: string
-    values: List<RuleMatch>
+    values: List<ParserMatch>
 }
 
 public class RuleMatch {
@@ -50,7 +50,7 @@ public class RuleMatch {
         return false
     }
 
-    public getGroup(variable: string): List<RuleMatch>  {
+    public getGroup(variable: string): List<ParserMatch>  {
         for group in this.groups {
             if group.variable == variable {
                 return group.values
@@ -60,7 +60,7 @@ public class RuleMatch {
         throw Error.create(string.format("no such group with variable name '", variable, "' in rule '", this.rule, "'"))
     }
 
-    public getGroupValue(variable: string): RuleMatch {
+    public getGroupValue(variable: string): ParserMatch {
         let group = this.getGroup(variable)
         if group.length != 1 {
             throw Error.create(string.format("group '", variable, "' in rule '", this.rule, "' does not have only one match"))

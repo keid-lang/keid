@@ -284,6 +284,60 @@ impl<'a> LogicCompiler for FunctionCompiler<'a> {
             Operator::BitAnd => (self.emit(Insn::IAnd(lhs.val, rhs.val)), lhs.ty.clone()),
             Operator::BitOr => (self.emit(Insn::IOr(lhs.val, rhs.val)), lhs.ty.clone()),
             Operator::BitXor => (self.emit(Insn::IXor(lhs.val, rhs.val)), lhs.ty.clone()),
+            Operator::NullCoalesce => {
+                let lhs_nullable = matches!(lhs.ty, ComplexType::Nullable(_));
+                let rhs_nullable = matches!(rhs.ty, ComplexType::Nullable(_));
+                match (lhs_nullable, rhs_nullable) {
+                    (true, true) => todo!("coalesce two nullables"),
+                    (true, false) => {
+                        let inner_type = lhs.ty.try_nullable_type().unwrap();
+                        if inner_type != &rhs.ty {
+                            return Err(compiler_error!(
+                                self,
+                                "Cannot coalesce values of type `{}` and `{}`",
+                                lhs.ty.to_string(),
+                                rhs.ty.to_string()
+                            ));
+                        }
+
+                        let lhs_is_null_block = self.builder.create_block();
+                        let lhs_is_not_null_block = self.builder.create_block();
+                        let rotated_parent_block = self.builder.create_block();
+
+                        let result_ptr = self.emit(Insn::Alloca(inner_type.as_llvm_type(&self.cpl)));
+                        let result = TypedValue::new(inner_type.clone(), result_ptr);
+
+                        let nullability_ptr = self.emit(Insn::GetElementPtr(lhs.val, lhs.ty.as_llvm_type(self.cpl), 1));
+                        let nullability = self.emit(Insn::Load(nullability_ptr, self.cpl.context.get_i8_type()));
+                        let const_zero = self.cpl.context.const_int(self.cpl.context.get_i8_type(), 0);
+                        let is_null = self.emit(Insn::ICmp(IntPredicate::LLVMIntEQ, nullability, const_zero));
+                        self.emit(Insn::CondBr(is_null, lhs_is_null_block.as_val(), lhs_is_not_null_block.as_val()));
+
+                        // store rhs -> result
+                        self.builder.append_block(&lhs_is_null_block);
+                        self.copy(&rhs, &result)?;
+                        self.emit(Insn::Br(rotated_parent_block.as_val()));
+
+                        // store nullable inner value -> result
+                        self.builder.append_block(&lhs_is_not_null_block);
+                        let lhs_value_ptr = self.emit(Insn::GetElementPtr(lhs.val, lhs.ty.as_llvm_type(self.cpl), 0));
+                        let lhs_value = TypedValueContainer(TypedValue::new(inner_type.clone(), lhs_value_ptr)).load(self)?;
+                        self.copy(&lhs_value, &result)?;
+                        self.emit(Insn::Br(rotated_parent_block.as_val()));
+
+                        self.builder.append_block(&rotated_parent_block);
+
+                        let loaded_result = TypedValueContainer(result).load(self)?;
+                        return Ok(loaded_result);
+                    }
+                    (false, _) => {
+                        return Err(compiler_error!(
+                            self,
+                            "Null coalescing is a no-op as the non-nullable left-hand side will always be returned"
+                        ))
+                    }
+                }
+            }
             op => unimplemented!("not yet implemented: `{:?}`", op),
         };
 

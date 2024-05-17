@@ -8,7 +8,7 @@ import (
 public enum StatementResult {
     /// Returned by statements when they match with a token result.
     Match {
-        matches: List<RuleMatch>
+        matches: List<ParserMatch>
     }
     /// Returned by statements which don't perform matching operations, e.g. `move`.
     /// A matchless result is always considered successful.
@@ -25,30 +25,40 @@ public enum StatementResult {
 
 public interface ParserStatement {
     /// Returns true if the rule matched, otherwise false.
-    execute(reader: TokenReader, state: RuleState): StatementResult
+    execute(stream: TokenStream, state: RuleState): StatementResult
 }
 
 public class MoveStatement { }
 
 implement ParserStatement for MoveStatement {
-    execute(_: TokenReader, state: RuleState): StatementResult {
+    execute(_: TokenStream, state: RuleState): StatementResult {
         state.moved = true
 
         return StatementResult.Matchless
     }
 }
 
-public class StringLiteralStatement {
-    lit: string
+public class OperatorStatement {
+    op: string
 
-    public static create(lit: string): StringLiteralStatement => new StringLiteralStatement { lit, }
+    public static create(op: string): OperatorStatement => new OperatorStatement { op, }
 }
 
-implement ParserStatement for StringLiteralStatement {
-    execute(reader: TokenReader, _: RuleState): StatementResult {
-        if reader.startsWith(this.lit) {
-            reader.advance(this.lit.length)
-            return StatementResult.Matchless
+implement ParserStatement for OperatorStatement {
+    execute(stream: TokenStream, _: RuleState): StatementResult {
+        let token = stream.currentToken
+        match token.kind {
+            Operator { op, } => {
+                if op == this.op {
+                    stream.next()
+                    return new StatementResult.Match {
+                        matches = List.from<ParserMatch>(new ParserMatch.Token {
+                            token
+                        })
+                    }
+                }
+            }
+            _ => {}
         }
         return StatementResult.Failure
     }
@@ -58,21 +68,78 @@ public class KeywordStatement {
     keyword: string
 
     public static create(keyword: string): KeywordStatement => new KeywordStatement { keyword, }
-
-    static isCharIdentifierComponent(c: char): bool {
-        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_'
-    }
 }
 
 implement ParserStatement for KeywordStatement {
-    execute(reader: TokenReader, _: RuleState): StatementResult {
-        if reader.startsWith(this.keyword) {
-            reader.advance(this.keyword.length)
-            if !KeywordStatement.isCharIdentifierComponent(reader.currentCharacter) {
-                return StatementResult.Matchless
-            } else {
-                reader.retreat(this.keyword.length)
+    execute(stream: TokenStream, _: RuleState): StatementResult {
+        let token = stream.currentToken
+        match token.kind {
+            Keyword { name, } => {
+                if name == this.keyword {
+                    stream.next()
+                    return new StatementResult.Match {
+                        matches = List.from<ParserMatch>(new ParserMatch.Token {
+                            token
+                        })
+                    }
+                }
             }
+            _ => {}
+        }
+        return StatementResult.Failure
+    }
+}
+
+public class LiteralStatement { }
+
+implement ParserStatement for LiteralStatement {
+    execute(stream: TokenStream, _: RuleState): StatementResult {
+        let token = stream.currentToken
+        match token.kind {
+            Literal { lit, } => {
+                stream.next()
+                 return new StatementResult.Match {
+                        matches = List.from<ParserMatch>(new ParserMatch.Token {
+                            token
+                        })
+                    }
+            }
+            _ => {}
+        }
+        return StatementResult.Failure
+    }
+}
+
+public class NewlineStatement { }
+
+implement ParserStatement for NewlineStatement {
+    execute(stream: TokenStream, _: RuleState): StatementResult {
+        match stream.currentToken.kind {
+            Newline => {
+                stream.next()
+                return StatementResult.Matchless
+            }
+            _ => {}
+        }
+        return StatementResult.Failure
+    }
+}
+
+public class IdentifierStatement { }
+
+implement ParserStatement for IdentifierStatement {
+    execute(stream: TokenStream, _: RuleState): StatementResult {
+        let token = stream.currentToken
+        match token.kind {
+            Identifier { name, } => {
+                stream.next()
+                return new StatementResult.Match {
+                    matches = List.from<ParserMatch>(new ParserMatch.Token {
+                        token
+                    })
+                }
+            }
+            _ => {}
         }
         return StatementResult.Failure
     }
@@ -85,11 +152,11 @@ public class SubruleStatement {
 }
 
 implement ParserStatement for SubruleStatement {
-    execute(reader: TokenReader, state: RuleState): StatementResult {
-        let ruleResult = this.subrule.parse(reader)
+    execute(stream: TokenStream, state: RuleState): StatementResult {
+        let ruleResult = this.subrule.parse(stream)
         return match ruleResult {
             Success { match, } => new StatementResult.Match {
-                matches = List.from<RuleMatch>(match)
+                matches = List.from<ParserMatch>(match)
             }
             SoftFail => StatementResult.Failure
             HardFail { rule, statement, result } => new StatementResult.ImmediateFailure { rule, statement, result, }
@@ -104,14 +171,13 @@ public class UntilStatement {
 }
 
 implement ParserStatement for UntilStatement {
-    execute(reader: TokenReader, state: RuleState): StatementResult {
+    execute(stream: TokenStream, state: RuleState): StatementResult {
         loop {
-            match this.statement.execute(reader, state) {
+            match this.statement.execute(stream, state) {
                 Match { matches, } => break
                 Matchless => break
                 _ => {
-                    reader.skipWhitespace()
-                    reader.advance(1)
+                    stream.next()
                 }
             }
         }
@@ -126,8 +192,8 @@ public class OptionalStatement {
 }
 
 implement ParserStatement for OptionalStatement {
-    execute(reader: TokenReader, state: RuleState): StatementResult {
-        return match this.statement.execute(reader, state) {
+    execute(stream: TokenStream, state: RuleState): StatementResult {
+        return match this.statement.execute(stream, state) {
             Match { matches, } => new StatementResult.Match { matches, }
             ImmediateFailure { rule, statement, result, } => new StatementResult.ImmediateFailure { rule, statement, result, }
             _ => StatementResult.Matchless
@@ -142,13 +208,13 @@ public class OrStatement {
 }
 
 implement ParserStatement for OrStatement {
-    execute(reader: TokenReader, state: RuleState): StatementResult {
-        let pos = reader.cursor
+    execute(stream: TokenStream, state: RuleState): StatementResult {
+        let offset = stream.offset
         for option in this.options {
-            let result = option.execute(reader, state)
+            let result = option.execute(stream, state)
             match result {
                 Failure => {
-                    reader.cursor = pos
+                    stream.offset = offset
                 }
                 _ => return result
             }
@@ -164,8 +230,8 @@ public class NotStatement {
 }
 
 implement ParserStatement for NotStatement {
-    execute(reader: TokenReader, state: RuleState): StatementResult {
-        return match this.statement.execute(reader, state) {
+    execute(stream: TokenStream, state: RuleState): StatementResult {
+        return match this.statement.execute(stream, state) {
             Match { matches, } => StatementResult.Failure
             Matchless => StatementResult.Failure
             ImmediateFailure { rule, statement, result, } => new StatementResult.ImmediateFailure { rule, statement, result, }
@@ -182,8 +248,8 @@ public class GroupStatement {
 }
 
 implement ParserStatement for GroupStatement {
-    execute(reader: TokenReader, state: RuleState): StatementResult {
-        let result = this.value.execute(reader, state)
+    execute(stream: TokenStream, state: RuleState): StatementResult {
+        let result = this.value.execute(stream, state)
         match result {
             Match { matches, } => {
                 for group in state.groups {
@@ -204,25 +270,6 @@ implement ParserStatement for GroupStatement {
     }
 }
 
-public class CharRangeStatement {
-    start: char
-    end: char
-
-    public static create(start: char, end: char): CharRangeStatement => new CharRangeStatement { start, end, }
-}
-
-implement ParserStatement for CharRangeStatement {
-    execute(reader: TokenReader, _: RuleState): StatementResult {
-        reader.skipWhitespace()
-        let currentCharacter = reader.currentCharacter
-        if currentCharacter >= this.start && currentCharacter <= this.end {
-            reader.advance(1)
-            return StatementResult.Matchless
-        }
-        return StatementResult.Failure
-    }
-}
-
 public class RepeatedStatement {
     child: ParserStatement
     optional: bool
@@ -231,10 +278,10 @@ public class RepeatedStatement {
 }
 
 implement ParserStatement for RepeatedStatement {
-    execute(reader: TokenReader, state: RuleState): StatementResult {
+    execute(stream: TokenStream, state: RuleState): StatementResult {
         let resultMatches = List.empty<RuleMatch>()
         if !this.optional {
-            match this.child.execute(reader, state) {
+            match this.child.execute(stream, state) {
                 Failure => return StatementResult.Failure
                 ImmediateFailure { rule, statement, result, } => return new StatementResult.ImmediateFailure { rule, statement, result, }
                 Match { matches, } => {
@@ -245,10 +292,10 @@ implement ParserStatement for RepeatedStatement {
         }
 
         loop {
-            let pos = reader.cursor
-            match this.child.execute(reader, state) {
+            let offset = stream.offset
+            match this.child.execute(stream, state) {
                 Failure => {
-                    reader.cursor = pos
+                    stream.offset = offset
                     break
                 }
                 ImmediateFailure { rule, statement, result, } => return new StatementResult.ImmediateFailure { rule, statement, result, }
@@ -272,11 +319,9 @@ public class CompoundStatement {
 }
 
 implement ParserStatement for CompoundStatement {
-    execute(reader: TokenReader, state: RuleState): StatementResult {
+    execute(stream: TokenStream, state: RuleState): StatementResult {
         for statement in this.statements {
-            reader.isSkipWhitespace = state.isSkipWhitespace
-            reader.skipWhitespace()
-            match statement.execute(reader, state) {
+            match statement.execute(stream, state) {
                 ImmediateFailure { rule, statement, result, } => return new StatementResult.ImmediateFailure { rule, statement, result, }
                 Failure => return StatementResult.Failure
                 _ => {}

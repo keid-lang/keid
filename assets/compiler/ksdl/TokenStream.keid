@@ -1,0 +1,42 @@
+namespace keidc::ksdl
+
+import (
+    core::collections
+)
+
+public class TokenStream {
+    currentRule: ?Rule
+    tokens: List<LexerToken>
+    offset: usize
+
+    public static create(tokens: List<LexerToken>): TokenStream => new TokenStream {
+        currentRule = null
+        tokens
+        offset = 0
+    }
+
+    public get isFinished: bool => this.offset == this.tokens.length
+
+    public get currentToken: LexerToken {
+        if this.isFinished {
+            if this.tokens.length == 0 {
+                return new LexerToken {
+                    loc = TokenLocation.create(0, 0)
+                    kind = LexerTokenKind.EOF
+                }
+            }
+            let lastToken = this.tokens.get(this.tokens.length - 1)
+            return new LexerToken {
+                loc = TokenLocation.create(lastToken.loc.start + lastToken.loc.length, 0)
+                kind = LexerTokenKind.EOF
+            }
+        }
+        return this.tokens.get(this.offset)
+    }
+
+    public next() {
+        if !this.isFinished {
+            this.offset += 1
+        }
+    }
+}

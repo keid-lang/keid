@@ -3,6 +3,7 @@ namespace keidc::ksdl
 import (
     core::collections
     core::error
+    core::object
     core::string
 )
 
@@ -39,11 +40,21 @@ public enum LexerTokenKind {
         lit: LexerLiteral
     }
     Newline
+    EOF
 }
 
 public struct LexerToken {
     loc: TokenLocation
     kind: LexerTokenKind
+
+    public get name: string => match this.kind {
+        Identifier => "identifier"
+        Keyword => "keyword"
+        Operator => "operator"
+        Literal => "literal"
+        Newline => "newline"
+        EOF => "EOF"
+    }
 }
 
 enum StringTokenizerState {
@@ -52,15 +63,18 @@ enum StringTokenizerState {
 }
 
 const KEYWORDS: [string] = new string[
-    "as", "class", "const", "deref", "else", "end macro", "enum", "extends", "for",
-    "get", "if", "implement", "import", "interface", "let", "macro", "match",
-    "namespace", "ref", "return", "set", "struct", "throw", "type", "unsafe",
+    "as", "class", "const", "constructor", "deref", "destructor", "else", "end macro",
+    "enum", "extends", "extern", "for", "function", "get", "if", "implement", "import",
+    "in", "interface", "let", "macro", "match", "namespace", "public", "ref", "return",
+    "set", "static", "struct", "throw", "type", "unsafe"
 ]
 const OPERATORS: [string] = new string[
-    "==", "!=", "+", "-", "*", "/", "%", "<<", ">>", "||", "&&", "<=", ">=", "=>", "<", ">",
-    "!", "...", "as", "??", "?", "&", "|", "^", "=", "+=", "-=", "*=", "/=", "%=", ",",
-    "<<=", ">>=", "&=", "|=", "^=", "::", ":", ".", "(", ")", "[", "]", "{", "}",
+    "==", "!=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "|=", "^=",
+    "+", "-", "*", "/", "%", "<<", ">>", "<=", ">=", "=>", "<", ">", "!",
+    "...", "??", "?", "&", "|", "^", "=", ",", "@", "::", ":", ".", "(",
+    ")", "[", "]", "{", "}", ";", "`",
 ]
+const KEYWORD_OPERATORS: [string] = new string["and", "or", "not", "as"]
 
 public function tokenize(reader: TokenReader): List<LexerToken> {
     let tokens = List.empty<LexerToken>()
@@ -68,6 +82,7 @@ public function tokenize(reader: TokenReader): List<LexerToken> {
 
     reader.isSkipWhitespace = true
     while !reader.isFinished {
+        reader.skipWhitespace()
         if reader.currentCharacter == '\n' || reader.startsWith("\r\n") {
             tokens.push(new LexerToken {
                 loc = TokenLocation.create(reader.cursor, 1)
@@ -103,16 +118,49 @@ public function tokenize(reader: TokenReader): List<LexerToken> {
                 }
             })
         } else if reader.currentCharacter.isNumber || reader.currentCharacter == '+' || reader.currentCharacter == '-' {
-            let firstCharacter = reader.currentCharacter
+            let c = reader.currentCharacter
+            let cursor = reader.cursor
             reader.advance(1)
-            if firstCharacter == '+' || firstCharacter == '-' {
-                if !reader.currentCharacter.isNumber {
+            if (c == '+' || c == '-') && !reader.currentCharacter.isNumber {
+                tokens.push(new LexerToken {
+                    loc = TokenLocation.create(cursor, 1)
+                    kind = new LexerTokenKind.Operator {
+                        op = c.toString()
+                    }
+                })
+            } else {
+                let sb = StringBuilder.withCapacity(1)
+                sb.append(c)
 
+                reader.isSkipWhitespace = false
+                while reader.currentCharacter.isNumber {
+                    c = reader.currentCharacter
+                    reader.advance(1)
+                    sb.append(c)
                 }
+                reader.isSkipWhitespace = true
+
+                let s = sb.toString()
+                let lit = match s.startsWith("-") {
+                    true => new LexerLiteral.SignedInteger {
+                        val = Int64.parse(s)
+                    }
+                    false => new LexerLiteral.UnsignedInteger {
+                        val = UInt64.parse(s)
+                    }
+                }
+
+                tokens.push(new LexerToken {
+                    loc = TokenLocation.create(cursor, reader.cursor - cursor)
+                    kind = new LexerTokenKind.Literal {
+                        lit
+                    }
+                })
             }
-            reader.isSkipWhitespace = false
-            reader.isSkipWhitespace = true
         } else {
+            if advanceComment(reader) {
+                continue
+            }
             let cursor = reader.cursor
             if advanceKeyword(reader, "null") {
                 tokens.push(new LexerToken {
@@ -121,6 +169,7 @@ public function tokenize(reader: TokenReader): List<LexerToken> {
                         lit = LexerLiteral.Null
                     }
                 })
+                continue
             }
             if advanceKeyword(reader, "true") {
                 tokens.push(new LexerToken {
@@ -131,6 +180,7 @@ public function tokenize(reader: TokenReader): List<LexerToken> {
                         }
                     }
                 })
+                continue
             }
             if advanceKeyword(reader, "false") {
                 tokens.push(new LexerToken {
@@ -141,8 +191,12 @@ public function tokenize(reader: TokenReader): List<LexerToken> {
                         }
                     }
                 })
+                continue
             }
             if tokenizeOperator(reader, tokens) {
+                continue
+            }
+            if tokenizeKeywordOperator(reader, tokens) {
                 continue
             }
             if tokenizeKeyword(reader, tokens) {
@@ -152,11 +206,23 @@ public function tokenize(reader: TokenReader): List<LexerToken> {
                 continue
             }
 
-            throw Error.create(string.format("unexpected token '", reader.currentCharacter.toString(), "'"))
+            let pos = reader.documentPosition
+            throw Error.create(string.format("unexpected token '", reader.currentCharacter.toString(), "' at ", pos.line.toString(), ":", pos.col.toString()))
         }
     }
 
     return tokens
+}
+
+function advanceComment(reader: TokenReader): bool {
+    if reader.startsWith("//") {
+        reader.advance(2)
+        while reader.currentCharacter != '\n' {
+            reader.advance(1)
+        }
+        return true
+    }
+    return false
 }
 
 function advanceKeyword(reader: TokenReader, keyword: string): bool {
@@ -223,6 +289,22 @@ function tokenizeOperator(reader: TokenReader, tokens: List<LexerToken>): bool {
     return false
 }
 
+function tokenizeKeywordOperator(reader: TokenReader, tokens: List<LexerToken>): bool {
+    for op in KEYWORD_OPERATORS {
+        let cursor = reader.cursor
+        if advanceKeyword(reader, op) {
+            tokens.push(new LexerToken {
+                loc = TokenLocation.create(cursor, op.length)
+                kind = new LexerTokenKind.Operator {
+                    op
+                }
+            })
+            return true
+        }
+    }
+    return false
+}
+
 function tokenizeString(reader: TokenReader, delimiter: char): string {
     let state = StringTokenizerState.Normal
     let builder = StringBuilder.empty()
@@ -232,15 +314,12 @@ function tokenizeString(reader: TokenReader, delimiter: char): string {
 
         match state {
             Normal => {
-                match c {
-                    '"' => return builder.toString()
-                    '\'' => return builder.toString()
-                    '\\' => {
-                        state = StringTokenizerState.Escape
-                    }
-                    _ => {
-                        builder.append(c)
-                    }
+                if c == delimiter {
+                    return builder.toString()
+                } else if c == '\\' {
+                    state = StringTokenizerState.Escape
+                } else {
+                    builder.append(c)
                 }
             }
             Escape => {
@@ -263,5 +342,5 @@ function tokenizeString(reader: TokenReader, delimiter: char): string {
 }
 
 function isCharIdentifierComponent(c: char): bool {
-    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_'
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '$' || c == '#'
 }

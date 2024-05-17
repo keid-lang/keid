@@ -1,0 +1,15 @@
+namespace core::object::test 
+
+import (
+    core::collections
+    core::object
+)
+
+public function testParseIntFromString() {
+    test.assertEqual(Int32.parse("0"), 0)
+    test.assertEqual(Int32.parse("1"), 1)
+    test.assertEqual(Int32.parse("10"), 10)
+    test.assertEqual(Int32.parse("99"), 99)
+    test.assertEqual(Int32.parse("2147483647"), 2147483647)
+    test.assertEqual(Int32.parse("-2147483648"), -2147483648)
+}

@@ -627,15 +627,41 @@ public function createParsingEngine(): KsdlParser {
     return KsdlParser.fromKsdl(syntaxDef)
 }
 
-public function parseKeidSource(parser: KsdlParser, programText: string): AstKeidProgram {
+public function parseKeidSource(parser: KsdlParser, file: string): AstKeidProgram {
+    let programFile = File.open(file, FileOpenMode.ReadOnly)
+    let programText = String.fromUtf8(programFile.readAllBytes())
+    programFile.close()
+
     let reader = TokenReader.create(programText)
     let tokens = ksdl.tokenize(reader)
+    let stream = TokenStream.create(tokens)
 
     let programRule = parser.getRule("Program")
-    let parseResult = programRule.parse(reader)
-    if !reader.isFinished {
-        std::io.println("At: '", reader.sourceText.substring(reader.cursor, math.min<usize>(reader.cursor + 30, reader.sourceText.length)), "'")
-        throw Error.create(string.format("Failed parsing rule: ", reader.currentRule!.name))
+    let parseResult = programRule.parse(stream)
+    if !stream.isFinished {
+        reader.cursor = stream.currentToken.loc.start
+        let pos = reader.documentPosition
+        std::io.println("failed parsing rule '",
+            stream.currentRule!.name,
+            "' at ",
+            stream.currentToken.name,
+            " '",
+            stream.currentToken.loc.getText(programText),
+            "' @ ",
+            file,
+            ":",
+            pos.line.toString(),
+            ":",
+            pos.col.toString(),
+        )
+        for i in range.create(10) {
+            if stream.isFinished {
+                break
+            }
+            stream.next()
+            std::io.println("next token: ", stream.currentToken.name, " '", stream.currentToken.loc.getText(programText), "'")
+        }
+        throw Error.create("failed parsing rule")
     }
     match parseResult {
         Success { match, } => {

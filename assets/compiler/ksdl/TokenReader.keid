@@ -1,13 +1,16 @@
 namespace keidc::ksdl
 
+public struct DocumentPosition {
+    line: uint32
+    col: uint32
+}
+
 public class TokenReader {
-    currentRule: ?Rule
     sourceText: string
     cursor: usize
     isSkipWhitespace: bool
 
     public static create(source: string): TokenReader => new TokenReader {
-        currentRule = null
         sourceText = source
         cursor = 0
         isSkipWhitespace = true
@@ -47,4 +50,13 @@ public class TokenReader {
     public get isFinished: bool => this.cursor >= this.sourceText.length
 
     public get currentCharacter: char => this.sourceText.chars[this.cursor]
+
+    public get documentPosition: DocumentPosition {
+        let s = this.sourceText.substringBefore(this.cursor)
+        let idx = s.lastIndexOf("\n") ?? 0
+        return new DocumentPosition {
+            line = s.occurrences('\n') as uint32 + 1
+            col = (s.length - idx) as uint32
+        }
+    }
 }

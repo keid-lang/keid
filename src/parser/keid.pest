@@ -336,8 +336,9 @@ class_decl = {
 }
 
 enum_element_decl = { ident ~ anonymous_struct_type? }
-enum_statement = _{ enum_element_decl ~ newline }
-enum_block = { (block_start ~ enum_statement* ~ block_end) | ("{" ~ "}") }
+enum_element_statement = _{ enum_element_decl ~ newline }
+enum_method_statement = _{ method_decl ~ newline }
+enum_block = { (block_start ~ enum_element_statement* ~ enum_method_statement* ~ block_end) | ("{" ~ "}") }
 enum_decl = {
     type_modifiers?
     ~ keyword_enum

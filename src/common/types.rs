@@ -199,7 +199,7 @@ impl ToString for BasicType {
             BasicType::AnonymousStruct(members) => {
                 return format!(
                     "{{ {}, }}",
-                    members.iter().map(|member| format!("{}: {}", member.name, member.ty.to_string())).collect::<Vec<String>>().join(",")
+                    members.iter().map(|member| format!("{}: {}", member.name, member.ty.to_string())).collect::<Vec<String>>().join(", ")
                 )
             }
             BasicType::Null => "null",
@@ -262,6 +262,13 @@ impl ComplexType {
     pub fn try_element_type(&self) -> Option<&ComplexType> {
         match self {
             Self::Array(element) => Some(element),
+            _ => None,
+        }
+    }
+
+    pub fn try_nullable_type(&self) -> Option<&ComplexType> {
+        match self {
+            Self::Nullable(element) => Some(element),
             _ => None,
         }
     }

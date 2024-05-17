@@ -285,6 +285,7 @@ fn parse_logic_expr(pairs: Pairs<Rule>) -> Result<Token<Expr>> {
                         Rule::op_bit_and => Operator::BitAnd,
                         Rule::op_bit_or => Operator::BitOr,
                         Rule::op_bit_xor => Operator::BitXor,
+                        Rule::op_null_coalesce => Operator::NullCoalesce,
                         x => unreachable!("{:?}", x),
                     },
                     lhs: Box::new(lhs),

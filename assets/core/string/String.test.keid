@@ -112,6 +112,25 @@ function testIndexOf() {
     test.assertEqual(a.indexOf("o", 2)!, 2)
 }
 
+function testLastIndexOf() {
+    let a = "foobar"
+
+    test.assertNotNull(a.lastIndexOf("b", a.length))
+    test.assertEqual(a.lastIndexOf("b", a.length)!, 3)
+    test.assertNull(a.lastIndexOf("z", a.length))
+    test.assertEqual(a.lastIndexOf("foo", a.length)!, 0)
+    test.assertEqual(a.lastIndexOf("bar", a.length)!, 3)
+    test.assertEqual(a.lastIndexOf("o", a.length)!, 2)
+
+    test.assertNotNull(a.lastIndexOf("b"))
+    test.assertEqual(a.lastIndexOf("b")!, 3)
+    test.assertNull(a.lastIndexOf("z"))
+    test.assertEqual(a.lastIndexOf("foo")!, 0)
+    test.assertEqual(a.lastIndexOf("bar")!, 3)
+    test.assertEqual(a.lastIndexOf("o")!, 2)
+    test.assertEqual(a.lastIndexOf("o", 2)!, 1)
+}
+
 function testSubstring() {
     let a = "SOMETHING"
     test.assertEqual(a.substring(0, 1), "S")

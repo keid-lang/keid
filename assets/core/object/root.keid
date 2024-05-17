@@ -1,6 +1,7 @@
 namespace core::object
 
 import (
+    core::error
     core::string
     core::ops
 )
@@ -46,6 +47,45 @@ implement ToString for Char {
 macro $IMPL_INT_TYPE(#wrapper, #primitive, #signed)
     public struct #wrapper {
         value: #primitive
+
+        public static parse(s: string): #primitive {
+            let val: #primitive = 0
+            let place: #primitive = 1
+            let sign: #primitive = 1
+            let signSpecified = false
+
+            for i in range.create(s.length) {
+                // parse from right to left
+                let c = s.chars[s.length - i - 1]
+                if c == '-' {
+                    if signSpecified {
+                        throw Error.create("unexpected token '-'")
+                    }
+                    if !#signed {
+                        throw Error.create(string.format("cannot parse a negative integer as an unsigned type"))
+                    }
+                    sign = -1
+                    signSpecified = true
+                } else if c == '+' {
+                    if signSpecified {
+                        throw Error.create("unexpected token '+'")
+                    }
+                    signSpecified = true
+                } else if c.isNumber {
+                    if signSpecified {
+                        throw Error.create("sign must be the start of the string")
+                    }
+
+                    let v = (c - 48) as #primitive
+                    val += v * place
+                    place *= 10
+                } else {
+                    throw Error.create(string.format("unexpected token '", c.toString(), "'"))
+                }
+            }
+
+            return val * sign
+        }
     }
 
     implement ToString for #wrapper {
@@ -62,15 +102,14 @@ macro $IMPL_INT_TYPE(#wrapper, #primitive, #signed)
                 ```
                 if current < 0 {
                     sb.append("-")
-                    current = -current
                     insertAt = 1
                 }
                 ```
             )
 
-            while current > 0 {
+            while current != 0 {
                 let digit = (current % 10) + 0x30 // converts the digit to its ascii equivalent
-                sb.insert(insertAt, String.fromUtf8(new uint8[digit as uint8]))
+                sb.insert(insertAt, digit as char)
                 current /= 10
             }
 

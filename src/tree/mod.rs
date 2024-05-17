@@ -564,9 +564,11 @@ impl IntoOpaqueType for ResolvedFunctionNode {
 impl ToString for ResolvedFunctionNode {
     fn to_string(&self) -> String {
         let mut params = self.params.iter().map(|param| param.to_string()).collect::<Vec<_>>();
-        let len = params.len() - 1;
         match self.varargs {
-            Varargs::Array => params[len] = format!("...{}", params[len]),
+            Varargs::Array => {
+                let len = params.len() - 1;
+                params[len] = format!("...{}", params[len])
+            },
             Varargs::Native => params.push("...".to_string()),
             Varargs::None => (),
         }

@@ -78,33 +78,25 @@ public class String {
         return terminated
     }
 
-    public parse<T>(): T {
-        let value: T = 0
-        for i in range.create(this.length) {
-            let ch = this.chars[this.length - i - 1]
-            let digit: usize = match ch {
-                '0' => 0
-                '1' => 1
-                '2' => 2
-                '3' => 3
-                '4' => 4
-                '5' => 5
-                '6' => 6
-                '7' => 7
-                '8' => 8
-                '9' => 9
-                // _ => throw core::error::Error.create(string.format("invalid integer digit: ", ch.toString()))
+    /// Returns the total amount of occurrences of the char `c` within the string.
+    public occurrences(c: char): usize {
+        let total: usize = 0
+        for o in this.chars {
+            if c == o {
+                total += 1
             }
-            value += math.pow<T>(digit, i + 1)
         }
-        return value
+        return total
     }
 
-    /// Returns the character index of the `substr` within this string, or `null` if no match exists.
+    /// Returns the character index of the first instance of `substr` within this string after `from`, or `null` if no match exists.
     /// If `substr` is empty, then `0` is returned.
     public indexOf(substr: string, from: usize): ?usize {
         if substr.length == 0 {
             return 0
+        }
+        if this.length == 0 {
+            return null
         }
         if (from + substr.length) > this.length {
             return null
@@ -125,6 +117,39 @@ public class String {
 
         return null
     }
+
+    /// Equivalent to `indexOf(substr, 0)`.
+    public indexOf(substr: string): ?usize => this.indexOf(substr, 0)
+
+    /// Returns the character index of the last instance of `substr` within this string before (i.e. an exclusive boundary) `from`, or `null` if no match exists.
+    /// If `from` is greater than `this.length` or equal to zero, then `null` is returned.
+    /// If `substr` is empty, then `from` is returned.
+    public lastIndexOf(substr: string, from: usize): ?usize {
+        if from > this.length || from == 0 || this.length == 0 {
+            return null
+        }
+        if substr.length == 0 {
+            return from
+        }
+
+        let streak: usize = 0
+        for i in range.create(from, 0) {
+            if this.chars[i] != substr.chars[substr.length - streak - 1] {
+                streak = 0
+            } else {
+                streak += 1
+            }
+
+            if streak == substr.length {
+                return i
+            }
+        }
+
+        return null
+    }
+
+    /// Equivalent to `lastIndexOf(substr, this.length)`.
+    public lastIndexOf(substr: string): ?usize => this.lastIndexOf(substr, this.length)
 
     /// Returns a new string containing the characters of this string from [start..end).
     public substring(start: usize, end: usize): string {
@@ -151,9 +176,6 @@ public class String {
 
     /// Returns a substring containing the first character (inclusive) of this string until the `end` index (exclusive).
     public substringBefore(end: usize): string => this.substring(0, end)
-
-    /// Equivalent to `indexOf(substr, 0)`.
-    public indexOf(substr: string): ?usize => this.indexOf(substr, 0)
 
     /// Splits the string on the given delimeter.
     /// The returned List contains each substring separated by the delimeter.
@@ -263,6 +285,16 @@ implement Add<String> for String {
         sb.append(this)
         sb.append(other)
         return sb.toString()
+    }
+}
+
+implement Slice<usize> for String {
+    type Output = string
+
+    slice(start: usize, end: usize): Output {
+        return new string {
+            chars = this.chars[start:end]
+        }
     }
 }
 

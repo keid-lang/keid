@@ -481,7 +481,7 @@ impl Compiler {
     }
 
     pub fn create_artifacts(&mut self, root: &str, target: &LLVMTargetData) -> Vec<CompilationArtifact> {
-        const OPT_LEVEL: u32 = 3;
+        // const OPT_LEVEL: u32 = 3;
 
         // for unit in &self.units {
         // for function in unit.mdl.get_all_functions() {
@@ -495,12 +495,12 @@ impl Compiler {
         // }
         // }
 
-        for unit in &self.units {
-            let mpm = PassManager::for_module(OPT_LEVEL);
-            if !mpm.run_module(unit.mdl.as_val()) {
-                panic!("run_module failed");
-            }
-        }
+        // for unit in &self.units {
+        //     let mpm = PassManager::for_module(OPT_LEVEL);
+        //     if !mpm.run_module(unit.mdl.as_val()) {
+        //         panic!("run_module failed");
+        //     }
+        // }
 
         let mut artifacts = Vec::with_capacity(self.units.len());
         let config = bincode::config::standard();

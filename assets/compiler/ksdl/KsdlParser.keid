@@ -49,22 +49,10 @@ public class KsdlParser {
             let line = reader.line
 
             if line.startsWith("RULE") {
-                let isContiguous = false
                 let name = line.substringAfter(5).trim()
-                let sep = name.indexOf(" ")
-                if sep != null {
-                    let after = name.substringAfter(sep! + 1).trim()
-                    if after == "CONTIGUOUS" {
-                        isContiguous = true
-                    } else {
-                        throw Error.create("invalid rule modifier: " + after)
-                    }
-                    name = name.substringBefore(sep!).trim()
-                }
                 this.rules.push(new Rule {
                     name
                     statements = List.empty<ParserStatement>()
-                    isContiguous
                 })
             }
             reader.next()
@@ -146,31 +134,23 @@ public class KsdlParser {
         } else if line.startsWith("OPTIONAL") {
             let statement = this.parseStatement(line.substringAfter(9).trim())
             return OptionalStatement.create(statement)
+        } else if line.startsWith("OPERATOR") {
+            let op = line.substringAfter(8).trim()
+            return OperatorStatement.create(match op {
+                "COMMA" => ","
+                "OPEN_PAREN" => "("
+                "CLOSE_PAREN" => ")"
+                _ => op
+            })
         } else if line.startsWith("LITERAL") {
-            let literal = line.substringAfter(8).trim()
-            if literal == "NEWLINE" {
-                literal = "\n"
-            } else if literal == "COMMA" {
-                literal = ","
-            } else if literal == "SPACE" {
-                literal = " "
-            } else if literal == "OPEN_PAREN" {
-                literal = "("
-            } else if literal == "CLOSE_PAREN" {
-                literal = ")"
-            }
-            return StringLiteralStatement.create(literal)
+            return new LiteralStatement {}
+        } else if line.startsWith("NEWLINE") {
+            return new NewlineStatement {}
+        } else if line.startsWith("IDENTIFIER") {
+            return new IdentifierStatement {}
         } else if line.startsWith("KEYWORD") {
             let keyword = line.substringAfter(8).trim()
             return KeywordStatement.create(keyword)
-        } else if line.startsWith("RANGE") {
-            let range = line.substringAfter(6).trim()
-            if range.length != 3 || range.chars[1] != '-' {
-                throw Error.create(string.format("malformed range: ", range))
-            }
-            let first = range.chars[0]
-            let last = range.chars[2]
-            return CharRangeStatement.create(first, last)
         } else if line.startsWith("RULE") {
             let ruleName = line.substringAfter(5).trim()
             let rule = this.getRule(ruleName)
