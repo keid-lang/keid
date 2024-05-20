@@ -254,6 +254,8 @@ pub struct EnumDecl {
     pub name: Vec<Token<Identifier>>,
     pub generics: Option<Vec<GenericDecl>>,
     pub elements: Vec<EnumElementDecl>,
+    pub methods: Vec<FunctionDecl>,
+    pub accessors: Vec<AccessorDecl>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

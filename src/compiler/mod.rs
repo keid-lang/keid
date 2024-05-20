@@ -168,8 +168,10 @@ impl Compiler {
             if func.params[i].is_struct(&self.type_provider)
                 && (!func.params[i].to_string().starts_with("core::mem::Pointer")
                     || (func.module_id != usize::MAX && {
-                        let source = self.type_provider.get_source_function(func);
-                        !source.modifiers.contains(&FunctionModifier::Extern)
+                        func.source_id == usize::MAX || {
+                            let source = self.type_provider.get_source_function(func);
+                            !source.modifiers.contains(&FunctionModifier::Extern)
+                        }
                     }))
             {
                 function.add_param_attribute(i + 1, func.params[i].as_llvm_type(self), "byval");
@@ -212,11 +214,7 @@ impl Compiler {
 
                 let import_map = {
                     let module = self.type_provider.get_module(self.units[unit_id].module_id);
-                    utils::get_import_map(
-                        &module.imports,
-                        &self.type_provider,
-                        Some(&self.type_provider.get_module_namespace(self.units[unit_id].module_id)),
-                    )
+                    utils::get_import_map(&module.imports, &self.type_provider, Some(&self.type_provider.get_module_namespace(self.units[unit_id].module_id)))
                 };
 
                 let unit = self.units[unit_id].clone();
@@ -384,9 +382,7 @@ impl Compiler {
                                 let params = node
                                     .params
                                     .iter()
-                                    .map(|param| {
-                                        extract_type(&self.type_provider, param.ty.clone(), &node.generic_defs, &class.generic_args)
-                                    })
+                                    .map(|param| extract_type(&self.type_provider, param.ty.clone(), &node.generic_defs, &class.generic_args))
                                     .collect::<anyhow::Result<Vec<ComplexType>>>()
                                     .unwrap();
                                 match self.type_provider.get_function_by_name(&name, &params) {

@@ -142,6 +142,8 @@ public class KsdlParser {
                 "CLOSE_PAREN" => ")"
                 _ => op
             })
+        } else if line.startsWith("TOKEN") {
+            return new TokenStatement {}
         } else if line.startsWith("LITERAL") {
             return new LiteralStatement {}
         } else if line.startsWith("NEWLINE") {

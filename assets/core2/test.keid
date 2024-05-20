@@ -34,7 +34,7 @@ public function assertTrue(cond: bool) {
 }
 
 public function assertFalse(cond: bool) {
-    assert(!cond, "expecting false")
+    assert(not cond, "expecting false")
 }
 
 public function assertEqual(a: string, b: string) {
@@ -45,7 +45,7 @@ public function assertNotEqual(a: string, b: string) {
     assert(a != b, string.format("'", a, "' != '", b, "'"))
 }
 
-macro $DEFINE_INT_ASSERTION(#type, #operator, #name)
+macro $DEFINE_INT_ASSERTION(#type: ty, #operator: op, #name: ident)
     public function assert#name(a: #type, b: #type) {
         assert(a #operator b, string.format(a.toString(), " #operator ", b.toString()))
     }
@@ -59,7 +59,7 @@ macro $DEFINE_INT_ASSERTION(#type, #operator, #name)
     }
 end macro
 
-macro $DEFINE_INT_ASSERTIONS(#type)
+macro $DEFINE_INT_ASSERTIONS(#type: ty)
     $DEFINE_INT_ASSERTION(#type, ==, Equal)
     $DEFINE_INT_ASSERTION(#type, !=, NotEqual)
 end macro

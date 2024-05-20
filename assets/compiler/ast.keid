@@ -14,6 +14,10 @@ public class AstToken<T> {
     loc: TokenLocation
 }
 
+implement <T: ToString> ToString for AstToken<T> {
+    toString(): string => string.format(this.node.toString(), " @ ", this.loc.toString())
+}
+
 public class AstGenericDecl {
     name: AstToken<string>
 }
@@ -279,7 +283,7 @@ implement ToString for AstOperator {
 }
 
 public enum AstExpr {
-    Null
+    NullLit
     BoolLit {
         value: bool
     }
@@ -289,8 +293,14 @@ public enum AstExpr {
     CharLit {
         value: char
     }
+    UnsignedIntLit {
+        value: uint64
+    }
     SignedIntLit {
         value: int64
+    }
+    Ident {
+        value: string
     }
     Unary {
         operator: AstToken<AstOperator>

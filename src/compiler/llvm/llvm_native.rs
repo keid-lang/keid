@@ -5,6 +5,8 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use std::ffi::CStr;
 use std::ffi::CString;
+use std::hash::DefaultHasher;
+use std::hash::Hasher;
 use std::path::PathBuf;
 use std::slice;
 use std::str::FromStr;
@@ -541,13 +543,13 @@ impl Context {
     }
 
     pub fn get_abi_closure_type(&self, captured_value_types: &[OpaqueType]) -> OpaqueType {
-        let mut hash = 7;
+        let mut hasher = DefaultHasher::new();
         for captured_value in captured_value_types {
-            hash = 31 * hash + captured_value.0 as usize;
+            hasher.write_usize(captured_value.0 as usize);
         }
 
         self.get_struct_type(
-            &format!("__closure${}", hex::encode(&hash.to_be_bytes())),
+            &format!("__closure${}", hex::encode(&hasher.finish().to_be_bytes())),
             &[
                 &[
                     self.get_isize_type(),                       // ref count
@@ -576,8 +578,8 @@ impl Context {
 
     pub fn get_struct_type(&self, name: &str, element_types: &[OpaqueType]) -> OpaqueType {
         let mut cached_struct_types = self.cached_struct_types.borrow_mut();
-        if let Some(cached) = cached_struct_types.get(name) {
-            return *cached;
+        if let Some(cached) = cached_struct_types.get(name).cloned() {
+            return cached;
         }
 
         unsafe {
@@ -841,14 +843,7 @@ impl Module {
         unsafe {
             let mut error_message: *mut _ = std::ptr::null_mut();
             let mut buf: LLVMMemoryBufferRef = std::ptr::null_mut();
-            if LLVMTargetMachineEmitToMemoryBuffer(
-                target.machine,
-                self.mdl,
-                LLVMCodeGenFileType::LLVMObjectFile,
-                &mut error_message,
-                &mut buf,
-            ) != 0
-            {
+            if LLVMTargetMachineEmitToMemoryBuffer(target.machine, self.mdl, LLVMCodeGenFileType::LLVMObjectFile, &mut error_message, &mut buf) != 0 {
                 return Err(anyhow!("error while emitting to memory buffer"));
             }
 
@@ -1007,7 +1002,7 @@ impl InsnBuilder {
             if LLVMGetPreviousBasicBlock(block.block) != std::ptr::null_mut() {
                 // if the new block has no direct predecessor
                 if !block.has_predecessor() {
-                    panic!("block with zero predecessors");
+                    // panic!("block with zero predecessors");
                 }
             }
 
@@ -1058,9 +1053,7 @@ impl InsnBuilder {
                     let args = args.as_mut_slice();
                     LLVMBuildCall2(self.bdl, ty.0, func.0, args.as_mut_ptr(), args.len() as u32, insn_name)
                 }
-                Insn::GetElementPtr(struct_ref, value_type, value_idx) => {
-                    LLVMBuildStructGEP2(self.bdl, value_type.0, struct_ref.0, value_idx, insn_name)
-                }
+                Insn::GetElementPtr(struct_ref, value_type, value_idx) => LLVMBuildStructGEP2(self.bdl, value_type.0, struct_ref.0, value_idx, insn_name),
                 Insn::GetElementPtrDynamic(struct_ref, value_type, value_idx) => {
                     let indices = &mut [value_idx.0];
                     LLVMBuildInBoundsGEP2(self.bdl, value_type.0, struct_ref.0, indices.as_mut_ptr(), 1, insn_name)

@@ -1,0 +1,41 @@
+RULE MacroParamDecl
+    $name = IDENTIFIER
+    OPERATOR :
+    $type = IDENTIFIER
+END RULE
+
+RULE MacroDecl
+    KEYWORD macro
+    MOVE
+    $name = IDENTIFIER
+    OPERATOR (
+    MOVE
+    OPTIONAL REPEATED NEWLINE
+    OPTIONAL REPEATED COMPOUND($params = RULE MacroParamDecl, OPERATOR COMMA, OPTIONAL REPEATED NEWLINE)
+    $params = OPTIONAL RULE MacroParamDecl
+    OPTIONAL COMPOUND (OPERATOR COMMA, REPEATED NEWLINE)
+    OPERATOR )
+    $body = UNTIL KEYWORD end macro
+END RULE
+
+RULE MacroArgValue
+    OPERATOR `
+    $tokens = UNTIL OPERATOR `
+END RULE
+
+RULE MacroCall
+    $name = IDENTIFIER
+    MOVE
+    OPERATOR (
+    OPTIONAL REPEATED COMPOUND($params = RULE MacroArgValue, OPERATOR COMMA, OPTIONAL REPEATED NEWLINE)
+    $params = OPTIONAL RULE MacroArgValue
+    OPTIONAL COMPOUND (OPERATOR COMMA, REPEATED NEWLINE)
+    OPERATOR )
+END RULE
+
+ALIAS PreprocessorStatement OR(RULE MacroDecl, RULE MacroCall, TOKEN)
+
+RULE PreprocessorProgram
+    MOVE
+    $statements = OPTIONAL REPEATED ALIAS PreprocessorStatement
+END RULE

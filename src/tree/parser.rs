@@ -91,13 +91,7 @@ impl<'a> AstConverter<'a> {
         }
     }
 
-    fn get_type(
-        &self,
-        original_type: QualifiedType,
-        parent: Option<&DeclParent>,
-        dst: &KeidModuleNode,
-        namespace_name: String,
-    ) -> Result<ComplexType> {
+    fn get_type(&self, original_type: QualifiedType, parent: Option<&DeclParent>, dst: &KeidModuleNode, namespace_name: String) -> Result<ComplexType> {
         if original_type.complex.to_string() == "This" {
             return Ok(original_type.complex);
         }
@@ -218,13 +212,7 @@ impl<'a> AstConverter<'a> {
         Ok(concrete_type)
     }
 
-    fn parse_accessor_decl(
-        &self,
-        ns: &str,
-        acc: AccessorDecl,
-        class: Option<&DeclParent>,
-        dst: &mut KeidModuleNode,
-    ) -> Result<AccessorNode> {
+    fn parse_accessor_decl(&self, ns: &str, acc: AccessorDecl, class: Option<&DeclParent>, dst: &mut KeidModuleNode) -> Result<AccessorNode> {
         let value_type = QualifiedType {
             loc: acc.value_type.loc.clone(),
             complex: self.get_type(acc.value_type.clone(), class, dst, ns.to_owned())?,
@@ -323,29 +311,44 @@ impl<'a> AstConverter<'a> {
         let mut func_generic_defs: Vec<GenericDefNode> = self.parse_generic_decls(ns, func.generics.as_ref(), dst)?;
         let mut this_node = None;
 
-        if function_type == FunctionContextType::Instance && let Some(class) = class {
+        if function_type == FunctionContextType::Instance
+            && let Some(class) = class
+        {
             match class {
-                DeclParent::Class { generic_defs, .. } | DeclParent::InterfaceImpl { generic_defs, .. } => {
-                    let additional_defs: Vec<GenericDefNode> = generic_defs
-                        .clone()
-                        .into_iter()
-                        .filter(|def| !func_generic_defs.iter().map(|d| &d.name).any(|x| x == &def.name))
-                        .collect();
+                DeclParent::Class {
+                    generic_defs,
+                    ..
+                }
+                | DeclParent::InterfaceImpl {
+                    generic_defs,
+                    ..
+                } => {
+                    let additional_defs: Vec<GenericDefNode> =
+                        generic_defs.clone().into_iter().filter(|def| !func_generic_defs.iter().map(|d| &d.name).any(|x| x == &def.name)).collect();
                     func_generic_defs.extend(additional_defs.clone());
 
                     match class {
-                        DeclParent::Class { name, .. } => {
+                        DeclParent::Class {
+                            name,
+                            ..
+                        } => {
                             this_node = Some(
-                                BasicType::Object(GenericIdentifier::from_name_with_args(name, &additional_defs
-                                .iter()
-                                .map(|def| BasicType::Object(GenericIdentifier::from_name(&def.name)).to_complex())
-                                .collect::<Vec<_>>()))
-                                .to_complex()
+                                BasicType::Object(GenericIdentifier::from_name_with_args(
+                                    name,
+                                    &additional_defs
+                                        .iter()
+                                        .map(|def| BasicType::Object(GenericIdentifier::from_name(&def.name)).to_complex())
+                                        .collect::<Vec<_>>(),
+                                ))
+                                .to_complex(),
                             );
-                        },
-                        DeclParent::InterfaceImpl { class, .. } => {
+                        }
+                        DeclParent::InterfaceImpl {
+                            class,
+                            ..
+                        } => {
                             this_node = Some(BasicType::Object(class.clone()).to_complex());
-                        },
+                        }
                     }
                 }
             }
@@ -399,8 +402,7 @@ impl<'a> AstConverter<'a> {
             );
         }
 
-        let return_type =
-            func.return_type.map(|ty| self.get_type(ty, Some(&parent), dst, ns.to_owned())).unwrap_or(Ok(BasicType::Void.to_complex()))?;
+        let return_type = func.return_type.map(|ty| self.get_type(ty, Some(&parent), dst, ns.to_owned())).unwrap_or(Ok(BasicType::Void.to_complex()))?;
 
         let id = dst.functions.len();
         dst.functions.push(FunctionNode {
@@ -468,15 +470,11 @@ impl<'a> AstConverter<'a> {
 
         let interface_generics = interface_impl
             .interface_generic_args
-            .map(|decl| {
-                decl.args.into_iter().map(|part| self.get_type(part, Some(&decl_parent), dst, ns.to_owned())).collect::<Result<Vec<_>>>()
-            })
+            .map(|decl| decl.args.into_iter().map(|part| self.get_type(part, Some(&decl_parent), dst, ns.to_owned())).collect::<Result<Vec<_>>>())
             .unwrap_or_else(|| Ok(Vec::new()))?;
         let target_generics = interface_impl
             .target_generic_args
-            .map(|decl| {
-                decl.args.into_iter().map(|part| self.get_type(part, Some(&decl_parent), dst, ns.to_owned())).collect::<Result<Vec<_>>>()
-            })
+            .map(|decl| decl.args.into_iter().map(|part| self.get_type(part, Some(&decl_parent), dst, ns.to_owned())).collect::<Result<Vec<_>>>())
             .unwrap_or_else(|| Ok(Vec::new()))?;
 
         let associated_types: Vec<AssociatedTypeNode> = interface_impl
@@ -493,10 +491,7 @@ impl<'a> AstConverter<'a> {
         let decl_parent = DeclParent::InterfaceImpl {
             generic_defs: generic_defs.clone(),
             class: GenericIdentifier::from_name_with_args(&self.resolve_type(ns, &interface_impl.target_name, dst)?, &target_generics),
-            interface: GenericIdentifier::from_name_with_args(
-                &self.resolve_type(ns, &interface_impl.interface_name, dst)?,
-                &interface_generics,
-            ),
+            interface: GenericIdentifier::from_name_with_args(&self.resolve_type(ns, &interface_impl.interface_name, dst)?, &interface_generics),
             associated_types: associated_types.clone(),
         };
 
@@ -506,37 +501,24 @@ impl<'a> AstConverter<'a> {
             self.parse_func_decl(ns, function, Some(&decl_parent), dst)?;
         }
 
-        let accessors = interface_impl
-            .accessors
-            .into_iter()
-            .map(|acc| self.parse_accessor_decl(ns, acc, Some(&decl_parent), dst))
-            .collect::<Result<Vec<_>>>()?;
+        let accessors =
+            interface_impl.accessors.into_iter().map(|acc| self.parse_accessor_decl(ns, acc, Some(&decl_parent), dst)).collect::<Result<Vec<_>>>()?;
 
-        let interface_name = match self
-            .get_type(QualifiedType::from_qualifier(&interface_impl.interface_name), Some(&decl_parent), dst, ns.to_owned())?
-            .get_root_type()
-        {
-            BasicType::Object(ident) => ident.name,
-            _ => unreachable!(),
-        };
+        let interface_name =
+            match self.get_type(QualifiedType::from_qualifier(&interface_impl.interface_name), Some(&decl_parent), dst, ns.to_owned())?.get_root_type() {
+                BasicType::Object(ident) => ident.name,
+                _ => unreachable!(),
+            };
 
-        let target_name = match self
-            .get_type(QualifiedType::from_qualifier(&interface_impl.target_name), Some(&decl_parent), dst, ns.to_owned())?
-            .get_root_type()
-        {
-            BasicType::Object(ident) => ident.name,
-            _ => unreachable!(),
-        };
+        let target_name =
+            match self.get_type(QualifiedType::from_qualifier(&interface_impl.target_name), Some(&decl_parent), dst, ns.to_owned())?.get_root_type() {
+                BasicType::Object(ident) => ident.name,
+                _ => unreachable!(),
+            };
 
         let interface_id = match self.lookup_items.iter().find(|item| item.name == interface_name) {
             Some(interface) => interface.id,
-            None => {
-                return Err(compiler_error_loc!(
-                    &interface_impl.interface_name.get_location(),
-                    "Could not resolve interface type `{}`",
-                    interface_name
-                ))
-            }
+            None => return Err(compiler_error_loc!(&interface_impl.interface_name.get_location(), "Could not resolve interface type `{}`", interface_name)),
         };
 
         dst.interface_impls.push(InterfaceImplNode {
@@ -556,9 +538,7 @@ impl<'a> AstConverter<'a> {
     }
 
     fn parse_generic_decls(&self, ns: &str, decls: Option<&Vec<GenericDecl>>, dst: &mut KeidModuleNode) -> Result<Vec<GenericDefNode>> {
-        decls
-            .map(|decls| decls.into_iter().map(|decl| self.parse_generic_decl(ns, &decl, dst)).collect::<Result<_>>())
-            .unwrap_or_else(|| Ok(Vec::new()))
+        decls.map(|decls| decls.into_iter().map(|decl| self.parse_generic_decl(ns, &decl, dst)).collect::<Result<_>>()).unwrap_or_else(|| Ok(Vec::new()))
     }
 
     fn parse_generic_decl(&self, ns: &str, decl: &GenericDecl, dst: &mut KeidModuleNode) -> Result<GenericDefNode> {
@@ -571,11 +551,7 @@ impl<'a> AstConverter<'a> {
                     let ty = self.get_type(QualifiedType::from_qualifier(interface), None, dst, ns.to_owned());
                     match ty {
                         Ok(ComplexType::Basic(BasicType::Object(ident))) => Ok(ident),
-                        Ok(other) => Err(compiler_error_loc!(
-                            &decl.name.loc,
-                            "Generic type constraint `{}` is not a valid interface type",
-                            other.to_string()
-                        )),
+                        Ok(other) => Err(compiler_error_loc!(&decl.name.loc, "Generic type constraint `{}` is not a valid interface type", other.to_string())),
                         Err(e) => Err(e),
                     }
                 })
@@ -616,6 +592,12 @@ impl<'a> AstConverter<'a> {
                 })?,
             });
         }
+        let start = dst.functions.len();
+        let length = enm.methods.len();
+        for method in enm.methods {
+            self.parse_func_decl(ns, method, Some(&decl_parent), dst)?;
+        }
+        let accessors = enm.accessors.into_iter().map(|acc| self.parse_accessor_decl(ns, acc, Some(&decl_parent), dst)).collect::<Result<_>>()?;
 
         dst.enums.push(EnumNode {
             module_id: self.module_id,
@@ -633,6 +615,8 @@ impl<'a> AstConverter<'a> {
             base_name,
             generic_defs,
             elements,
+            functions: (start..start + length).collect(),
+            accessors,
         });
 
         Ok(())
@@ -653,26 +637,15 @@ impl<'a> AstConverter<'a> {
         } else {
             let interface_generics = class
                 .superclass_generic_args
-                .map(|decl| {
-                    decl.args
-                        .into_iter()
-                        .map(|part| self.get_type(part, Some(&decl_parent), dst, ns.to_owned()))
-                        .collect::<Result<Vec<_>>>()
-                })
+                .map(|decl| decl.args.into_iter().map(|part| self.get_type(part, Some(&decl_parent), dst, ns.to_owned())).collect::<Result<Vec<_>>>())
                 .unwrap_or_else(|| Ok(Vec::new()))?;
             Some(match &class.superclass_name {
-                Some(superclass_name) => {
-                    GenericIdentifier::from_name_with_args(&self.resolve_type(ns, superclass_name, dst)?, &interface_generics)
-                }
+                Some(superclass_name) => GenericIdentifier::from_name_with_args(&self.resolve_type(ns, superclass_name, dst)?, &interface_generics),
                 None => GenericIdentifier::from_name("core::object::Object"), // if no superclass was specified, the default is the Object class
             })
         };
 
-        let fields = class
-            .fields
-            .into_iter()
-            .map(|decl| self.parse_field_decl(decl, Some(&decl_parent), dst, ns.to_owned()))
-            .collect::<Result<_>>()?;
+        let fields = class.fields.into_iter().map(|decl| self.parse_field_decl(decl, Some(&decl_parent), dst, ns.to_owned())).collect::<Result<_>>()?;
 
         let start = dst.functions.len();
         let mut length = class.methods.len();
@@ -707,8 +680,7 @@ impl<'a> AstConverter<'a> {
         for method in class.methods {
             self.parse_func_decl(ns, method, Some(&decl_parent), dst)?;
         }
-        let accessors =
-            class.accessors.into_iter().map(|acc| self.parse_accessor_decl(ns, acc, Some(&decl_parent), dst)).collect::<Result<_>>()?;
+        let accessors = class.accessors.into_iter().map(|acc| self.parse_accessor_decl(ns, acc, Some(&decl_parent), dst)).collect::<Result<_>>()?;
         dst.classes.push(ClassNode {
             superclass,
             class_type: class.ty,
@@ -863,11 +835,7 @@ pub fn ast_to_type_list(program: &KeidFile) -> Vec<LookupItem> {
     }
 
     for typedef in &program.typedefs {
-        items.push(LookupItem::new(
-            &Qualifier(typedef.name.clone()).to_string(),
-            LookupItemType::Typedef(typedef.target_type.complex.clone()),
-            get_next_id(),
-        ));
+        items.push(LookupItem::new(&Qualifier(typedef.name.clone()).to_string(), LookupItemType::Typedef(typedef.target_type.complex.clone()), get_next_id()));
     }
 
     for attribute in &program.attributes {

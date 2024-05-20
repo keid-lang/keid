@@ -26,6 +26,19 @@ public enum LexerLiteral {
     Null
 }
 
+implement ToString for LexerLiteral {
+    toString(): string {
+        return match this {
+            Bool { val, } => string.format("Bool(", val.toString(), ")")
+            SignedInteger { val, } => string.format("SignedInteger(", val.toString(), ")")
+            UnsignedInteger { val, } => string.format("UnsignedInteger(", val.toString(), ")")
+            String { val, } => string.format("String(", val, ")")
+            Char { val, } => string.format("Char(", val.toString(), ")")
+            Null => "Null"
+        }
+    }
+}
+
 public enum LexerTokenKind {
     Identifier {
         name: String
@@ -41,6 +54,40 @@ public enum LexerTokenKind {
     }
     Newline
     EOF
+
+    public identifier(): string {
+        match this {
+            Identifier { name, } => return name
+            _ => throw Error.create("LexerTokenKind is not Identifier")
+        }
+    }
+
+    public keyword(): string {
+        match this {
+            Keyword { name, } => return name
+            _ => throw Error.create("LexerTokenKind is not Keyword")
+        }
+    }
+
+    public operator(): string {
+        match this {
+            Operator { op, } => return op
+            _ => throw Error.create("LexerTokenKind is not Operator")
+        }
+    }
+}
+
+implement ToString for LexerTokenKind {
+    toString(): string {
+        return match this {
+            Identifier { name, } => string.format("Identifier(", name, ")")
+            Keyword { name, } => string.format("Keyword(", name, ")")
+            Operator { op, } => string.format("Operator(", op, ")")
+            Literal { lit, } => string.format("Literal(", lit.toString(), ")")
+            Newline => "Newline"
+            EOF => "EOF"
+        }
+    }
 }
 
 public struct LexerToken {
@@ -54,6 +101,12 @@ public struct LexerToken {
         Literal => "literal"
         Newline => "newline"
         EOF => "EOF"
+    }
+}
+
+implement ToString for LexerToken {
+    toString(): string {
+        return string.format("LexerToken(", this.kind.toString(), " @ ", this.loc.toString(), ")")
     }
 }
 

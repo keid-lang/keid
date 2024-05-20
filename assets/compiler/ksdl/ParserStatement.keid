@@ -38,6 +38,20 @@ implement ParserStatement for MoveStatement {
     }
 }
 
+public class TokenStatement { }
+
+implement ParserStatement for TokenStatement {
+    execute(stream: TokenStream, _: RuleState): StatementResult {
+        let token = stream.currentToken
+        stream.next()
+        return new StatementResult.Match {
+            matches = List.from<ParserMatch>(new ParserMatch.Token {
+                token
+            })
+        }
+    }
+}
+
 public class OperatorStatement {
     op: string
 
@@ -172,16 +186,22 @@ public class UntilStatement {
 
 implement ParserStatement for UntilStatement {
     execute(stream: TokenStream, state: RuleState): StatementResult {
+        let matches = List.empty<ParserMatch>()
         loop {
             match this.statement.execute(stream, state) {
                 Match { matches, } => break
                 Matchless => break
                 _ => {
+                    matches.push(new ParserMatch.Token {
+                        token = stream.currentToken
+                    })
                     stream.next()
                 }
             }
         }
-        return StatementResult.Matchless
+        return new StatementResult.Match {
+            matches
+        }
     }
 }
 
@@ -279,7 +299,7 @@ public class RepeatedStatement {
 
 implement ParserStatement for RepeatedStatement {
     execute(stream: TokenStream, state: RuleState): StatementResult {
-        let resultMatches = List.empty<RuleMatch>()
+        let resultMatches = List.empty<ParserMatch>()
         if !this.optional {
             match this.child.execute(stream, state) {
                 Failure => return StatementResult.Failure

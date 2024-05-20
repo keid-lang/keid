@@ -185,10 +185,7 @@ impl<'a> FunctionCompiler<'a> {
             if source_defs[i].name == arg.to_string() {
                 panic!("recursive context generics: {} = {:#?}\n\nfunc: {:#?}", source_defs[i].name, arg, self.func);
             }
-            self.cpl
-                .type_provider
-                .context_generics
-                .insert(BasicType::Object(GenericIdentifier::from_name(&source_defs[i].name)).to_complex(), arg);
+            self.cpl.type_provider.context_generics.insert(BasicType::Object(GenericIdentifier::from_name(&source_defs[i].name)).to_complex(), arg);
         }
 
         let source = self.get_source_function();
@@ -283,11 +280,7 @@ impl<'a> FunctionCompiler<'a> {
         ))
     }
 
-    fn resolve_interface_impl_function(
-        &self,
-        mut callable: ResolvedFunctionNode,
-        interface_impl: &InterfaceImplNode,
-    ) -> Result<ResolvedFunctionNode> {
+    fn resolve_interface_impl_function(&self, mut callable: ResolvedFunctionNode, interface_impl: &InterfaceImplNode) -> Result<ResolvedFunctionNode> {
         let mut generics = Vec::with_capacity(interface_impl.associated_types.len());
         let mut values = Vec::with_capacity(interface_impl.associated_types.len());
         for assoc in &interface_impl.associated_types {
@@ -304,8 +297,8 @@ impl<'a> FunctionCompiler<'a> {
             .map(|ty| crate::tree::extract_type(&self.cpl.type_provider, ty, &generics, &values))
             .collect::<anyhow::Result<_>>()
             .map_err(|e| compiler_error!(self, "{}", e))?;
-        callable.return_type = crate::tree::extract_type(&self.cpl.type_provider, callable.return_type, &generics, &values)
-            .map_err(|e| compiler_error!(self, "{}", e))?;
+        callable.return_type =
+            crate::tree::extract_type(&self.cpl.type_provider, callable.return_type, &generics, &values).map_err(|e| compiler_error!(self, "{}", e))?;
 
         Ok(callable)
     }
@@ -323,9 +316,7 @@ impl<'a> FunctionCompiler<'a> {
                     let abs_obj_type = GenericIdentifier::from_name_with_args(&absolute_name, &generic_args);
                     match self.cpl.type_provider.get_class_by_name(&abs_obj_type) {
                         Some(class_type) => {
-                            return Ok(ty
-                                .clone()
-                                .replace_root(class_type.as_complex_type(self.cpl.type_provider.get_source_class(&class_type))))
+                            return Ok(ty.clone().replace_root(class_type.as_complex_type(self.cpl.type_provider.get_source_class(&class_type))))
                         }
                         None => {
                             match self.cpl.type_provider.get_typedef_by_name(&abs_obj_type) {
@@ -333,9 +324,7 @@ impl<'a> FunctionCompiler<'a> {
                                 None => {
                                     match self.cpl.type_provider.get_enum_by_name(&abs_obj_type) {
                                         Some(enum_type) => {
-                                            return Ok(ty.clone().replace_root(
-                                                enum_type.as_complex_type(self.cpl.type_provider.get_source_enum(&enum_type)),
-                                            ))
+                                            return Ok(ty.clone().replace_root(enum_type.as_complex_type(self.cpl.type_provider.get_source_enum(&enum_type))))
                                         }
                                         None => {
                                             // if a generic type with the same name exists, then substitute the generic type with the actual type
@@ -361,27 +350,27 @@ impl<'a> FunctionCompiler<'a> {
         self.resolve_type_with_context(ty, &self.import_map)
     }
 
-    fn compile_closure(
-        &mut self,
-        closure_data_type: OpaqueType,
-        class_type: ComplexType,
-        callee: ResolvedFunctionNode,
-    ) -> Result<OpaqueFunctionValue> {
+    fn compile_closure(&mut self, closure_data_type: OpaqueType, class_type: ComplexType, callee: ResolvedFunctionNode) -> Result<OpaqueFunctionValue> {
         self.closure_count += 1;
         let name = format!("{}#_closure{}", self.func.external_name, self.closure_count);
 
         let mut callee_without_instance = callee.clone();
         callee_without_instance.params.remove(0);
 
-        let mut func_params = Vec::new();
-        func_params.push(self.cpl.context.get_pointer_type(closure_data_type));
-        for param in &callee_without_instance.params {
-            func_params.push(param.as_llvm_type(&self.cpl));
-        }
-
-        let closure_function_type =
-            self.cpl.context.get_function_type(&func_params, callee.varargs, callee.return_type.as_llvm_type(&self.cpl));
-        let closure_function = self.unit.mdl.add_function(&name, closure_function_type, 0);
+        let closure_function = self.cpl.add_function(
+            &self.unit.mdl,
+            &name,
+            &ResolvedFunctionNode {
+                external_name: name.clone(),
+                callable_name: name.clone(),
+                generic_impls: Vec::new(),
+                params: [vec![BasicType::Void.to_complex().to_reference()], callee_without_instance.params.clone()].concat(),
+                return_type: callee.return_type.clone(),
+                module_id: self.unit.module_id,
+                source_id: usize::MAX,
+                varargs: callee.varargs.clone(),
+            },
+        );
 
         let mut bdl = closure_function.create_builder();
         let main_block = bdl.create_block();
@@ -433,9 +422,8 @@ impl<'a> FunctionCompiler<'a> {
             for accessor in &interface_impl.accessors {
                 if accessor.name == accessor_name.token.0 {
                     let getter = self.cpl.type_provider.get_function_node(interface_impl.module_id, accessor.function_id).unwrap();
-                    let accessor_impl = getter
-                        .create_impl(&self.cpl.type_provider, &resolved_interface_impl.generic_impls)
-                        .map_err(|e| compiler_error!(self, "{}", e))?;
+                    let accessor_impl =
+                        getter.create_impl(&self.cpl.type_provider, &resolved_interface_impl.generic_impls).map_err(|e| compiler_error!(self, "{}", e))?;
                     return Ok(Box::new(AccessorValueContainer::new(accessor_impl, class_instance.val)));
                 }
             }
@@ -465,8 +453,7 @@ impl<'a> FunctionCompiler<'a> {
         for i in 0..fields.len() {
             let field = &fields[i];
             if field.name == field_name.token.0 {
-                let element_ptr =
-                    self.emit(Insn::GetElementPtr(class_instance.val, type_root.as_llvm_type(self.cpl), field_offset + i as u32));
+                let element_ptr = self.emit(Insn::GetElementPtr(class_instance.val, type_root.as_llvm_type(self.cpl), field_offset + i as u32));
                 return Ok(Box::new(TypedValueContainer(TypedValue::new(field.ty.clone(), element_ptr))));
             }
         }
@@ -475,9 +462,7 @@ impl<'a> FunctionCompiler<'a> {
             for accessor in &class.accessors {
                 if accessor.name == field_name.token.0 {
                     let getter = self.cpl.type_provider.get_function_node(type_root.module_id, accessor.function_id).unwrap();
-                    break 'getter_block getter
-                        .create_impl(&self.cpl.type_provider, &type_root.generic_impls)
-                        .map_err(|e| compiler_error!(self, "{}", e))?;
+                    break 'getter_block getter.create_impl(&self.cpl.type_provider, &type_root.generic_impls).map_err(|e| compiler_error!(self, "{}", e))?;
                 }
             }
 
@@ -564,8 +549,7 @@ impl<'a> FunctionCompiler<'a> {
             }
         }
 
-        let evaluated_arguments =
-            args.iter().map(|arg| self.compile_expr(arg, None).map(|arg| arg.ty.to_string())).collect::<Result<Vec<String>>>()?;
+        let evaluated_arguments = args.iter().map(|arg| self.compile_expr(arg, None).map(|arg| arg.ty.to_string())).collect::<Result<Vec<String>>>()?;
         self.loc(&name.loc);
         Err(compiler_error!(
             self,

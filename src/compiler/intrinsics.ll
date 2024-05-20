@@ -30,7 +30,7 @@ source_filename = "intrinsics.ll"
 @find_class_method_null_error = private unnamed_addr constant [83 x i8] c"NullValueError: attempted retrieval of virtual method pointer from a null pointer\0A\00", align 1
 @illegal_ref_count_error = private unnamed_addr constant [43 x i8] c"InternalError: illegal reference count %i\0A\00", align 1
 @no_such_method_error = private unnamed_addr constant [123 x i8] c"NoSuchMethodError: attempted to invoke an invalid interface method (class name = '%s', interface id = %i, method id = %i)\0A\00", align 1
-@index_out_of_bounds_error = private unnamed_addr constant [84 x i8] c"IndexOutOfBoundsError: attempted to access index %i of a collection with length %i\0A\00", align 1
+@index_out_of_bounds_error = private unnamed_addr constant [84 x i8] c"SliceIndexOutOfBoundsError: attempted to access index %i of a slice with length %i\0A\00", align 1
 @error_already_thrown_error = private unnamed_addr constant [100 x i8] c "ErrorAlreadyThrownError: attempted to throw error when current thread already is handling an error\0A\00", align 1
 @allocator = global ptr null, align 8
 @deallocator = global ptr null, align 8

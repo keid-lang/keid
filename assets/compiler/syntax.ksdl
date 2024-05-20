@@ -22,9 +22,7 @@ END RULE
 
 ALIAS ValueType OR(RULE ArrayType, RULE NullableType, RULE BasicType)
 
-RULE Modifier
-    OR(KEYWORD public, KEYWORD static, KEYWORD extern, KEYWORD unsafe)
-END RULE
+ALIAS Modifier OR(KEYWORD public, KEYWORD static, KEYWORD extern, KEYWORD unsafe)
 
 RULE GenericDecl
     $name = IDENTIFIER
@@ -88,7 +86,7 @@ END RULE
 
 RULE MethodDecl
     ALIAS Attributes
-    $modifiers = OPTIONAL REPEATED RULE Modifier
+    $modifiers = OPTIONAL REPEATED ALIAS Modifier
     $name = IDENTIFIER
     $generics = OPTIONAL RULE GenericDecls
     $params = RULE FuncParamsDecl
@@ -99,7 +97,7 @@ END RULE
 
 RULE FunctionDecl
     ALIAS Attributes
-    $modifiers = OPTIONAL REPEATED RULE Modifier
+    $modifiers = OPTIONAL REPEATED ALIAS Modifier
     KEYWORD function
     MOVE
     $name = IDENTIFIER
@@ -123,7 +121,7 @@ RULE DestructorDecl
 END RULE
 
 RULE GetAccessorDecl
-    $modifiers = OPTIONAL REPEATED RULE Modifier
+    $modifiers = OPTIONAL REPEATED ALIAS Modifier
     KEYWORD get
     MOVE
     $name = IDENTIFIER
@@ -133,7 +131,7 @@ RULE GetAccessorDecl
 END RULE
 
 RULE SetAccessorDecl
-    $modifiers = OPTIONAL REPEATED RULE Modifier
+    $modifiers = OPTIONAL REPEATED ALIAS Modifier
     KEYWORD set
     MOVE
     $name = IDENTIFIER
@@ -222,7 +220,7 @@ RULE LetStatementKind
 END RULE
 
 RULE LetStatement
-    $modifiers = OPTIONAL REPEATED RULE Modifier
+    $modifiers = OPTIONAL REPEATED ALIAS Modifier
     $kind = RULE LetStatementKind
     MOVE
     $name = IDENTIFIER
@@ -318,11 +316,15 @@ RULE ArrowBlock
 END RULE
 
 RULE PrefixOperator
-    OR(OPERATOR !, OPERATOR ...)
+    $op = OR(OPERATOR not, OPERATOR ...)
 END RULE
 
 RULE InfixOperator
-    OR(OPERATOR ., OPERATOR ==, OPERATOR !=, OPERATOR +, OPERATOR -, OPERATOR *, OPERATOR /, OPERATOR %, OPERATOR <<, OPERATOR >>, KEYWORD or, KEYWORD and, OPERATOR <=, OPERATOR >=, OPERATOR <, OPERATOR >, OPERATOR ??)
+    $op = OR(OPERATOR ., OPERATOR ==, OPERATOR !=, OPERATOR +, OPERATOR -, OPERATOR *, OPERATOR /, OPERATOR %, OPERATOR <<, OPERATOR >>, OPERATOR or, OPERATOR and, OPERATOR <=, OPERATOR >=, OPERATOR <, OPERATOR >, OPERATOR ??)
+END RULE
+
+RULE PostfixOperator
+    $op = OR(RULE OpNullAssert, RULE OpIndex, RULE OpAs)
 END RULE
 
 RULE OpNullAssert
@@ -342,10 +344,6 @@ RULE OpAs
     $type = ALIAS ValueType
 END RULE
 
-RULE PostfixOperator
-    OR(RULE OpNullAssert, RULE OpIndex, RULE OpAs)
-END RULE
-
 RULE Expr
     $parts = OPTIONAL REPEATED RULE PrefixOperator
     $parts = ALIAS ExprOperand
@@ -354,7 +352,7 @@ RULE Expr
 END RULE
 
 RULE FieldDecl
-    $modifiers = OPTIONAL REPEATED RULE Modifier
+    $modifiers = OPTIONAL REPEATED ALIAS Modifier
     $name = IDENTIFIER
     OPERATOR :
     MOVE
@@ -368,15 +366,9 @@ RULE AssociatedTypeDecl
     OPTIONAL COMPOUND(OPERATOR =, $aliasee = ALIAS ValueType)
 END RULE
 
-ALIAS ClassBodyStatement OR(RULE AssociatedTypeDecl, RULE ConstructorDecl, RULE DestructorDecl, ALIAS AccessorDecl, RULE MethodDecl, RULE FieldDecl, RULE MacroCall)
+ALIAS ClassBodyStatement OR(RULE AssociatedTypeDecl, RULE ConstructorDecl, RULE DestructorDecl, ALIAS AccessorDecl, RULE MethodDecl, RULE FieldDecl)
 
-RULE ClassDeclType
-    OR(KEYWORD class, KEYWORD struct, KEYWORD interface)
-END RULE
-
-RULE ClassDeclTypeEnum
-    KEYWORD enum
-END RULE
+ALIAS ClassDeclKind OR(KEYWORD class, KEYWORD struct, KEYWORD interface)
 
 RULE ClassExtends
     KEYWORD extends
@@ -386,8 +378,8 @@ RULE ClassExtends
 END RULE
 
 RULE ClassDecl
-    $modifiers = OPTIONAL REPEATED RULE Modifier
-    $type = RULE ClassDeclType
+    $modifiers = OPTIONAL REPEATED ALIAS Modifier
+    $kind = ALIAS ClassDeclKind
     MOVE
     $name = IDENTIFIER
     $generics = OPTIONAL RULE GenericDecls
@@ -399,8 +391,8 @@ RULE ClassDecl
 END RULE
 
 RULE EnumDecl
-    $modifiers = OPTIONAL REPEATED RULE Modifier
-    $type = RULE ClassDeclTypeEnum
+    $modifiers = OPTIONAL REPEATED ALIAS Modifier
+    $type = KEYWORD enum
     MOVE
     $name = IDENTIFIER
     $generics = OPTIONAL RULE GenericDecls
@@ -458,15 +450,15 @@ RULE ImplementDecl
 END RULE
 
 RULE QualifiedPath
-    IDENTIFIER
-    OPTIONAL REPEATED COMPOUND(OPERATOR ::, IDENTIFIER)
+    $path = IDENTIFIER
+    OPTIONAL REPEATED COMPOUND(OPERATOR ::, $path = IDENTIFIER)
 END RULE
 
 RULE ExplicitQualifiedPath
-    IDENTIFIER
+    $path = IDENTIFIER
     OPERATOR ::
-    IDENTIFIER
-    OPTIONAL REPEATED COMPOUND(OPERATOR ::, IDENTIFIER)
+    $path = IDENTIFIER
+    OPTIONAL REPEATED COMPOUND(OPERATOR ::, $path = IDENTIFIER)
 END RULE
 
 RULE NamespaceStatement
@@ -486,40 +478,7 @@ RULE ImportStatement
     OPERATOR )
 END RULE
 
-RULE MacroBody
-    UNTIL KEYWORD end macro
-END RULE
-
-RULE MacroDecl
-    KEYWORD macro
-    MOVE
-    $name = IDENTIFIER
-    OPERATOR (
-    MOVE
-    OPTIONAL REPEATED NEWLINE
-    OPTIONAL REPEATED COMPOUND($params = IDENTIFIER, OPERATOR COMMA, OPTIONAL REPEATED NEWLINE)
-    $params = OPTIONAL IDENTIFIER
-    OPTIONAL COMPOUND (OPERATOR COMMA, REPEATED NEWLINE)
-    OPERATOR )
-    $body = RULE MacroBody
-END RULE
-
-RULE MacroArgValue
-    OPERATOR `
-    UNTIL OPERATOR `
-END RULE
-
-RULE MacroCall
-    $name = IDENTIFIER
-    MOVE
-    OPERATOR (
-    OPTIONAL REPEATED COMPOUND($params = RULE MacroArgValue, OPERATOR COMMA, OPTIONAL REPEATED NEWLINE)
-    $params = OPTIONAL RULE MacroArgValue
-    OPTIONAL COMPOUND (OPERATOR COMMA, REPEATED NEWLINE)
-    OPERATOR )
-END RULE
-
-ALIAS RootStatement OR(RULE ImportStatement, RULE LetStatement, RULE MacroDecl, RULE ClassDecl, RULE EnumDecl, RULE ImplementDecl, RULE FunctionDecl, RULE MacroCall)
+ALIAS RootStatement OR(RULE ImportStatement, RULE LetStatement, RULE ClassDecl, RULE EnumDecl, RULE ImplementDecl, RULE FunctionDecl)
 
 RULE Program
     MOVE

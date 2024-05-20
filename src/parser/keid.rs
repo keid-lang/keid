@@ -1074,23 +1074,34 @@ fn parse_enum_decl(mut pairs: Pairs<Rule>, namespace: Qualifier) -> Result<EnumD
 
     let generics = parse_generics_decl(&mut pairs)?;
     let mut elements = Vec::new();
+    let mut methods = Vec::new();
+    let mut accessors = Vec::new();
 
-    let enum_statements = pairs.next().unwrap().into_inner();
-    for enum_statement in enum_statements {
-        let mut enum_statement = enum_statement.into_inner();
-        let name = Identifier::from_ident(&enum_statement.next().unwrap());
-        let data = enum_statement.next().map(|anon| parse_anonymous_struct_type_decl(anon.into_inner()));
+    let statements = pairs.next().unwrap().into_inner();
+    for statement in statements {
+        match statement.as_rule() {
+            Rule::enum_element_decl => {
+                let mut statement = statement.into_inner();
+                let name = Identifier::from_ident(&statement.next().unwrap());
+                let data = statement.next().map(|anon| parse_anonymous_struct_type_decl(anon.into_inner()));
 
-        elements.push(EnumElementDecl {
-            name,
-            data,
-        })
+                elements.push(EnumElementDecl {
+                    name,
+                    data,
+                })
+            }
+            Rule::method_decl => methods.push(parse_function_decl(statement.into_inner(), None)?),
+            Rule::accessor_decl => accessors.push(parse_accessor_decl(statement.into_inner())?),
+            other => unreachable!("{:#?}", other),
+        }
     }
 
     Ok(EnumDecl {
         name,
         generics,
         elements,
+        methods,
+        accessors,
     })
 }
 

@@ -31,14 +31,15 @@ public extern function main(): int32 {
     let files = List.empty<string>()
     listKeidFiles("../keid/assets/core2", files)
 
-    let engine = parser.createParsingEngine()
+    let ksdlPreprocessor = parser.createPreprocessor()
+    let ksdlParser = parser.createParser()
     let tmc = TypeMetadataCompiler.create()
     
     for file in files {
         std::io.println("Parsing ", file, "...")
 
         let prevTime = std::time.getSystemTime()
-        let ast = parser.parseKeidSource(engine, file)
+        let ast = parser.parseKeidSource(ksdlPreprocessor, ksdlParser, file)
         let elapsedTime = std::time.getSystemTime() - prevTime
         tmc.include(ast)
     

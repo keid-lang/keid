@@ -36,8 +36,8 @@ public class RuleMatchGroup {
 }
 
 public class RuleMatch {
-    rule: string
-    token: TokenLocation
+    ruleName: string
+    loc: TokenLocation
     groups: List<RuleMatchGroup>
 
     public hasGroup(variable: string): bool {
@@ -57,13 +57,13 @@ public class RuleMatch {
             }
         }
 
-        throw Error.create(string.format("no such group with variable name '", variable, "' in rule '", this.rule, "'"))
+        throw Error.create(string.format("no such group with variable name '", variable, "' in rule '", this.ruleName, "'"))
     }
 
     public getGroupValue(variable: string): ParserMatch {
         let group = this.getGroup(variable)
         if group.length != 1 {
-            throw Error.create(string.format("group '", variable, "' in rule '", this.rule, "' does not have only one match"))
+            throw Error.create(string.format("group '", variable, "' in rule '", this.ruleName, "' does not have only one match"))
         }
         return group.get(0)
     }
@@ -73,9 +73,9 @@ implement ToString for RuleMatch {
     toString(): string {
         let sb = StringBuilder.empty()
         sb.append("RULE ")
-        sb.append(this.rule)
+        sb.append(this.ruleName)
         sb.append(" at ")
-        sb.append(this.token.toString())
+        sb.append(this.loc.toString())
         sb.append("; Groups: ")
         for group in this.groups {
             sb.append(group.variable)
@@ -84,6 +84,7 @@ implement ToString for RuleMatch {
             sb.append("[")
             for value in group.values {
                 sb.append(value.toString())
+                sb.append(", ")
             }
             sb.append("], ")
         }

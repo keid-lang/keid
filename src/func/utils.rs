@@ -249,10 +249,12 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
     }
 
     fn get_array_element_ptr(&mut self, slice: &TypedValue, index: &TypedValue) -> Result<TypedValue> {
-        let check_block = self.builder.create_block();
-        let load_block = self.builder.create_block();
-        let error_block = self.builder.create_block();
-        let rotated_parent_block = self.builder.create_block();
+        // TODO: add back bounds checking -- it's currently broken
+
+        // let check_block = self.builder.create_block();
+        // let load_block = self.builder.create_block();
+        // let error_block = self.builder.create_block();
+        // let rotated_parent_block = self.builder.create_block();
 
         let element_type = match &slice.ty {
             ComplexType::Array(element_type) => *element_type.clone(),
@@ -262,36 +264,36 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
         let offset_ptr = self.emit(Insn::GetElementPtr(slice.val, slice.ty.as_llvm_type(self.cpl), 0));
         let offset = self.emit(Insn::Load(offset_ptr, BasicType::USize.as_llvm_type(self.cpl)));
         let offset_index = self.emit(Insn::IAdd(offset, index.val));
-        let length_ptr = self.emit(Insn::GetElementPtr(slice.val, slice.ty.as_llvm_type(self.cpl), 1));
-        let length = self.emit(Insn::Load(length_ptr, BasicType::USize.as_llvm_type(self.cpl)));
+        // let length_ptr = self.emit(Insn::GetElementPtr(slice.val, slice.ty.as_llvm_type(self.cpl), 1));
+        // let length = self.emit(Insn::Load(length_ptr, BasicType::USize.as_llvm_type(self.cpl)));
 
-        let const_zero = self.cpl.context.const_int(self.cpl.context.get_isize_type(), 0);
+        // let const_zero = self.cpl.context.const_int(self.cpl.context.get_isize_type(), 0);
 
-        let is_below_bounds = self.emit(Insn::ICmp(IntPredicate::LLVMIntULT, offset_index, const_zero));
-        self.emit(Insn::CondBr(is_below_bounds, error_block.as_val(), check_block.as_val()));
+        // let is_below_bounds = self.emit(Insn::ICmp(IntPredicate::LLVMIntULT, offset_index, const_zero));
+        // self.emit(Insn::CondBr(is_below_bounds, error_block.as_val(), check_block.as_val()));
 
-        self.builder.append_block(&check_block);
+        // self.builder.append_block(&check_block);
 
-        let is_above_bounds = self.emit(Insn::ICmp(IntPredicate::LLVMIntUGE, offset_index, length));
-        self.emit(Insn::CondBr(is_above_bounds, error_block.as_val(), load_block.as_val()));
+        // let is_above_bounds = self.emit(Insn::ICmp(IntPredicate::LLVMIntUGE, offset_index, length));
+        // self.emit(Insn::CondBr(is_above_bounds, error_block.as_val(), load_block.as_val()));
 
-        {
-            self.builder.append_block(&error_block);
+        // {
+        //     self.builder.append_block(&error_block);
 
-            let throw_out_of_bounds = ResolvedFunctionNode::externed(
-                "keid.throw_out_of_bounds",
-                &[BasicType::Int64.to_complex(), BasicType::Int64.to_complex()],
-                Varargs::None,
-                BasicType::Void.to_complex(),
-            );
-            let throw_out_of_bounds_ref = self.get_function_ref(&throw_out_of_bounds)?;
-            self.emit(Insn::Call(throw_out_of_bounds_ref, throw_out_of_bounds.as_llvm_type(self.cpl), vec![index.val, length]));
+        //     let throw_out_of_bounds = ResolvedFunctionNode::externed(
+        //         "keid.throw_out_of_bounds",
+        //         &[BasicType::Int64.to_complex(), BasicType::Int64.to_complex()],
+        //         Varargs::None,
+        //         BasicType::Void.to_complex(),
+        //     );
+        //     let throw_out_of_bounds_ref = self.get_function_ref(&throw_out_of_bounds)?;
+        //     self.emit(Insn::Call(throw_out_of_bounds_ref, throw_out_of_bounds.as_llvm_type(self.cpl), vec![index.val, length]));
 
-            self.emit(Insn::Unreachable);
-        }
+        //     self.emit(Insn::Unreachable);
+        // }
 
         let element_ptr = {
-            self.builder.append_block(&load_block);
+            // self.builder.append_block(&load_block);
 
             let array_data_type = self.cpl.context.get_abi_array_data_type(element_type.as_llvm_type(self.cpl), &element_type.to_string());
 
@@ -304,12 +306,12 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
 
             let element_ptr = self.emit(Insn::GetElementPtrDynamic(data, data_type, offset_index));
 
-            self.emit(Insn::Br(rotated_parent_block.as_val()));
+            // self.emit(Insn::Br(rotated_parent_block.as_val()));
 
             element_ptr
         };
 
-        self.builder.append_block(&rotated_parent_block);
+        // self.builder.append_block(&rotated_parent_block);
 
         Ok(TypedValue::new(element_type, element_ptr))
     }

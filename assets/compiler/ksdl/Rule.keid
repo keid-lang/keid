@@ -2,7 +2,9 @@ namespace keidc::ksdl
 
 import (
     core::collections
+    core::error
     core::object
+    core::string
 )
 
 public enum ParserMatch {
@@ -24,6 +26,15 @@ public enum ParserMatch {
         match this {
             Token { token, } => return token
             _ => throw Error.create("illegal call to token() on Rule variant of ParserMatch")
+        }
+    }
+}
+
+implement ToString for ParserMatch {
+    toString(): string {
+        return match this {
+            Rule { rule, } => string.format("Rule(", rule.toString(), ")")
+            Token { token, } => string.format("Token(", token.toString(), ")")
         }
     }
 }
@@ -80,8 +91,8 @@ public class Rule {
         return new RuleResult.Success {
             match = new ParserMatch.Rule {
                 rule = new RuleMatch {
-                    rule = this.name
-                    token = new TokenLocation {
+                    ruleName = this.name
+                    loc = new TokenLocation {
                         start
                         length = stream.currentToken.loc.start - start
                     }

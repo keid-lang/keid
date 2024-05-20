@@ -23,12 +23,7 @@ pub trait GenericNode {
     fn create_impl(&self, type_provider: &TypeProvider, generic_args: &[ComplexType]) -> anyhow::Result<Self::Output>;
 }
 
-pub fn extract_type(
-    type_provider: &TypeProvider,
-    ty: ComplexType,
-    generics: &[GenericDefNode],
-    values: &[ComplexType],
-) -> anyhow::Result<ComplexType> {
+pub fn extract_type(type_provider: &TypeProvider, ty: ComplexType, generics: &[GenericDefNode], values: &[ComplexType]) -> anyhow::Result<ComplexType> {
     let (value, interfaces) = 'block: {
         match ty.get_root_type() {
             BasicType::Object(ident) => {
@@ -49,20 +44,13 @@ pub fn extract_type(
     };
     let mapped_root = match value.get_root_type() {
         BasicType::Object(ident) => {
-            let extracted_generics: Vec<ComplexType> = ident
-                .generic_args
-                .into_iter()
-                .map(|arg| extract_type(type_provider, arg, generics, values))
-                .collect::<anyhow::Result<_>>()?;
+            let extracted_generics: Vec<ComplexType> =
+                ident.generic_args.into_iter().map(|arg| extract_type(type_provider, arg, generics, values)).collect::<anyhow::Result<_>>()?;
             let result = BasicType::Object(GenericIdentifier::from_name_with_args(&ident.name, &extracted_generics)).to_complex();
             for interface in interfaces {
                 let interface_type = BasicType::Object(interface).to_complex();
                 if !type_provider.is_assignable_to(&result, &interface_type) {
-                    return Err(anyhow!(
-                        "Type `{}` is not assignable to generic type requirement `{}`",
-                        result.to_string(),
-                        interface_type.to_string()
-                    ));
+                    return Err(anyhow!("Type `{}` is not assignable to generic type requirement `{}`", result.to_string(), interface_type.to_string()));
                 }
             }
             result
@@ -255,6 +243,10 @@ pub struct EnumNode {
     pub generic_defs: Vec<GenericDefNode>,
     /// All of the elements defined by the enum.
     pub elements: Vec<EnumElementNode>,
+    /// All of the functions defined by the enum.
+    pub functions: Vec<usize>,
+    /// All of the accessors defined by the enum.
+    pub accessors: Vec<AccessorNode>,
 }
 
 /// An implementation of a enum type, with only concrete types in its implementation.
@@ -475,11 +467,8 @@ impl GenericNode for FunctionNode {
             write!(&mut external_name, "<{}>", utils::iter_join(generic_args)).unwrap();
         }
 
-        let params: Vec<ComplexType> = self
-            .params
-            .iter()
-            .map(|param| extract_type(type_provider, param.ty.clone(), &self.generic_defs, generic_args))
-            .collect::<anyhow::Result<_>>()?;
+        let params: Vec<ComplexType> =
+            self.params.iter().map(|param| extract_type(type_provider, param.ty.clone(), &self.generic_defs, generic_args)).collect::<anyhow::Result<_>>()?;
 
         Ok(ResolvedFunctionNode {
             module_id: self.module_id,
@@ -568,7 +557,7 @@ impl ToString for ResolvedFunctionNode {
             Varargs::Array => {
                 let len = params.len() - 1;
                 params[len] = format!("...{}", params[len])
-            },
+            }
             Varargs::Native => params.push("...".to_string()),
             Varargs::None => (),
         }

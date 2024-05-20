@@ -8,15 +8,15 @@ import (
 
 public class CompileError {
     source: string
-    token: TokenLocation
+    loc: TokenLocation
     message: string
 
-    public static create(source: string, token: TokenLocation, message: string): CompileError => new CompileError { source, token, message, }
+    public static create(source: string, loc: TokenLocation, message: string): CompileError => new CompileError { source, loc, message, }
 }
 
 implement ToString for CompileError {
     toString(): string {
-        return string.format(this.message, " at `", this.token.getText(this.source), "` @", this.token.start.toString(), "+", this.token.length.toString())
+        return string.format(this.message, " at `", this.loc.getText(this.source), "` @", this.loc.start.toString(), "+", this.loc.length.toString())
     }
 }
 
