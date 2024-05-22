@@ -18,13 +18,13 @@ public class TokenStream {
     public get isFinished: bool => this.offset == this.tokens.length
 
     public get currentToken: LexerToken {
-        if this.isFinished {
-            if this.tokens.length == 0 {
-                return new LexerToken {
-                    loc = TokenLocation.create(0, 0)
-                    kind = LexerTokenKind.EOF
-                }
+        if this.tokens.length == 0 {
+            return new LexerToken {
+                loc = TokenLocation.create(0, 0)
+                kind = LexerTokenKind.EOF
             }
+        }
+        if this.isFinished {
             let lastToken = this.tokens.get(this.tokens.length - 1)
             return new LexerToken {
                 loc = TokenLocation.create(lastToken.loc.start + lastToken.loc.length, 0)

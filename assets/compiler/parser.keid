@@ -609,50 +609,6 @@ class KeidParser {
         }
     }
 
-    populateMacroDecls(macroDecls: List<RuleMatch>, root: RuleMatch) {
-        for group in root.groups {
-            for value in group.values {
-                match value {
-                    Rule { rule, } => {
-                        if rule.ruleName == "MacroDecl" {
-                            macroDecls.push(rule)
-                        } else {
-                            this.populateMacroDecls(macroDecls, rule)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    populateMacroCalls(macroCalls: List<RuleMatch>, root: RuleMatch) {
-        for group in root.groups {
-            for value in group.values {
-                match value {
-                    Rule { rule, } => {
-                        if rule.ruleName == "MacroCall" {
-                            macroCalls.push(rule)
-                        } else {
-                            this.populateMacroCalls(macroCalls, rule)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    preprocessProgram(ast: RuleMatch): List<LexerToken> {
-        let macroDecls = List.empty<RuleMatch>()
-        this.populateMacroDecls(macroDecls, ast)
-        std::io.println("macroDecls.length = ", macroDecls.length.toString())
-
-        let macroCalls = List.empty<RuleMatch>()
-        this.populateMacroCalls(macroCalls, ast)
-        std::io.println("macroCalls.length = ", macroCalls.length.toString())
-
-        return List.empty<LexerToken>()
-    }
-
     parseProgram(ast: RuleMatch): AstKeidProgram {
         let namespaceAst = ast.getGroupValue("namespace").rule().getGroupValue("namespace").rule()
         let namespace = parseQualifiedPath(namespaceAst)
@@ -704,6 +660,36 @@ class KeidParser {
     }
 }
 
+class KeidPreprocessor {
+    ast: RuleMatch
+    macroDecls: List<RuleMatch>
+    macroCalls: List<RuleMatch>
+
+    public static create(ast: RuleMatch, macroDecls: List<RuleMatch>): KeidPreprocessor => new KeidPreprocessor {
+        ast
+        macroDecls
+        macroCalls = List.empty<RuleMatch>()
+    }
+
+    public findMacroCalls(): bool {
+        for statement in this.ast.getGroup("statements") {
+            match statement {
+                Rule { rule, } => {
+                    if rule.ruleName == "MacroCall" {
+                        this.macroCalls.push(rule)
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    public preprocess(): List<LexerToken> {
+        std::io.println("Preprocess: decls = ", this.macroDecls.length.toString(), ", calls = ", this.macroCalls.length.toString())
+        return List.empty<LexerToken>()
+    }
+}
+
 public function createPreprocessor(): KsdlParser {
     let syntaxDefFile = File.open("../keid/assets/compiler/preprocessor.ksdl", FileOpenMode.ReadOnly)
     let syntaxDef = string.fromUtf8(syntaxDefFile.readAllBytes())
@@ -720,15 +706,22 @@ public function createParser(): KsdlParser {
     return KsdlParser.fromKsdl(syntaxDef)
 }
 
-public function parseKeidSource(preprocessor: KsdlParser, parser: KsdlParser, file: string): AstKeidProgram {
-    let programFile = File.open(file, FileOpenMode.ReadOnly)
-    let programText = String.fromUtf8(programFile.readAllBytes())
-    programFile.close()
+function findMacroDecls(ast: RuleMatch): List<RuleMatch> {
+    let decls = List.empty<RuleMatch>()
+    for statement in ast.getGroup("statements") {
+        match statement {
+            Rule { rule, } => {
+                if rule.ruleName == "MacroDecl" {
+                    decls.push(rule)
+                }
+            }
+            _ => {}
+        }
+    }
+    return decls
+}
 
-    let reader = TokenReader.create(programText)
-    let tokens = ksdl.tokenize(reader)
-    let stream = TokenStream.create(tokens)
-
+function runPreprocessorParser(preprocessor: KsdlParser, reader: TokenReader, stream: TokenStream, file: string, programText: string): RuleMatch {
     let preprocesserRule = preprocessor.getRule("PreprocessorProgram")
     let preprocessResult = preprocesserRule.parse(stream)
     if !stream.isFinished {
@@ -756,54 +749,82 @@ public function parseKeidSource(preprocessor: KsdlParser, parser: KsdlParser, fi
         }
         throw Error.create("failed preprocessing rule")
     }
+
     match preprocessResult {
+        Success { match, } => {
+            return match.rule()
+        }
+        HardFail { rule, statement, result, } => {
+            throw Error.create(string.format("Failed preprocessing statement '", Class.fromInstance(statement).name, "' in rule '", rule.name, "'"))
+        }
+        _ => {}
+    }
+
+    unreachable
+}
+
+function preprocess(preprocessor: KsdlParser, reader: TokenReader, stream: TokenStream, file: string, programText: string, macroDecls: List<RuleMatch>): List<LexerToken> {
+    let result = runPreprocessorParser(preprocessor, reader, stream, file, programText)
+    let kp = KeidPreprocessor.create(result, macroDecls)
+    if kp.findMacroCalls() {
+        let processedTokens = kp.preprocess()
+        let processedStream = TokenStream.create(processedTokens)
+        return preprocess(preprocessor, reader, processedStream, file, programText, macroDecls)
+    }
+    return stream.tokens
+}
+
+public function parseKeidSource(preprocessor: KsdlParser, parser: KsdlParser, file: string): AstKeidProgram {
+    let programFile = File.open(file, FileOpenMode.ReadOnly)
+    let programText = String.fromUtf8(programFile.readAllBytes())
+    programFile.close()
+
+    let reader = TokenReader.create(programText)
+    let tokens = ksdl.tokenize(reader)
+    let stream = TokenStream.create(tokens)
+
+    let initialPreprocessResult = runPreprocessorParser(preprocessor, reader, stream, file, programText)
+    let macroDecls = findMacroDecls(initialPreprocessResult)
+
+    let processedTokens = preprocess(preprocessor, reader, stream, file, programText, macroDecls)
+    let processedStream = TokenStream.create(processedTokens)
+
+    let programRule = parser.getRule("Program")
+    let parseResult = programRule.parse(processedStream)
+    if !stream.isFinished {
+        reader.cursor = stream.currentToken.loc.start
+        let pos2 = reader.documentPosition
+        std::io.println("failed parsing rule '",
+            stream.currentRule!.name,
+            "' at ",
+            stream.currentToken.name,
+            " '",
+            stream.currentToken.loc.getText(programText),
+            "' @ ",
+            file,
+            ":",
+            pos2.line.toString(),
+            ":",
+            pos2.col.toString(),
+        )
+        for i in range.create(10) {
+            if stream.isFinished {
+                break
+            }
+            stream.next()
+            std::io.println("next token: ", stream.currentToken.name, " '", stream.currentToken.loc.getText(programText), "'")
+        }
+        throw Error.create("failed parsing rule")
+    }
+    match parseResult {
         Success { match, } => {
             let keidParser = new KeidParser {
                 source = programText
             }
-            let preprocessedTokens = keidParser.preprocessProgram(match.rule())
-            let preprocessedStream = TokenStream.create(preprocessedTokens)
-
-            let programRule = parser.getRule("Program")
-            let parseResult = programRule.parse(preprocessedStream)
-            if !stream.isFinished {
-                reader.cursor = stream.currentToken.loc.start
-                let pos2 = reader.documentPosition
-                std::io.println("failed parsing rule '",
-                    stream.currentRule!.name,
-                    "' at ",
-                    stream.currentToken.name,
-                    " '",
-                    stream.currentToken.loc.getText(programText),
-                    "' @ ",
-                    file,
-                    ":",
-                    pos2.line.toString(),
-                    ":",
-                    pos2.col.toString(),
-                )
-                for i in range.create(10) {
-                    if stream.isFinished {
-                        break
-                    }
-                    stream.next()
-                    std::io.println("next token: ", stream.currentToken.name, " '", stream.currentToken.loc.getText(programText), "'")
-                }
-                throw Error.create("failed parsing rule")
-            }
-            match parseResult {
-                Success { match, } => {
-                    return keidParser.parseProgram(match.rule())
-                }
-                HardFail { rule, statement, result, } => {
-                    std::io.println("Failed parsing statement: ", Class.fromInstance(statement).name)
-                    std::io.println("in rule: ", rule.name)
-                }
-                _ => {}
-            }
+            return keidParser.parseProgram(match.rule())
         }
         HardFail { rule, statement, result, } => {
-            std::io.println("Failed preprocessing statement: ", Class.fromInstance(statement).name)
+            std::io.println("Failed parsing statement: ", Class.fromInstance(statement).name)
             std::io.println("in rule: ", rule.name)
         }
         _ => {}

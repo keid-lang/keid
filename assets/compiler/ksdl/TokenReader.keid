@@ -53,10 +53,13 @@ public class TokenReader {
 
     public get documentPosition: DocumentPosition {
         let s = this.sourceText.substringBefore(this.cursor)
-        let idx = s.lastIndexOf("\n") ?? 0
+        let col = match s.contains("\n") {
+            true => s.length - s.lastIndexOf("\n")!
+            false => s.length + 1
+        }
         return new DocumentPosition {
             line = s.occurrences('\n') as uint32 + 1
-            col = (s.length - idx) as uint32
+            col = col as uint32
         }
     }
 }

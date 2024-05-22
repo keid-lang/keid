@@ -45,8 +45,10 @@ public class List<T> {
             }
             
             let newStorage = mem.alloc<T>(newCapacity)
-            mem.copy<T>(this.storage, newStorage, this.length)
-            mem.dealloc<T>(this.storage)
+            if !this.storage.isNull {
+                mem.copy<T>(this.storage, newStorage, this.length)
+                mem.dealloc<T>(this.storage)
+            }
 
             this.storage = newStorage
             this.capacity = newCapacity

@@ -45,7 +45,7 @@ public function assertNotEqual(a: string, b: string) {
     assert(a != b, string.format("'", a, "' != '", b, "'"))
 }
 
-macro $DEFINE_INT_ASSERTION(#type: ty, #operator: op, #name: ident)
+macro $DEFINE_INT_ASSERTION(#type: tokens, #operator: op, #name: ident)
     public function assert#name(a: #type, b: #type) {
         assert(a #operator b, string.format(a.toString(), " #operator ", b.toString()))
     }
@@ -59,7 +59,7 @@ macro $DEFINE_INT_ASSERTION(#type: ty, #operator: op, #name: ident)
     }
 end macro
 
-macro $DEFINE_INT_ASSERTIONS(#type: ty)
+macro $DEFINE_INT_ASSERTIONS(#type: tokens)
     $DEFINE_INT_ASSERTION(#type, ==, Equal)
     $DEFINE_INT_ASSERTION(#type, !=, NotEqual)
 end macro

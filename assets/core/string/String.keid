@@ -246,6 +246,8 @@ public class String {
         }
         return this.substringAfter(this.length - substr.length) == substr
     }
+
+    public contains(substr: string): bool => this.indexOf(substr) != null
 }
 
 implement ToString for String {

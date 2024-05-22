@@ -38,16 +38,40 @@ implement ParserStatement for MoveStatement {
     }
 }
 
+public class EOFStatement { }
+
+implement ParserStatement for EOFStatement {
+    execute(stream: TokenStream, _: RuleState): StatementResult {
+        let token = stream.currentToken
+        match token.kind {
+            EOF => {
+                stream.next()
+                return new StatementResult.Match {
+                    matches = List.from<ParserMatch>(new ParserMatch.Token {
+                        token
+                    })
+                }
+            }
+            _ => return StatementResult.Failure
+        }
+    }
+}
+
 public class TokenStatement { }
 
 implement ParserStatement for TokenStatement {
     execute(stream: TokenStream, _: RuleState): StatementResult {
         let token = stream.currentToken
-        stream.next()
-        return new StatementResult.Match {
-            matches = List.from<ParserMatch>(new ParserMatch.Token {
-                token
-            })
+        match token.kind {
+            EOF => return StatementResult.Failure
+            _ => {
+                stream.next()
+                return new StatementResult.Match {
+                    matches = List.from<ParserMatch>(new ParserMatch.Token {
+                        token
+                    })
+                }
+            }
         }
     }
 }
@@ -112,11 +136,11 @@ implement ParserStatement for LiteralStatement {
         match token.kind {
             Literal { lit, } => {
                 stream.next()
-                 return new StatementResult.Match {
-                        matches = List.from<ParserMatch>(new ParserMatch.Token {
-                            token
-                        })
-                    }
+                return new StatementResult.Match {
+                    matches = List.from<ParserMatch>(new ParserMatch.Token {
+                        token
+                    })
+                }
             }
             _ => {}
         }
@@ -139,13 +163,20 @@ implement ParserStatement for NewlineStatement {
     }
 }
 
-public class IdentifierStatement { }
+public class IdentifierStatement {
+    prefix: char
+}
 
 implement ParserStatement for IdentifierStatement {
     execute(stream: TokenStream, _: RuleState): StatementResult {
         let token = stream.currentToken
         match token.kind {
             Identifier { name, } => {
+                if this.prefix != '\0' {
+                    if this.prefix != name.chars[0] {
+                        return StatementResult.Failure
+                    }
+                }
                 stream.next()
                 return new StatementResult.Match {
                     matches = List.from<ParserMatch>(new ParserMatch.Token {
@@ -186,13 +217,13 @@ public class UntilStatement {
 
 implement ParserStatement for UntilStatement {
     execute(stream: TokenStream, state: RuleState): StatementResult {
-        let matches = List.empty<ParserMatch>()
+        let tokens = List.empty<ParserMatch>()
         loop {
             match this.statement.execute(stream, state) {
                 Match { matches, } => break
                 Matchless => break
                 _ => {
-                    matches.push(new ParserMatch.Token {
+                    tokens.push(new ParserMatch.Token {
                         token = stream.currentToken
                     })
                     stream.next()
@@ -200,7 +231,7 @@ implement ParserStatement for UntilStatement {
             }
         }
         return new StatementResult.Match {
-            matches
+            matches = tokens
         }
     }
 }

@@ -144,12 +144,24 @@ public class KsdlParser {
             })
         } else if line.startsWith("TOKEN") {
             return new TokenStatement {}
+        } else if line.startsWith("EOF") {
+            return new EOFStatement {}
         } else if line.startsWith("LITERAL") {
             return new LiteralStatement {}
         } else if line.startsWith("NEWLINE") {
             return new NewlineStatement {}
         } else if line.startsWith("IDENTIFIER") {
-            return new IdentifierStatement {}
+            return new IdentifierStatement {
+                prefix = '\0'
+            }
+        } else if line.startsWith("MACRO_NAME_IDENTIFIER") {
+            return new IdentifierStatement {
+                prefix = '$'
+            }
+        } else if line.startsWith("MACRO_PARAM_IDENTIFIER") {
+            return new IdentifierStatement {
+                prefix = '#'
+            }
         } else if line.startsWith("KEYWORD") {
             let keyword = line.substringAfter(8).trim()
             return KeywordStatement.create(keyword)

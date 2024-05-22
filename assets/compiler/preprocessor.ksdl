@@ -1,5 +1,5 @@
 RULE MacroParamDecl
-    $name = IDENTIFIER
+    $name = MACRO_PARAM_IDENTIFIER
     OPERATOR :
     $type = IDENTIFIER
 END RULE
@@ -7,7 +7,7 @@ END RULE
 RULE MacroDecl
     KEYWORD macro
     MOVE
-    $name = IDENTIFIER
+    $name = MACRO_NAME_IDENTIFIER
     OPERATOR (
     MOVE
     OPTIONAL REPEATED NEWLINE
@@ -24,7 +24,7 @@ RULE MacroArgValue
 END RULE
 
 RULE MacroCall
-    $name = IDENTIFIER
+    $name = MACRO_NAME_IDENTIFIER
     MOVE
     OPERATOR (
     OPTIONAL REPEATED COMPOUND($params = RULE MacroArgValue, OPERATOR COMMA, OPTIONAL REPEATED NEWLINE)
@@ -38,4 +38,5 @@ ALIAS PreprocessorStatement OR(RULE MacroDecl, RULE MacroCall, TOKEN)
 RULE PreprocessorProgram
     MOVE
     $statements = OPTIONAL REPEATED ALIAS PreprocessorStatement
+    EOF
 END RULE
