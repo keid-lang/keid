@@ -10,6 +10,7 @@ import (
     keidc::ksdl
     keidc::types
     std::fs
+    std::io
 )
 
 function tokenize<T>(loc: TokenLocation, node: T): AstToken<T> {
@@ -27,7 +28,7 @@ function tokenizeIdentifier(token: LexerToken): AstToken<string> {
 }
 
 function parseQualifiedPath(ast: RuleMatch): AstToken<string> {
-    if ast.ruleName != "QualifiedPath" && ast.ruleName != "ExplicitQualifiedPath" {
+    if ast.ruleName != "QualifiedPath" {
         throw Error.create(string.format("parseQualifiedPath for invalid rule '", ast.ruleName, "'"))
     }
     let fullPath = StringBuilder.withCapacity(ast.loc.length)
@@ -35,7 +36,7 @@ function parseQualifiedPath(ast: RuleMatch): AstToken<string> {
     for i in range.create(pathGroup.length - 1) {
         let ident = pathGroup.get(i).token().kind.identifier()
         fullPath.append(ident)
-        fullPath.append("::")
+        fullPath.append(".")
     }
     let lastIdent = pathGroup.get(pathGroup.length - 1).token().kind.identifier()
     fullPath.append(lastIdent)
@@ -58,27 +59,27 @@ implement ToString for PrattParserAffix {
 
 const PRECEDENCE_STEP: uint32 = 10
 const OPERATORS: [PrattParserOperator] = new PrattParserOperator[
-    PrattParserOperator.create(PrattParserAffix.Infix, ".", AstOperator.MemberAccess, PRECEDENCE_STEP * 1),
-    PrattParserOperator.create(PrattParserAffix.Infix, "??", AstOperator.NullCoalesce, PRECEDENCE_STEP * 2),
-    PrattParserOperator.create(PrattParserAffix.Infix, "||", AstOperator.BooleanOr, PRECEDENCE_STEP * 3),
-    PrattParserOperator.create(PrattParserAffix.Infix, "&&", AstOperator.BooleanAnd, PRECEDENCE_STEP * 4),
-    PrattParserOperator.create(PrattParserAffix.Infix, "==", AstOperator.Equals, PRECEDENCE_STEP * 5),
-    PrattParserOperator.create(PrattParserAffix.Infix, "!=", AstOperator.NotEquals, PRECEDENCE_STEP * 5),
-    PrattParserOperator.create(PrattParserAffix.Infix, "<", AstOperator.LessThan, PRECEDENCE_STEP * 6),
-    PrattParserOperator.create(PrattParserAffix.Infix, "<=", AstOperator.LessThanOrEquals, PRECEDENCE_STEP * 6),
-    PrattParserOperator.create(PrattParserAffix.Infix, ">", AstOperator.GreaterThan, PRECEDENCE_STEP * 6),
-    PrattParserOperator.create(PrattParserAffix.Infix, ">=", AstOperator.GreaterThanOrEquals, PRECEDENCE_STEP * 6),
-    PrattParserOperator.create(PrattParserAffix.Infix, "<<", AstOperator.LeftShift, PRECEDENCE_STEP * 7),
-    PrattParserOperator.create(PrattParserAffix.Infix, ">>", AstOperator.RightShift, PRECEDENCE_STEP * 7),
-    PrattParserOperator.create(PrattParserAffix.Infix, "+", AstOperator.Add, PRECEDENCE_STEP * 8),
-    PrattParserOperator.create(PrattParserAffix.Infix, "-", AstOperator.Subtract, PRECEDENCE_STEP * 8),
-    PrattParserOperator.create(PrattParserAffix.Infix, "*", AstOperator.Multiply, PRECEDENCE_STEP * 9),
-    PrattParserOperator.create(PrattParserAffix.Infix, "/", AstOperator.Divide, PRECEDENCE_STEP * 9),
-    PrattParserOperator.create(PrattParserAffix.Infix, "%", AstOperator.Modulus, PRECEDENCE_STEP * 9),
-    PrattParserOperator.create(PrattParserAffix.Infix, "as", AstOperator.As, PRECEDENCE_STEP * 10),
-    PrattParserOperator.create(PrattParserAffix.Prefix, "not", AstOperator.Not, PRECEDENCE_STEP * 11),
-    PrattParserOperator.create(PrattParserAffix.Prefix, "...", AstOperator.Spread, PRECEDENCE_STEP * 12),
-    PrattParserOperator.create(PrattParserAffix.Postfix, "!", AstOperator.NonNullAssertion, PRECEDENCE_STEP * 13),
+    PrattParserOperator.create(PrattParserAffix.Infix,   ".",   AstOperator.MemberAccess,        PRECEDENCE_STEP * 1),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "??",  AstOperator.NullCoalesce,        PRECEDENCE_STEP * 2),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "||",  AstOperator.BooleanOr,           PRECEDENCE_STEP * 3),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "&&",  AstOperator.BooleanAnd,          PRECEDENCE_STEP * 4),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "==",  AstOperator.Equals,              PRECEDENCE_STEP * 5),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "!=",  AstOperator.NotEquals,           PRECEDENCE_STEP * 5),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "<",   AstOperator.LessThan,            PRECEDENCE_STEP * 6),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "<=",  AstOperator.LessThanOrEquals,    PRECEDENCE_STEP * 6),
+    PrattParserOperator.create(PrattParserAffix.Infix,   ">",   AstOperator.GreaterThan,         PRECEDENCE_STEP * 6),
+    PrattParserOperator.create(PrattParserAffix.Infix,   ">=",  AstOperator.GreaterThanOrEquals, PRECEDENCE_STEP * 6),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "<<",  AstOperator.LeftShift,           PRECEDENCE_STEP * 7),
+    PrattParserOperator.create(PrattParserAffix.Infix,   ">>",  AstOperator.RightShift,          PRECEDENCE_STEP * 7),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "+",   AstOperator.Add,                 PRECEDENCE_STEP * 8),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "-",   AstOperator.Subtract,            PRECEDENCE_STEP * 8),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "*",   AstOperator.Multiply,            PRECEDENCE_STEP * 9),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "/",   AstOperator.Divide,              PRECEDENCE_STEP * 9),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "%",   AstOperator.Modulus,             PRECEDENCE_STEP * 9),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "as",  AstOperator.As,                  PRECEDENCE_STEP * 10),
+    PrattParserOperator.create(PrattParserAffix.Prefix,  "not", AstOperator.Not,                 PRECEDENCE_STEP * 11),
+    PrattParserOperator.create(PrattParserAffix.Prefix,  "...", AstOperator.Spread,              PRECEDENCE_STEP * 12),
+    PrattParserOperator.create(PrattParserAffix.Postfix, "!",   AstOperator.NonNullAssertion,    PRECEDENCE_STEP * 13),
 ]
 
 public class PrattParserOperator {
@@ -210,14 +211,15 @@ class KeidParser {
         return decls
     }
 
-    parseGenericArgs(ast: RuleMatch, group: string): List<AstToken<ComplexType>> {
-        let args = List.empty<AstToken<ComplexType>>()
+    parseGenericArgs(ast: RuleMatch, group: string): ?List<AstToken<ComplexType>> {
         if ast.hasGroup(group) {
+            let args = List.empty<AstToken<ComplexType>>()
             for arg in ast.getGroupValue(group).rule().getGroup("args") {
                 args.push(this.parseValueType(arg.rule()))
             }
+            return args
         }
-        return args
+        return null
     }
 
     parseGenericArgsNodes(ast: RuleMatch): List<ComplexType> {
@@ -250,6 +252,75 @@ class KeidParser {
             return modifiers
         }
         return List.empty<AstToken<Modifier>>()
+    }
+
+    parseNewSliceExpr(ast: RuleMatch): AstToken<AstExpr> {
+        let type = this.parseValueType(ast.getGroupValue("type").rule())
+        let initialValue = this.parseExpr(ast.getGroupValue("initialValue").rule())
+        let length = this.parseExpr(ast.getGroupValue("length").rule())
+        return tokenize<AstExpr>(ast.loc, new AstExpr.NewSlice {
+            type
+            initialValue
+            length
+        })
+    }
+
+    parseFuncCallExpr(ast: RuleMatch): AstToken<AstExpr> {
+        let callee = match ast.getGroupValue("callee") {
+            Rule { rule, } => this.parseExpr(rule)
+            Token { token, } => match token.kind {
+                Identifier { name, } => tokenize<AstExpr>(token.loc, new AstExpr.Ident {
+                    value = name
+                })
+                _ => unreachable
+            }
+        }
+        let generics = this.parseGenericArgs(ast, "generics")
+        let params = List.empty<AstToken<AstExpr>>()
+        for param in ast.getGroup("params") {
+            params.push(this.parseExpr(param.rule()))
+        }
+        return tokenize<AstExpr>(ast.loc, new AstExpr.FuncCall {
+            callee
+            generics
+            params
+        }) 
+    }
+
+    parseThrow(ast: RuleMatch): AstToken<AstExpr> {
+        let error = this.parseExpr(ast.getGroupValue("error").rule())
+        return tokenize<AstExpr>(ast.loc, new AstExpr.Throw {
+            error
+        })
+    }
+
+    parseIfStatement(ast: RuleMatch): AstStatement {
+        let tests = ast.getGroup("tests")
+        let conditionalBlocks = ast.getGroup("conditionalBlocks")
+
+        if tests.length != conditionalBlocks.length {
+            unreachable
+        }
+
+        let conditionals = List.empty<AstIfBlock>()
+        for i in range.create(tests.length) {
+            let condition = this.parseExpr(tests.get(i).rule())
+            let block = this.parseCodeBlock(conditionalBlocks.get(i).rule())
+            conditionals.push(new AstIfBlock {
+                condition
+                block
+            })
+        }
+
+        let fallback: ?List<AstToken<AstStatement>> = null
+        if ast.hasGroup("fallback") {
+            fallback = this.parseCodeBlock(ast.getGroupValue("fallback").rule())
+        }
+
+        return new AstStatement.IfChain {
+            conditionals
+            fallback
+        }
     }
 
     parsePrefixExpr(operator: AstToken<AstOperator>, operand: AstToken<AstExpr>): AstToken<AstExpr> {
@@ -288,6 +359,8 @@ class KeidParser {
             Rule { rule, } => {
                 match rule.ruleName {
                     "GroupingExpr" => return this.parseExprOperand(rule.getGroupValue("expr"))
+                    "NewSliceExpr" => return this.parseNewSliceExpr(rule)
+                    "FuncCallExpr" => return this.parseFuncCallExpr(rule)
                     _ => throw Error.create(string.format("invalid rule as expr operand '", rule.ruleName, "'"))
                 }
             }
@@ -365,6 +438,9 @@ class KeidParser {
                     "Expr" => new AstStatement.Expr { value = this.parseExpr(rule), }
                     "UnsafeBlock" => new AstStatement.UnsafeBlock { statements = this.parseCodeBlock(rule.getGroupValue("inner").rule()) }
                     "LetStatement" => new AstStatement.Let { statement = this.parseLet(rule) }
+                    "AssignStatement" => new AstStatement.Assign { statement = this.parseAssign(rule) }
+                    "ThrowStatement" => new AstStatement.Throw { error = this.parseExpr(rule.getGroupValue("error").rule()) }
+                    "IfStatement" => this.parseIfStatement(rule)
                     _ => throw Error.create("NotYetImplemented: block statement: " + rule.ruleName)
                 }
                 statements.push(tokenize<AstStatement>(rule.loc, statementAst))
@@ -386,6 +462,7 @@ class KeidParser {
                 let generics = this.parseGenericArgsNodes(ast)
                 let basic = match path.node {
                     "void"    => BasicType.Void
+                    "never"   => BasicType.Never
                     "bool"    => BasicType.Bool
                     "char"    => BasicType.Char
                     "uint8"   => BasicType.UInt8
@@ -401,7 +478,7 @@ class KeidParser {
                     "usize"   => BasicType.USize
                     "isize"   => BasicType.ISize
                     _ => return new ComplexType.Basic {
-                        basic = new BasicType.Object {
+                        basic = new BasicType.Ident {
                             ident = new QualifiedIdent {
                                 name = path.node
                                 generics
@@ -444,6 +521,52 @@ class KeidParser {
             name
             valueType
             initialValue
+        }
+    }
+
+    parseOperator(ast: LexerToken): AstToken<AstOperator> {
+        match ast.kind {
+            Operator { op, } => {
+                for operator in OPERATORS {
+                    if operator.text == op {
+                        return tokenize<AstOperator>(ast.loc, operator.ast)
+                    }
+                }
+            }
+            _ => {}
+        }
+        throw Error.create(string.format("invalid operator: ", ast.toString()))
+    }
+
+    parseSelfOperator(ast: LexerToken): AstToken<AstOperator> {
+        match ast.kind {
+            Operator { op, } => {
+                if op == "=" {
+                    return tokenize<AstOperator>(ast.loc, AstOperator.Assign)
+                }
+                let unself = op.substringBefore(op.length - 1)
+                for operator in OPERATORS {
+                    if operator.text == unself {
+                        return tokenize<AstOperator>(ast.loc, operator.ast)
+                    }
+                }
+            }
+            _ => {}
+        }
+        throw Error.create(string.format("invalid self operator: ", ast.toString()))
+    }
+
+    parseAssign(ast: RuleMatch): AstAssign {
+        let deref = ast.hasGroup("deref")
+        let lhs = this.parseExpr(ast.getGroupValue("lhs").rule())
+        let op = this.parseSelfOperator(ast.getGroupValue("op").token())
+        let rhs = this.parseExpr(ast.getGroupValue("rhs").rule())
+
+        return new AstAssign {
+            deref
+            lhs
+            op
+            rhs
         }
     }
 
@@ -559,7 +682,7 @@ class KeidParser {
                         methods.push(this.parseFunction(rule))
                     }
                     _ => {
-                        std::io.println("TODO: Class-level statement: ", rule.ruleName)
+                        io.println("TODO: Class-level statement: ", rule.ruleName)
                     }
                 }
             }
@@ -586,16 +709,9 @@ class KeidParser {
         }
 
         let interface = parseQualifiedPath(ast.getGroupValue("interface").rule())
-        let interfaceGenerics: ?List<AstToken<ComplexType>> = null
-        if ast.hasGroup("interfaceGenerics") {
-            interfaceGenerics = this.parseGenericArgs(ast, "interfaceGenerics")
-        }
-
+        let interfaceGenerics: ?List<AstToken<ComplexType>> = this.parseGenericArgs(ast, "interfaceGenerics")
         let target = parseQualifiedPath(ast.getGroupValue("target").rule())
-        let targetGenerics: ?List<AstToken<ComplexType>> = null
-        if ast.hasGroup("targetGenerics") {
-            targetGenerics = this.parseGenericArgs(ast, "targetGenerics")
-        }
+        let targetGenerics: ?List<AstToken<ComplexType>> = this.parseGenericArgs(ast, "targetGenerics")
 
         let methods = List.empty<AstFunction>()
 
@@ -682,11 +798,112 @@ class KeidPreprocessor {
                 _ => {}
             }
         }
+        return this.macroCalls.length > 0
     }
 
     public preprocess(): List<LexerToken> {
-        std::io.println("Preprocess: decls = ", this.macroDecls.length.toString(), ", calls = ", this.macroCalls.length.toString())
-        return List.empty<LexerToken>()
+        io.println("Preprocess: decls = ", this.macroDecls.length.toString(), ", calls = ", this.macroCalls.length.toString())
+        let tokens = this.collectRegularTokens()
+        for macroCall in this.macroCalls {
+            let macroName = macroCall.getGroupValue("name").token().kind.identifier()
+            let macroParamValues = macroCall.getGroup("params")
+            let macroDecl = this.findMacroDecl(macroName)
+            let macroParamDecls = macroDecl.getGroup("params")
+            let paramNames = List.withCapacity<string>(macroParamDecls.length)
+            for macroParamDecl in macroParamDecls {
+                paramNames.push(macroParamDecl.rule().getGroupValue("name").token().kind.identifier())
+            }
+            let macroBody = macroDecl.getGroup("body")
+            let bodyTokens = List.withCapacity<LexerToken>(macroBody.length)
+            for bodyToken in macroBody {
+                bodyTokens.push(bodyToken.token())
+            }
+            let processedBody = this.preprocessMacroCall(paramNames, macroParamValues, bodyTokens)
+            tokens.extend(processedBody)
+        }
+        return tokens
+    }
+
+    /// Returns all tokens outside of macro calls and definitions.
+    collectRegularTokens(): List<LexerToken> {
+        let tokens = List.empty<LexerToken>()
+        for statement in this.ast.getGroup("statements") {
+            match statement {
+                Token { token, } => {
+                    tokens.push(token)
+                }
+                _ => {}
+            }
+        }
+        return tokens
+    }
+
+    findMacroDecl(name: string): RuleMatch {
+        for macroDecl in this.macroDecls {
+            let macroName = macroDecl.getGroupValue("name").token().kind.identifier()
+            if macroName == name {
+                return macroDecl
+            }
+        }
+        throw Error.create(string.format("no such MacroDecl '", name, "'"))
+    }
+    
+    replaceIdentifierName(paramName: string, paramValue: ParserMatch, identifierName: string, loc: TokenLocation): LexerToken {
+        match paramValue {
+            Token { token, } => {
+                match token.kind {
+                    Identifier { name, } => {
+                        return new LexerToken {
+                            kind = new LexerTokenKind.Identifier {
+                                name = identifierName.replaceFirst(paramName, name)
+                            }
+                            loc
+                            originalLoc = token.loc
+                        }
+                        
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+        throw Error.create(string.format("param '", paramName, "' should be an identifier"))
+    }
+
+    preprocessToken(paramNames: List<string>, paramValues: List<ParserMatch>, bodyToken: LexerToken, name: string): List<LexerToken> {
+        for p in range.create(paramNames.length) {
+            let paramName = paramNames.get(p)
+            let paramValue = paramValues.get(p)
+            if paramName == name {
+                match paramValue {
+                    Rule { rule, } => {
+                        return rule.getAllTokens()
+                    }
+                    Token { token, } => {
+                        token.originalLoc = bodyToken.loc
+                        return List.from<LexerToken>(token)
+                    }
+                }
+            }
+            if name.contains(paramName) {
+                return List.from<LexerToken>(this.replaceIdentifierName(paramName, paramValue, name, bodyToken.loc))
+            }
+        }
+        return List.from<LexerToken>(bodyToken)
+    }
+
+    preprocessMacroCall(paramNames: List<string>, paramValues: List<ParserMatch>, body: List<LexerToken>): List<LexerToken> {
+        let processedTokens = List.withCapacity<LexerToken>(body.length)
+        for bodyToken in body {
+            match bodyToken.kind {
+                Identifier { name, } => {
+                    processedTokens.extend(this.preprocessToken(paramNames, paramValues, bodyToken, name))
+                    continue
+                }
+            }
+            processedTokens.push(bodyToken)
+        }
+        return processedTokens
     }
 }
 
@@ -727,7 +944,7 @@ function runPreprocessorParser(preprocessor: KsdlParser, reader: TokenReader, st
     if !stream.isFinished {
         reader.cursor = stream.currentToken.loc.start
         let pos = reader.documentPosition
-        std::io.println("failed preprocessing rule '",
+        io.println("failed preprocessing rule '",
             stream.currentRule!.name,
             "' at ",
             stream.currentToken.name,
@@ -745,7 +962,7 @@ function runPreprocessorParser(preprocessor: KsdlParser, reader: TokenReader, st
                 break
             }
             stream.next()
-            std::io.println("next token: ", stream.currentToken.name, " '", stream.currentToken.loc.getText(programText), "'")
+            io.println("next token: ", stream.currentToken.name, " '", stream.currentToken.loc.getText(programText), "'")
         }
         throw Error.create("failed preprocessing rule")
     }
@@ -786,6 +1003,7 @@ public function parseKeidSource(preprocessor: KsdlParser, parser: KsdlParser, fi
     let initialPreprocessResult = runPreprocessorParser(preprocessor, reader, stream, file, programText)
     let macroDecls = findMacroDecls(initialPreprocessResult)
 
+    stream.offset = 0
     let processedTokens = preprocess(preprocessor, reader, stream, file, programText, macroDecls)
     let processedStream = TokenStream.create(processedTokens)
 
@@ -794,7 +1012,7 @@ public function parseKeidSource(preprocessor: KsdlParser, parser: KsdlParser, fi
     if !stream.isFinished {
         reader.cursor = stream.currentToken.loc.start
         let pos2 = reader.documentPosition
-        std::io.println("failed parsing rule '",
+        io.println("failed parsing rule '",
             stream.currentRule!.name,
             "' at ",
             stream.currentToken.name,
@@ -812,7 +1030,7 @@ public function parseKeidSource(preprocessor: KsdlParser, parser: KsdlParser, fi
                 break
             }
             stream.next()
-            std::io.println("next token: ", stream.currentToken.name, " '", stream.currentToken.loc.getText(programText), "'")
+            io.println("next token: ", stream.currentToken.name, " '", stream.currentToken.loc.getText(programText), "'")
         }
         throw Error.create("failed parsing rule")
     }
@@ -823,9 +1041,21 @@ public function parseKeidSource(preprocessor: KsdlParser, parser: KsdlParser, fi
             }
             return keidParser.parseProgram(match.rule())
         }
-        HardFail { rule, statement, result, } => {
-            std::io.println("Failed parsing statement: ", Class.fromInstance(statement).name)
-            std::io.println("in rule: ", rule.name)
+        HardFail { rule, statement, result, loc, } => {
+            io.println("Failed parsing statement: ", Class.fromInstance(statement).name)
+            io.println("in rule ", rule.name)
+
+            reader.cursor = loc.start
+            let pos3 = reader.documentPosition
+            io.println("expecting ",
+                statement.describe(),
+                " at ",
+                file,
+                ":",
+                pos3.line.toString(),
+                ":",
+                pos3.col.toString(),
+            )
         }
         _ => {}
     }

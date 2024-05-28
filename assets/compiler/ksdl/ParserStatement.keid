@@ -3,6 +3,7 @@ namespace keidc::ksdl
 import (
     core::collections
     core::object
+    core::string
 )
 
 public enum StatementResult {
@@ -20,12 +21,15 @@ public enum StatementResult {
         rule: Rule
         statement: ParserStatement
         result: Box<StatementResult>
+        loc: TokenLocation
     }
 }
 
 public interface ParserStatement {
     /// Returns true if the rule matched, otherwise false.
     execute(stream: TokenStream, state: RuleState): StatementResult
+
+    describe(): string
 }
 
 public class MoveStatement { }
@@ -36,6 +40,8 @@ implement ParserStatement for MoveStatement {
 
         return StatementResult.Matchless
     }
+
+    describe(): string => ""
 }
 
 public class EOFStatement { }
@@ -55,6 +61,8 @@ implement ParserStatement for EOFStatement {
             _ => return StatementResult.Failure
         }
     }
+
+    describe(): string => "EOF"
 }
 
 public class TokenStatement { }
@@ -74,6 +82,8 @@ implement ParserStatement for TokenStatement {
             }
         }
     }
+
+    describe(): string => "any token"
 }
 
 public class OperatorStatement {
@@ -100,6 +110,8 @@ implement ParserStatement for OperatorStatement {
         }
         return StatementResult.Failure
     }
+
+    describe(): string => string.format("operator '", this.op, "'")
 }
 
 public class KeywordStatement {
@@ -126,6 +138,8 @@ implement ParserStatement for KeywordStatement {
         }
         return StatementResult.Failure
     }
+
+    describe(): string => string.format("keyword '", this.keyword, "'")   
 }
 
 public class LiteralStatement { }
@@ -146,6 +160,8 @@ implement ParserStatement for LiteralStatement {
         }
         return StatementResult.Failure
     }
+
+    describe(): string => "literal"
 }
 
 public class NewlineStatement { }
@@ -161,6 +177,8 @@ implement ParserStatement for NewlineStatement {
         }
         return StatementResult.Failure
     }
+
+    describe(): string => "newline"
 }
 
 public class IdentifierStatement {
@@ -188,6 +206,8 @@ implement ParserStatement for IdentifierStatement {
         }
         return StatementResult.Failure
     }
+
+    describe(): string => "identifier"
 }
 
 public class SubruleStatement {
@@ -204,15 +224,18 @@ implement ParserStatement for SubruleStatement {
                 matches = List.from<ParserMatch>(match)
             }
             SoftFail => StatementResult.Failure
-            HardFail { rule, statement, result } => new StatementResult.ImmediateFailure { rule, statement, result, }
+            HardFail { rule, statement, result, loc, } => new StatementResult.ImmediateFailure { rule, statement, result, loc, }
         }
     }
+
+    describe(): string => this.subrule.name
 }
 
 public class UntilStatement {
     statement: ParserStatement
+    inclusive: bool
 
-    public static create(statement: ParserStatement): UntilStatement => new UntilStatement { statement, }
+    public static create(statement: ParserStatement, inclusive: bool): UntilStatement => new UntilStatement { statement, inclusive, }
 }
 
 implement ParserStatement for UntilStatement {
@@ -220,7 +243,12 @@ implement ParserStatement for UntilStatement {
         let tokens = List.empty<ParserMatch>()
         loop {
             match this.statement.execute(stream, state) {
-                Match { matches, } => break
+                Match { matches, } => {
+                    if this.inclusive {
+                        tokens.extend(matches)
+                    }
+                    break
+                }
                 Matchless => break
                 _ => {
                     tokens.push(new ParserMatch.Token {
@@ -234,6 +262,8 @@ implement ParserStatement for UntilStatement {
             matches = tokens
         }
     }
+
+    describe(): string => string.format("all tokens until ", this.statement.describe())
 }
 
 public class OptionalStatement {
@@ -246,10 +276,12 @@ implement ParserStatement for OptionalStatement {
     execute(stream: TokenStream, state: RuleState): StatementResult {
         return match this.statement.execute(stream, state) {
             Match { matches, } => new StatementResult.Match { matches, }
-            ImmediateFailure { rule, statement, result, } => new StatementResult.ImmediateFailure { rule, statement, result, }
+            ImmediateFailure { rule, statement, result, loc, } => new StatementResult.ImmediateFailure { rule, statement, result, loc, }
             _ => StatementResult.Matchless
         }
     }
+
+    describe(): string => string.format("optional ", this.statement.describe())
 }
 
 public class OrStatement {
@@ -272,6 +304,22 @@ implement ParserStatement for OrStatement {
         }
         return StatementResult.Failure
     }
+
+    describe(): string {
+        if this.options.length == 2 {
+            return string.format("either ", this.options.get(0).describe(), " or ", this.options.get(1).describe())
+        }
+
+        let sb = StringBuilder.empty()
+        sb.append("either ")
+        for i in range.create(this.options.length - 1) {
+            sb.append(this.options.get(i).describe())
+            sb.append(", ")
+        }
+        sb.append("or ")
+        sb.append(this.options.get(this.options.length - 1).describe())
+        return sb.toString()
+    }
 }
 
 public class NotStatement {
@@ -285,10 +333,12 @@ implement ParserStatement for NotStatement {
         return match this.statement.execute(stream, state) {
             Match { matches, } => StatementResult.Failure
             Matchless => StatementResult.Failure
-            ImmediateFailure { rule, statement, result, } => new StatementResult.ImmediateFailure { rule, statement, result, }
+            ImmediateFailure { rule, statement, result, loc, } => new StatementResult.ImmediateFailure { rule, statement, result, loc, }
             Failure => StatementResult.Matchless
         }
     }
+
+    describe(): string => string.format("not ", this.statement.describe())
 }
 
 public class GroupStatement {
@@ -319,6 +369,8 @@ implement ParserStatement for GroupStatement {
 
         return result
     }
+
+    describe(): string => this.value.describe()
 }
 
 public class RepeatedStatement {
@@ -334,7 +386,7 @@ implement ParserStatement for RepeatedStatement {
         if !this.optional {
             match this.child.execute(stream, state) {
                 Failure => return StatementResult.Failure
-                ImmediateFailure { rule, statement, result, } => return new StatementResult.ImmediateFailure { rule, statement, result, }
+                ImmediateFailure { rule, statement, result, loc, } => return new StatementResult.ImmediateFailure { rule, statement, result, loc, }
                 Match { matches, } => {
                     resultMatches.extend(matches)
                 }
@@ -349,7 +401,7 @@ implement ParserStatement for RepeatedStatement {
                     stream.offset = offset
                     break
                 }
-                ImmediateFailure { rule, statement, result, } => return new StatementResult.ImmediateFailure { rule, statement, result, }
+                ImmediateFailure { rule, statement, result, loc, } => return new StatementResult.ImmediateFailure { rule, statement, result, loc, }
                 Match { matches, } => {
                     resultMatches.extend(matches)
                 }
@@ -359,6 +411,14 @@ implement ParserStatement for RepeatedStatement {
 
         return new StatementResult.Match {
             matches = resultMatches
+        }
+    }
+
+    describe(): string {
+        if this.optional {
+            return string.format("zero or more ", this.child.describe())
+        } else {
+            return string.format("one or more ", this.child.describe())
         }
     }
 }
@@ -373,11 +433,26 @@ implement ParserStatement for CompoundStatement {
     execute(stream: TokenStream, state: RuleState): StatementResult {
         for statement in this.statements {
             match statement.execute(stream, state) {
-                ImmediateFailure { rule, statement, result, } => return new StatementResult.ImmediateFailure { rule, statement, result, }
+                ImmediateFailure { rule, statement, result, loc, } => return new StatementResult.ImmediateFailure { rule, statement, result, loc, }
                 Failure => return StatementResult.Failure
                 _ => {}
             }
         }
         return StatementResult.Matchless
+    }
+
+    describe(): string {
+        if this.statements.length == 2 {
+            return string.format(this.statements.get(0).describe(), " and ", this.statements.get(1).describe())
+        }
+
+        let sb = StringBuilder.empty()
+        for i in range.create(this.statements.length - 1) {
+            sb.append(this.statements.get(i).describe())
+            sb.append(", ")
+        }
+        sb.append("and ")
+        sb.append(this.statements.get(this.statements.length - 1).describe())
+        return sb.toString()
     }
 }

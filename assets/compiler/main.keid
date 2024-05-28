@@ -27,7 +27,7 @@ function listKeidFiles(path: string, files: List<string>) {
     }
 }
 
-public extern function main(): int32 {    
+public extern function main(): int32 {
     let files = List.empty<string>()
     listKeidFiles("../keid/assets/core2", files)
 
@@ -85,6 +85,7 @@ public extern function main(): int32 {
     // core::string::test.testSplit()
     // core::string::test.testTrim()
     // core::string::test.testStartsWith()
+    // core::string::test.testReplaceFirst()
 
     // // core::string::StringBuilder tests
     // core::string::test.testEmptyStringBuilder()
@@ -98,6 +99,7 @@ public extern function main(): int32 {
     // core::collections::test.testListPushOnce()
     // core::collections::test.testListRemoveOnce()
     // core::collections::test.testListRemoveMany()
+    // core::collections::test.testHashMapStringKeyStringValue()
 
     // // core::object::Class tests
     // core::object::test.testClassFromInstance()

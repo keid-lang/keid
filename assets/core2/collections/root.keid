@@ -1,4 +1,4 @@
-namespace core::collections
+namespace core.collections
 
 public interface Iterator<T> {
     get next: ?T

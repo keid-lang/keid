@@ -1,7 +1,7 @@
-namespace core::collections::test
+namespace core.collections.test
 
 import (
-    core::collections
+    core.collections
 )
 
 function testListPushOnce() {

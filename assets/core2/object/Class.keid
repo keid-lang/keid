@@ -1,8 +1,8 @@
-namespace core::object
+namespace core.object
 
 import (
-    core::mem
-    core::string
+    core.mem
+    core.string
 )
 
 extern function keid_reflect_get_object_class_name(instance: object): Pointer<uint8>

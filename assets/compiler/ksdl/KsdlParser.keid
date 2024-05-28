@@ -185,8 +185,14 @@ public class KsdlParser {
             }
             return OrStatement.create(options)
         } else if line.startsWith("UNTIL") {
-            let statement = this.parseStatement(line.substringAfter(6).trim())
-            return UntilStatement.create(statement)
+            let inclusive = false
+            let after = line.substringAfter(6).trim()
+            if after.startsWith("INCLUSIVE") {
+                inclusive = true
+                after = after.substringAfter(10).trim()
+            }
+            let statement = this.parseStatement(after)
+            return UntilStatement.create(statement, inclusive)
         } else if line.startsWith("NOT") {
             let statement = this.parseStatement(line.substringAfter(4).trim())
             return NotStatement.create(statement)

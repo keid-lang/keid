@@ -1,7 +1,7 @@
-namespace core::ops
+namespace core.ops
 
 import (
-    core::object
+    core.object
 )
 
 public interface Equals<T> {

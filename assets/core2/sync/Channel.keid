@@ -1,7 +1,7 @@
-namespace core::sync
+namespace core.sync
 
 // import (
-//     core::mem
+//     core.mem
 // )
 
 // public class Channel<T> {

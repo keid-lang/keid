@@ -218,3 +218,11 @@ function testStartsWith() {
     test.assertNull(a.indexOf("hellobyegood"))
     test.assertFalse(a.startsWith("hellobyegood"))
 }
+
+function testReplaceFirst() {
+    let a = "hello world"
+    test.assertEqual(a.replaceFirst("hello", "goodbye"), "goodbye world")
+    test.assertEqual(a.replaceFirst("nothello", "notgoodbye"), "hello world")
+    test.assertEqual(a.replaceFirst(" world", ""), "hello")
+    test.assertEqual(a.replaceFirst("hello ", ""), "world")
+}

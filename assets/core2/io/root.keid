@@ -1,4 +1,4 @@
-namespace core::io
+namespace core.io
 
 public interface Writer {
     write(data: [uint8]): isize

@@ -1,8 +1,8 @@
-namespace core::error
+namespace core.error
 
 import (
-    core::object
-    core::string
+    core.object
+    core.string
 )
 
 public class Error {
@@ -27,7 +27,7 @@ public class Error {
     }
 
     public print() {
-        std::io.println(this.toString())
+        std.io.println(this.toString())
     }
 }
 

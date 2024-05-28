@@ -357,19 +357,20 @@ impl<'a> FunctionCompiler<'a> {
         let mut callee_without_instance = callee.clone();
         callee_without_instance.params.remove(0);
 
+        let closure_impl = ResolvedFunctionNode {
+            external_name: name.clone(),
+            callable_name: name.clone(),
+            generic_impls: Vec::new(),
+            params: [vec![BasicType::Void.to_complex().to_reference()], callee_without_instance.params.clone()].concat(),
+            return_type: callee.return_type.clone(),
+            module_id: self.unit.module_id,
+            source_id: usize::MAX,
+            varargs: callee.varargs.clone(),
+        };
         let closure_function = self.cpl.add_function(
             &self.unit.mdl,
             &name,
-            &ResolvedFunctionNode {
-                external_name: name.clone(),
-                callable_name: name.clone(),
-                generic_impls: Vec::new(),
-                params: [vec![BasicType::Void.to_complex().to_reference()], callee_without_instance.params.clone()].concat(),
-                return_type: callee.return_type.clone(),
-                module_id: self.unit.module_id,
-                source_id: usize::MAX,
-                varargs: callee.varargs.clone(),
-            },
+            &closure_impl,
         );
 
         let mut bdl = closure_function.create_builder();
@@ -399,7 +400,14 @@ impl<'a> FunctionCompiler<'a> {
         if matches!(callee.return_type, ComplexType::Basic(BasicType::Void)) {
             self.emit(Insn::RetVoid);
         } else {
-            self.emit(Insn::Ret(result));
+            if callee.return_type.is_struct(&self.cpl.type_provider) {
+                let preallocated_return = closure_function.get_param(closure_impl.params.len() as u32);
+                self.copy(&TypedValue::new(callee.return_type.clone(), result), &TypedValue::new(callee.return_type.clone(), preallocated_return))?;
+
+                self.emit(Insn::RetVoid);
+            } else {
+                self.emit(Insn::Ret(result));
+            }
         }
 
         self.builder = current_builder;

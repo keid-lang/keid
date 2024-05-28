@@ -7,6 +7,14 @@ ALIAS NewlineOrComma OR(REPEATED NEWLINE, OPERATOR COMMA)
 RULE ArrayType
     OPERATOR [
     $elementType = ALIAS ValueType
+    OPERATOR ;
+    $length = LITERAL
+    OPERATOR ]
+END RULE
+
+RULE SliceType
+    OPERATOR [
+    $elementType = ALIAS ValueType
     OPERATOR ]
 END RULE
 
@@ -20,7 +28,7 @@ RULE BasicType
     $generics = OPTIONAL RULE GenericArgs
 END RULE
 
-ALIAS ValueType OR(RULE ArrayType, RULE NullableType, RULE BasicType)
+ALIAS ValueType OR(RULE ArrayType, RULE SliceType, RULE NullableType, RULE BasicType)
 
 ALIAS Modifier OR(KEYWORD public, KEYWORD static, KEYWORD extern, KEYWORD unsafe)
 
@@ -103,7 +111,6 @@ RULE FunctionDecl
     $name = IDENTIFIER
     $generics = OPTIONAL RULE GenericDecls
     $params = RULE FuncParamsDecl
-    MOVE
     OPTIONAL COMPOUND(OPERATOR :, $returnType = ALIAS ValueType)
     $body = OPTIONAL OR(RULE CodeBlock, RULE ArrowBlock)
 END RULE
@@ -160,17 +167,13 @@ RULE GroupingExpr
     OPERATOR )
 END RULE
 
-RULE MatchTestCatchAll
-    OPERATOR _
-END RULE
-
 RULE MatchTestEnumWithData
     $variant = IDENTIFIER
     $data = RULE AnonymousType
 END RULE
 
 RULE MatchArm
-    $test = OR(RULE MatchTestCatchAll, RULE MatchTestEnumWithData, RULE Expr)
+    $test = OR(OPERATOR _, RULE MatchTestEnumWithData, LITERAL, IDENTIFIER)
     MOVE
     OPERATOR =>
     $statement = ALIAS BlockStatement
@@ -191,18 +194,29 @@ RULE NewExpr
     $fields = RULE FieldSet
 END RULE
 
-RULE NewArrayExpr
-    $type = RULE ArrayType
+RULE NewSliceExpr
+    $type = RULE SliceType
     OPERATOR (
+    MOVE
     $initialValue = RULE Expr
-    OPERATOR ,
+    OPERATOR ;
     $length = RULE Expr
     OPERATOR )
 END RULE
 
-RULE ConstArrayExpr
+RULE NewArrayExpr
     $type = RULE ArrayType
+    OPERATOR (
+    MOVE
+    $initialValue = RULE Expr
+    OPTIONAL COMPOUND(OPERATOR ;, $length = LITERAL)
+    OPERATOR )
+END RULE
+
+RULE ConstSliceExpr
+    $type = RULE SliceType
     OPERATOR {
+    MOVE
     OPTIONAL REPEATED COMPOUND($elements = RULE Expr, ALIAS NewlineOrComma)
     OPTIONAL COMPOUND($elements = RULE Expr, OPTIONAL ALIAS NewlineOrComma)
     OPERATOR }
@@ -213,15 +227,11 @@ RULE DerefExpr
     $pointer = RULE Expr
 END RULE
 
-ALIAS ExprOperand OR(RULE FuncCallExpr, RULE GroupingExpr, RULE MatchExpr, RULE NewArrayExpr, RULE ConstArrayExpr, RULE NewExpr, LITERAL, RULE DerefExpr, RULE ExplicitQualifiedPath, IDENTIFIER)
-
-RULE LetStatementKind
-    OR(KEYWORD let, KEYWORD const)
-END RULE
+ALIAS ExprOperand OR(RULE FuncCallExpr, RULE GroupingExpr, RULE MatchExpr, RULE NewArrayExpr, RULE NewSliceExpr, RULE ConstSliceExpr, RULE NewExpr, LITERAL, RULE DerefExpr, IDENTIFIER)
 
 RULE LetStatement
     $modifiers = OPTIONAL REPEATED ALIAS Modifier
-    $kind = RULE LetStatementKind
+    $kind = OR(KEYWORD let, KEYWORD const)
     MOVE
     $name = IDENTIFIER
     OPTIONAL COMPOUND(OPERATOR :, $type = ALIAS ValueType)
@@ -263,19 +273,7 @@ RULE IndefiniteLoop
     $block = RULE CodeBlock
 END RULE
 
-RULE OpAssignSelf
-    OPERATOR =
-END RULE
-
-RULE OpAddSelf
-    OPERATOR +=
-END RULE
-
-RULE OpSubtractSelf
-    OPERATOR -=
-END RULE
-
-ALIAS SelfOperator OR(RULE OpAssignSelf, RULE OpAddSelf, RULE OpSubtractSelf)
+ALIAS SelfOperator OR(OPERATOR =, OPERATOR +=, OPERATOR -=)
 
 RULE AssignStatement
     $deref = OPTIONAL KEYWORD deref
@@ -292,19 +290,13 @@ RULE ThrowStatement
 END RULE
 
 // ALIAS BlockStatement OR(RULE TryStatement, RULE BreakStatement, RULE ContinueStatement, RULE WhileLoop, RULE IndefiniteLoop, RULE UnsafeBlock, RULE FixedBlock, RULE CodeBlock, RULE AssignStatement, RULE ImportStatement, RULE LetStatement, RULE ReturnStatement, RULE UnreachableStatement, RULE ThrowStatement, RULE Expr)
-ALIAS BlockStatement OR(NEWLINE, RULE ThrowStatement, RULE ReturnStatement, RULE LetStatement, RULE IfStatement, RULE ForEachLoop, RULE ForLoop, RULE IndefiniteLoop, RULE UnsafeBlock, RULE AssignStatement, RULE Expr)
+ALIAS BlockStatement OR(RULE ThrowStatement, RULE ReturnStatement, RULE LetStatement, RULE IfStatement, RULE ForEachLoop, RULE ForLoop, RULE IndefiniteLoop, RULE UnsafeBlock, RULE AssignStatement, RULE Expr)
 
 ALIAS BlockStatementNewline COMPOUND($statements = ALIAS BlockStatement, REPEATED NEWLINE)
-
-RULE UnsafeBlock
-    KEYWORD unsafe
-    $inner = RULE CodeBlock
-END RULE
 
 RULE CodeBlock
     OPERATOR {
     MOVE
-    REPEATED NEWLINE
     OPTIONAL REPEATED OR(NEWLINE, ALIAS BlockStatementNewline)
     OPERATOR }
 END RULE
@@ -313,6 +305,11 @@ RULE ArrowBlock
     OPERATOR =>
     MOVE
     $expr = RULE Expr
+END RULE
+
+RULE UnsafeBlock
+    KEYWORD unsafe
+    $inner = RULE CodeBlock
 END RULE
 
 RULE PrefixOperator
@@ -324,11 +321,7 @@ RULE InfixOperator
 END RULE
 
 RULE PostfixOperator
-    $op = OR(RULE OpNullAssert, RULE OpIndex, RULE OpAs)
-END RULE
-
-RULE OpNullAssert
-    OPERATOR !
+    $op = OR(RULE OpIndex, RULE OpAs, OPERATOR !)
 END RULE
 
 RULE OpIndex
@@ -451,14 +444,7 @@ END RULE
 
 RULE QualifiedPath
     $path = IDENTIFIER
-    OPTIONAL REPEATED COMPOUND(OPERATOR ::, $path = IDENTIFIER)
-END RULE
-
-RULE ExplicitQualifiedPath
-    $path = IDENTIFIER
-    OPERATOR ::
-    $path = IDENTIFIER
-    OPTIONAL REPEATED COMPOUND(OPERATOR ::, $path = IDENTIFIER)
+    OPTIONAL REPEATED COMPOUND(OPERATOR ., $path = IDENTIFIER)
 END RULE
 
 RULE NamespaceStatement

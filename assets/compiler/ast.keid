@@ -2,6 +2,7 @@ namespace keidc::ast
 
 import (
     core::collections
+    core::object
     core::string
     keidc::common
     keidc::ksdl
@@ -9,7 +10,7 @@ import (
     keidc::types
 )
 
-public class AstToken<T> {
+public struct AstToken<T> {
     node: T
     loc: TokenLocation
 }
@@ -131,6 +132,13 @@ implement Resolvable for AstLet {
     }
 }
 
+public class AstAssign {
+    deref: bool
+    lhs: AstToken<AstExpr>
+    op: AstToken<AstOperator>
+    rhs: AstToken<AstExpr>
+}
+
 public class AstClass {
     kind: AstToken<ObjectKind>
     modifiers: List<AstToken<Modifier>>
@@ -217,9 +225,14 @@ implement ToString for AstClass {
     }
 }
 
+public struct AstIfBlock {
+    condition: AstToken<AstExpr>
+    block: List<AstToken<AstStatement>>
+}
+
 public enum AstStatement {
     Return {
-        operand: AstToken<AstExpr>
+        operand: ?AstToken<AstExpr>
     }
     Expr {
         value: AstToken<AstExpr>
@@ -230,9 +243,20 @@ public enum AstStatement {
     Let {
         statement: AstLet
     }
+    Assign {
+        statement: AstAssign
+    }
+    Throw {
+        error: AstToken<AstExpr>
+    }
+    IfChain {
+        conditionals: List<AstIfBlock>
+        fallback: ?List<AstToken<AstStatement>>
+    }
 }
 
 public enum AstOperator {
+    Assign
     Equals
     NotEquals
     Add
@@ -258,6 +282,7 @@ public enum AstOperator {
 
 implement ToString for AstOperator {
     toString(): string => match this {
+        Assign => "="
         Equals => "=="
         NotEquals => "!="
         Add => "+"
@@ -279,6 +304,7 @@ implement ToString for AstOperator {
         Spread => "..."
         NullCoalesce => "??"
         MemberAccess => "."
+        _ => "unknown"
     }
 }
 
@@ -304,12 +330,31 @@ public enum AstExpr {
     }
     Unary {
         operator: AstToken<AstOperator>
-        operand: AstToken<AstExpr>
+        operand: Box<AstToken<AstExpr>>
     }
     Binary {
-        lhs: AstToken<AstExpr>
+        lhs: Box<AstToken<AstExpr>>
         operator: AstToken<AstOperator>
-        rhs: AstToken<AstExpr>
+        rhs: Box<AstToken<AstExpr>>
+    }
+    NewSlice {
+        type: AstToken<ComplexType>
+        initialValue: Box<AstToken<AstExpr>>
+        length: Box<AstToken<AstExpr>>
+    }
+    NewArray {
+        type: AstToken<ComplexType>
+        initialValue: Box<AstToken<AstExpr>>
+        length: ?Box<AstToken<AstExpr>>
+    }
+    ConstSlice {
+        type: AstToken<ComplexType>
+        elements: List<AstToken<AstExpr>>
+    }
+    FuncCall {
+        callee: Box<AstToken<AstExpr>>
+        generics: ?List<AstToken<ComplexType>>
+        params: List<AstToken<AstExpr>>
     }
 }
 

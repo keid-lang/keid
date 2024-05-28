@@ -1,7 +1,7 @@
-namespace core::object
+namespace core.object
 
 import (
-    core::ops
+    core.ops
 )
 
 const DEFAULT_PRIME: uint64 = 7

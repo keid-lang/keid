@@ -1,8 +1,8 @@
-namespace core::mem
+namespace core.mem
 
 import (
-    core::runtime
-    core::ops
+    core.runtime
+    core.ops
 )
 
 public struct Pointer<T> {
@@ -57,22 +57,22 @@ implement <T> Equals<Pointer<T>> for Pointer<T> {
 
 // Copies `sizeof(T) * count` bytes from `src` to `dst`.
 public function copy<T>(src: Pointer<T>, dst: Pointer<T>, count: usize) {
-    std::impl::mem.copy(Pointer.cast<T, void>(src), Pointer.cast<T, void>(dst), count * sizeof(T))
+    std.impl.mem.copy(Pointer.cast<T, void>(src), Pointer.cast<T, void>(dst), count * sizeof(T))
 }
 
 // Allocates `count` by of heap memory and returns the pointer to the allocated region.
 public function allocBytes(count: usize): Pointer<void> {
-    return std::impl::mem.alloc(count)
+    return std.impl.mem.alloc(count)
 }
 
 // Allocates `sizeof(T) * count` bytes of heap and returns the pointer to the allocated region.
 public function alloc<T>(count: usize): Pointer<T> {
-    return Pointer.cast<void, T>(std::impl::mem.alloc(count * sizeof(T)))
+    return Pointer.cast<void, T>(std.impl.mem.alloc(count * sizeof(T)))
 }
 
-// Deallocates the heap memory at a pointer returned by `core::mem.alloc<T>`.
+// Deallocates the heap memory at a pointer returned by `core.mem.alloc<T>`.
 public function dealloc<T>(ptr: Pointer<T>) {
-    std::impl::mem.dealloc(Pointer.cast<T, void>(ptr))
+    std.impl.mem.dealloc(Pointer.cast<T, void>(ptr))
 }
 
 // Increases the reference count of an object by 1.

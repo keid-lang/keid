@@ -1,7 +1,7 @@
-namespace core::collections
+namespace core.collections
 
 import (
-    core::object
+    core.object
 )
 
 public class ArrayBackedStorage<T: Default> {

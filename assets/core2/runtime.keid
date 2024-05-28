@@ -1,7 +1,7 @@
-namespace core::runtime
+namespace core.runtime
 
 import (
-    core::mem
+    core.mem
 )
 
 public attribute ExternalFunction(name: string)

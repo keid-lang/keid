@@ -122,6 +122,10 @@ macro $IMPL_INT_TYPE(#wrapper, #primitive, #signed)
             hasher.write(this)
         }
     }
+
+    implement Equals<#wrapper> for #wrapper {
+        equals(other: #wrapper): bool => this.value == other.value
+    }
 end macro
 
 $IMPL_INT_TYPE(Int8,  int8,  true)

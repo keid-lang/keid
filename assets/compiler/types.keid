@@ -111,10 +111,10 @@ public enum BasicType {
     Float64
     USize
     ISize
-    Object { ident: QualifiedIdent }
-    StructPointer { pointee_ident: QualifiedIdent }
+    Ident { ident: QualifiedIdent }
     Null
     Unknown
+    Never
 }
 
 implement ToString for BasicType {
@@ -135,7 +135,9 @@ implement ToString for BasicType {
             Float64 => "float64"
             USize => "usize"
             ISize => "isize"
-            Object { ident } => ident.toString()
+            Ident { ident } => ident.toString()
+            Null => "null"
+            Never => "never"
             _ => "unknown"
         }
     }

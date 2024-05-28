@@ -18,8 +18,9 @@ public enum ParserMatch {
     public rule(): RuleMatch {
         match this {
             Rule { rule, } => return rule
-            _ => throw Error.create("illegal call to rule() on Token variant of ParserMatch")
+            Token { token, } => throw Error.create(string.format("illegal call to rule() on Token variant of ParserMatch (", token.toString(), ")"))
         }
+        unreachable
     }
 
     public token(): LexerToken {
@@ -53,6 +54,7 @@ public enum RuleResult {
         rule: Rule
         statement: ParserStatement
         result: StatementResult
+        loc: TokenLocation
     }
 }
 
@@ -66,7 +68,7 @@ public class Rule {
             groups = List.empty<RuleMatchGroup>()
         }
 
-        let start = stream.currentToken.loc.start
+        let start = stream.currentToken.originalLoc.start
         for statement in this.statements {
             stream.currentRule = this     
             
@@ -79,11 +81,12 @@ public class Rule {
                             rule = this
                             statement
                             result
+                            loc = stream.currentToken.loc
                         }
                     }
                     return RuleResult.SoftFail
                 }
-                ImmediateFailure { rule, statement, result, } => return new RuleResult.HardFail { rule, statement, result, }
+                ImmediateFailure { rule, statement, result, loc, } => return new RuleResult.HardFail { rule, statement, result, loc, }
                 _ => {}
             }
         }
@@ -94,7 +97,7 @@ public class Rule {
                     ruleName = this.name
                     loc = new TokenLocation {
                         start
-                        length = stream.currentToken.loc.start - start
+                        length = stream.currentToken.originalLoc.start - start
                     }
                     groups = state.groups
                 }

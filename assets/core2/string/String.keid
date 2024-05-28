@@ -1,11 +1,11 @@
-namespace core::string
+namespace core.string
 
 import (
-    core::collections
-    core::error
-    core::mem
-    core::object
-    core::ops
+    core.collections
+    core.error
+    core.mem
+    core.object
+    core.ops
 )
 
 public class String {
@@ -91,7 +91,7 @@ public class String {
                 '7' => 7
                 '8' => 8
                 '9' => 9
-                // _ => throw core::error::Error.create(string.format("invalid integer digit: ", ch.toString()))
+                // _ => throw core.error.Error.create(string.format("invalid integer digit: ", ch.toString()))
             }
             value += math.pow<T>(digit, i + 1)
         }

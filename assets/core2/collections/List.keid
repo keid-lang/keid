@@ -1,11 +1,11 @@
-namespace core::collections
+namespace core.collections
 
 import (
-    core::error
-    core::string
-    core::mem
-    core::object
-    core::ops
+    core.error
+    core.string
+    core.mem
+    core.object
+    core.ops
 )
 
 public class List<T> {

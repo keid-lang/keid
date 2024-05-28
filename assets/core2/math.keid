@@ -1,4 +1,4 @@
-namespace core::math
+namespace core.math
 
 public function pow<T>(value: T, pow: T): T {
     if pow == 0 {

@@ -1,0 +1,16 @@
+namespace core::collections::test
+
+import (
+    core::collections
+)
+
+function testHashMapStringKeyStringValue() {
+    let map = HashMap.empty<string, string>()
+    test.assertEqual(map.capacity, 0)
+    map.insert("Hello", "World")
+    // test.assertEqual(map.length, 1)
+    test.assertTrue(map.capacity >= 1)
+
+    let value = map.get("Hello")
+    test.assertEqual(value, "World")
+}

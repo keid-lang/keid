@@ -248,6 +248,21 @@ public class String {
     }
 
     public contains(substr: string): bool => this.indexOf(substr) != null
+
+    /// Returns a new string where the first instance of `substr` is replaced by `replacement`.
+    /// If `substr` is not in this string, `this` is returned.
+    public replaceFirst(substr: string, replacement: string): string {
+        let idx = this.indexOf(substr)
+        if idx == null {
+            // the substr does not exist at all in this string, no replacement needed
+            return this
+        }
+        let sb = StringBuilder.empty()
+        sb.append(this.substringBefore(idx!))
+        sb.append(replacement)
+        sb.append(this.substringAfter(idx! + substr.length))
+        return sb.toString()
+    }
 }
 
 implement ToString for String {

@@ -1,8 +1,8 @@
-namespace core::object
+namespace core.object
 
 import (
-    core::string
-    core::ops
+    core.string
+    core.ops
 )
 
 public interface Default {
@@ -43,7 +43,7 @@ implement ToString for Char {
     }
 }
 
-macro $IMPL_INT_TYPE(#wrapper, #primitive)
+macro $IMPL_INT_TYPE(#wrapper: ident, #primitive: ident)
     public struct #wrapper {
         value: #primitive
     }

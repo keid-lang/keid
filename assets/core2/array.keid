@@ -1,8 +1,8 @@
-namespace core::array
+namespace core.array
 
 import (
-    core::mem
-    core::string
+    core.mem
+    core.string
 )
 
 public function toString<T: ToString>(arr: [T]): string {

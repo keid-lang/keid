@@ -1,8 +1,8 @@
-namespace core::runtime
+namespace core.runtime
 
 // import (
-//     core::collections
-//     std::io
+//     core.collections
+//     std.io
 // )
 
 // public attribute ExternalFunction(name: string)
@@ -10,7 +10,7 @@ namespace core::runtime
 // /// True if `keid.init()` has finished executing, otherwise `false.`
 // let hasInit: bool = false
 // let preventRecursivePush: uint32 = 0
-// const stackFrames: List<string> = List::empty<string>()
+// const stackFrames: List<string> = List.empty<string>()
 
 // function pushStackFrame(name: string) {
 //     if preventRecursivePush > 0 {
@@ -39,8 +39,8 @@ namespace core::runtime
 //         return
 //     }
 //     preventRecursivePush += 1
-//     for i in range::create(0, stackFrames.length) {
-//         io::println("  at ", stackFrames.get<string>(stackFrames.length - i - 1))
+//     for i in range.create(0, stackFrames.length) {
+//         io.println("  at ", stackFrames.get<string>(stackFrames.length - i - 1))
 //     }
 //     preventRecursivePush -= 1
 // }

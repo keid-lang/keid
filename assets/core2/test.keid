@@ -1,7 +1,7 @@
-namespace core::test
+namespace core.test
 
 import (
-    core::error
+    core.error
 )
 
 public function assertionError(message: string): Error => Error.create(string.format("assertion failed: ", message))
@@ -14,7 +14,7 @@ let DEBUG_LEVEL: uint32 = 1
 
 function pass(msg: string) {
     if DEBUG_LEVEL >= 1 {
-        std::io.println("assertion passed: ",  msg)
+        std.io.println("assertion passed: ",  msg)
     }
     if DEBUG_LEVEL >= 2 { 
         runtime.printStackFrames()
@@ -64,13 +64,13 @@ macro $DEFINE_INT_ASSERTIONS(#type: tokens)
     $DEFINE_INT_ASSERTION(#type, !=, NotEqual)
 end macro
 
-$DEFINE_INT_ASSERTIONS(`uint8`)
-$DEFINE_INT_ASSERTIONS(`uint16`)
-$DEFINE_INT_ASSERTIONS(`uint32`)
-$DEFINE_INT_ASSERTIONS(`uint64`)
-$DEFINE_INT_ASSERTIONS(`usize`)
-$DEFINE_INT_ASSERTIONS(`int8`)
-$DEFINE_INT_ASSERTIONS(`int16`)
-$DEFINE_INT_ASSERTIONS(`int32`)
-$DEFINE_INT_ASSERTIONS(`int64`)
-$DEFINE_INT_ASSERTIONS(`isize`)
+$DEFINE_INT_ASSERTIONS(uint8)
+$DEFINE_INT_ASSERTIONS(uint16)
+$DEFINE_INT_ASSERTIONS(uint32)
+$DEFINE_INT_ASSERTIONS(uint64)
+$DEFINE_INT_ASSERTIONS(usize)
+$DEFINE_INT_ASSERTIONS(int8)
+$DEFINE_INT_ASSERTIONS(int16)
+$DEFINE_INT_ASSERTIONS(int32)
+$DEFINE_INT_ASSERTIONS(int64)
+$DEFINE_INT_ASSERTIONS(isize)

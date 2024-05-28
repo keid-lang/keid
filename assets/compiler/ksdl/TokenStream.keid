@@ -19,17 +19,11 @@ public class TokenStream {
 
     public get currentToken: LexerToken {
         if this.tokens.length == 0 {
-            return new LexerToken {
-                loc = TokenLocation.create(0, 0)
-                kind = LexerTokenKind.EOF
-            }
+            return LexerToken.create(TokenLocation.create(0, 0), LexerTokenKind.EOF)
         }
         if this.isFinished {
             let lastToken = this.tokens.get(this.tokens.length - 1)
-            return new LexerToken {
-                loc = TokenLocation.create(lastToken.loc.start + lastToken.loc.length, 0)
-                kind = LexerTokenKind.EOF
-            }
+            return LexerToken.create(TokenLocation.create(lastToken.originalLoc.start + lastToken.originalLoc.length, 0), LexerTokenKind.EOF)
         }
         return this.tokens.get(this.offset)
     }

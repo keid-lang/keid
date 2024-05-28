@@ -92,7 +92,10 @@ implement ToString for LexerTokenKind {
 
 public struct LexerToken {
     loc: TokenLocation
+    originalLoc: TokenLocation
     kind: LexerTokenKind
+
+    public static create(loc: TokenLocation, kind: LexerTokenKind): LexerToken => new LexerToken { loc, originalLoc = loc, kind, }
 
     public get name: string => match this.kind {
         Identifier => "identifier"
@@ -106,7 +109,16 @@ public struct LexerToken {
 
 implement ToString for LexerToken {
     toString(): string {
-        return string.format("LexerToken(", this.kind.toString(), " @ ", this.loc.toString(), ")")
+        let sb = StringBuilder.empty()
+        sb.append(this.kind.toString())
+        sb.append(" @ ")
+        sb.append(this.loc.toString())
+        if this.originalLoc != this.loc {
+            sb.append(" (originally @ ")
+            sb.append(this.originalLoc.toString())
+            sb.append(")")
+        }
+        return sb.toString()
     }
 }
 
@@ -119,15 +131,80 @@ const KEYWORDS: [string] = new string[
     "as", "class", "const", "constructor", "deref", "destructor", "else", "end macro",
     "enum", "extends", "extern", "for", "function", "get", "if", "implement", "import",
     "in", "interface", "let", "macro", "match", "namespace", "public", "ref", "return",
-    "set", "static", "struct", "throw", "type", "unsafe"
+    "set", "static", "struct", "throw", "type", "unsafe", "unreachable",
 ]
 const OPERATORS: [string] = new string[
     "==", "!=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "|=", "^=",
     "+", "-", "*", "/", "%", "<<", ">>", "<=", ">=", "=>", "<", ">", "!",
-    "...", "??", "?", "&", "|", "^", "=", ",", "@", "::", ":", ".", "(",
-    ")", "[", "]", "{", "}", ";", "`",
+    "...", "??", "?", "&", "|", "^", "=", ",", "@", ":", ".", "(", ")", "[",
+    "]", "{", "}", ";", "`",
 ]
 const KEYWORD_OPERATORS: [string] = new string["and", "or", "not", "as"]
+
+public function stringifyTokens(tokens: List<LexerToken>): string {
+    let sb = StringBuilder.empty()
+    for token in tokens {
+        match token.kind {
+            Identifier { name, } => {
+                sb.append(name)
+            }
+            Keyword { name, } => {
+                sb.append(name)
+            }
+            Operator { op, } => {
+                sb.append(op)
+            }
+            Literal { lit, } => {
+                match lit {
+                    Bool { val, } => {
+                        sb.append(val.toString())
+                    }
+                    SignedInteger { val, } => {
+                        sb.append(val.toString())
+                    }
+                    UnsignedInteger { val, } => {
+                        sb.append(val.toString())
+                    }
+                    String { val, } => {
+                        sb.append('"')
+                        sb.append(val.toString())
+                        sb.append('"')
+                    }
+                    Char { val, } => {
+                        sb.append("'")
+                        sb.append(val.toString())
+                        sb.append("'")
+                    }
+                    Null => {
+                        sb.append("null")
+                    }
+                }
+            }
+            Newline => {
+                sb.append("\n")
+            }
+            EOF => {}
+        }
+        sb.append(" ")
+    }
+    return sb.toString()
+}
+
+public function dumpTokens(tokens: List<LexerToken>): string {
+    let sb = StringBuilder.empty()
+    for token in tokens {
+        sb.append("[")
+        sb.append(token.toString())
+        sb.append("] ")
+        match token.kind {
+            Newline => {
+                sb.append("\n")
+            }
+            _ => {}
+        }
+    }
+    return sb.toString()
+}
 
 public function tokenize(reader: TokenReader): List<LexerToken> {
     let tokens = List.empty<LexerToken>()
@@ -137,10 +214,7 @@ public function tokenize(reader: TokenReader): List<LexerToken> {
     while !reader.isFinished {
         reader.skipWhitespace()
         if reader.currentCharacter == '\n' || reader.startsWith("\r\n") {
-            tokens.push(new LexerToken {
-                loc = TokenLocation.create(reader.cursor, 1)
-                kind = LexerTokenKind.Newline
-            })
+            tokens.push(LexerToken.create(TokenLocation.create(reader.cursor, 1), LexerTokenKind.Newline))
             let adv: usize = match reader.currentCharacter {
                 '\n' => 1
                 _ => 2
@@ -164,23 +238,17 @@ public function tokenize(reader: TokenReader): List<LexerToken> {
                     val = str.chars[0]
                 }
             }
-            tokens.push(new LexerToken {
-                loc = TokenLocation.create(start, reader.cursor - start)
-                kind = new LexerTokenKind.Literal {
-                    lit
-                }
-            })
+            tokens.push(LexerToken.create(TokenLocation.create(start, reader.cursor - start), new LexerTokenKind.Literal {
+                lit
+            }))
         } else if reader.currentCharacter.isNumber || reader.currentCharacter == '+' || reader.currentCharacter == '-' {
             let c = reader.currentCharacter
             let cursor = reader.cursor
             reader.advance(1)
             if (c == '+' || c == '-') && !reader.currentCharacter.isNumber {
-                tokens.push(new LexerToken {
-                    loc = TokenLocation.create(cursor, 1)
-                    kind = new LexerTokenKind.Operator {
-                        op = c.toString()
-                    }
-                })
+                tokens.push(LexerToken.create(TokenLocation.create(cursor, 1), new LexerTokenKind.Operator {
+                    op = c.toString()
+                }))
             } else {
                 let sb = StringBuilder.withCapacity(1)
                 sb.append(c)
@@ -203,12 +271,9 @@ public function tokenize(reader: TokenReader): List<LexerToken> {
                     }
                 }
 
-                tokens.push(new LexerToken {
-                    loc = TokenLocation.create(cursor, reader.cursor - cursor)
-                    kind = new LexerTokenKind.Literal {
-                        lit
-                    }
-                })
+                tokens.push(LexerToken.create(TokenLocation.create(cursor, reader.cursor - cursor), new LexerTokenKind.Literal {
+                    lit
+                }))
             }
         } else {
             if advanceComment(reader) {
@@ -216,34 +281,25 @@ public function tokenize(reader: TokenReader): List<LexerToken> {
             }
             let cursor = reader.cursor
             if advanceKeyword(reader, "null") {
-                tokens.push(new LexerToken {
-                    loc = TokenLocation.create(cursor, 4)
-                    kind = new LexerTokenKind.Literal {
-                        lit = LexerLiteral.Null
-                    }
-                })
+                tokens.push(LexerToken.create(TokenLocation.create(cursor, 4), new LexerTokenKind.Literal {
+                    lit = LexerLiteral.Null
+                }))
                 continue
             }
             if advanceKeyword(reader, "true") {
-                tokens.push(new LexerToken {
-                    loc = TokenLocation.create(cursor, 4)
-                    kind = new LexerTokenKind.Literal {
-                        lit = new LexerLiteral.Bool {
-                            val = true
-                        }
+                tokens.push(LexerToken.create(TokenLocation.create(cursor, 4), new LexerTokenKind.Literal {
+                    lit = new LexerLiteral.Bool {
+                        val = true
                     }
-                })
+                }))
                 continue
             }
             if advanceKeyword(reader, "false") {
-                tokens.push(new LexerToken {
-                    loc = TokenLocation.create(cursor, 5)
-                    kind = new LexerTokenKind.Literal {
-                        lit = new LexerLiteral.Bool {
-                            val = false
-                        }
+                tokens.push(LexerToken.create(TokenLocation.create(cursor, 5), new LexerTokenKind.Literal {
+                    lit = new LexerLiteral.Bool {
+                        val = false
                     }
-                })
+                }))
                 continue
             }
             if tokenizeOperator(reader, tokens) {
@@ -294,12 +350,9 @@ function tokenizeKeyword(reader: TokenReader, tokens: List<LexerToken>): bool {
     for keyword in KEYWORDS {
         let cursor = reader.cursor
         if advanceKeyword(reader, keyword) {
-            tokens.push(new LexerToken {
-                loc = TokenLocation.create(cursor, keyword.length)
-                kind = new LexerTokenKind.Keyword {
-                    name = keyword
-                }
-            })
+            tokens.push(LexerToken.create(TokenLocation.create(cursor, keyword.length), new LexerTokenKind.Keyword {
+                name = keyword
+            }))
             return true
         }
     }
@@ -315,12 +368,9 @@ function tokenizeIdentifier(reader: TokenReader, tokens: List<LexerToken>): bool
             reader.advance(1)
         }
         let ident = sb.toString()
-        tokens.push(new LexerToken {
-            loc = TokenLocation.create(cursor, ident.length)
-            kind = new LexerTokenKind.Identifier {
-                name = ident
-            }
-        })
+        tokens.push(LexerToken.create(TokenLocation.create(cursor, ident.length), new LexerTokenKind.Identifier {
+            name = ident
+        }))
         return true
     }
     return false
@@ -329,12 +379,9 @@ function tokenizeIdentifier(reader: TokenReader, tokens: List<LexerToken>): bool
 function tokenizeOperator(reader: TokenReader, tokens: List<LexerToken>): bool {
     for operator in OPERATORS {
         if reader.startsWith(operator) {
-            tokens.push(new LexerToken {
-                loc = TokenLocation.create(reader.cursor, operator.length)
-                kind = new LexerTokenKind.Operator {
-                    op = operator
-                }
-            })
+            tokens.push(LexerToken.create(TokenLocation.create(reader.cursor, operator.length), new LexerTokenKind.Operator {
+                op = operator
+            }))
             reader.advance(operator.length)
             return true
         }
@@ -346,12 +393,9 @@ function tokenizeKeywordOperator(reader: TokenReader, tokens: List<LexerToken>):
     for op in KEYWORD_OPERATORS {
         let cursor = reader.cursor
         if advanceKeyword(reader, op) {
-            tokens.push(new LexerToken {
-                loc = TokenLocation.create(cursor, op.length)
-                kind = new LexerTokenKind.Operator {
-                    op
-                }
-            })
+            tokens.push(LexerToken.create(TokenLocation.create(cursor, op.length), new LexerTokenKind.Operator {
+                op
+            }))
             return true
         }
     }

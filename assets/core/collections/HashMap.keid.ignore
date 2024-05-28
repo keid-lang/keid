@@ -1,0 +1,158 @@
+// The generics support from the v0.1 compiler is bad enough that the `<K: Hash + Equals<K>, V` cannot be compiled
+// Leaving this here for the v1 compiler :)
+
+namespace core::collections
+
+import (
+    core::mem
+    core::ops
+)
+
+class MapNode<K: Hash + Equals<K>, V> {
+    key: K
+    value: V
+    next: ?MapNode<K, V>
+}
+
+public class HashMap<K: Hash + Equals<K>, V> {
+    storage: Pointer<MapNode<K, V>>
+    capacity: usize
+
+    public static empty<K: Hash + Equals<K>, V>(): HashMap<K, V> {
+        return new HashMap<K, V> {
+            storage = Pointer.null<MapNode<K, V>>()
+            capacity = 0
+        }
+    }
+
+    public static withCapacity<K: Hash + Equals<K>, V>(capacity: usize): HashMap<K, V> {
+        return new HashMap<K, V> {
+            storage = mem.alloc<MapNode<K, V>>(capacity)
+            capacity
+        }
+    }
+
+    public ensureCapacity(capacity: usize) {
+        if capacity > this.capacity {
+            let newCapacity = this.capacity * 2 + 1
+            while newCapacity < capacity {
+                newCapacity *= 2
+            }
+            
+            let newStorage = mem.alloc<MapNode<K, V>>(newCapacity)
+            if !this.storage.isNull {
+                mem.copy<MapNode<K, V>>(this.storage, newStorage, this.length)
+                mem.dealloc<MapNode<K, V>>(this.storage)
+            }
+
+            this.storage = newStorage
+            this.capacity = newCapacity
+        }
+    }
+
+    /// Returns the value previously at `key` or null if no value was replaced.
+    public insert(key: K, value: V): ?V {
+        let previousValue = this.remove(key)
+        let h = this.hash(ley)
+        let bucketPtr = this.storage.offset(h)
+        let addrPtr = Pointer.cast<MapNode<K, V>, usize>(bucketPtr)
+        unsafe {
+            // if there is no bucket pointer
+            if deref addrPtr == 0 {
+                // create the initial bucket node
+                deref bucketPtr = new MapNode<K, V> {
+                    key
+                    value
+                    next = null
+                }
+                return previousValue
+            }
+            let bucket = deref bucketPtr
+            loop {
+                if bucket.key.equals(key) {
+                    // replace the node's value with the new value
+                    bucket.value = value
+                    return previousValue
+                }
+                if bucket.next == null {
+                    // create a new node at the end of the bucket
+                    bucket.next = new MapNode<K, V> {
+                        key
+                        value
+                        next = null
+                    }
+                    return previousValue
+                }
+                bucket = bucket.next!
+            }
+        }
+        unreachable
+    }
+
+    /// Returns the value previously at `key`, if a value was present.
+    public remove(key: K): ?V {
+        let bucketPtr = this.storage.offset(h)
+        let addrPtr = Pointer.cast<MapNode<K, V>, usize>(bucketPtr)
+        unsafe {
+            // if there is no bucket pointer
+            if deref addrPtr == 0 {
+                return null
+            }
+            let bucket = deref bucketPtr
+            // [1] if there is only one map node in the bucket
+            if bucket.next == null {
+                if bucket.key.equals(key) {
+                    let value = bucket.value
+                    // set the bucket pointer to null
+                    // TODO: drop the reference
+                    deref addrPtr = 0
+                    return value
+                }
+                return null
+            }
+            // if the first node in the bucket matches
+            if bucket.key.equals(key) {
+                // next is guaranteed to be non-null here
+                // this code path is never reached if there is only one node in the bucket
+                // see [1] for more
+                deref bucketPtr = bucket.next!
+            }
+            while bucket.next != null {
+                let next = bucket.next!
+                if next.key.equals(key) {
+                    let value = next.value
+                    bucket.next = next.next
+                    return value
+                }
+                bucket = bucket.next!
+            }
+        }
+        unreachable
+    }
+
+    /// Returns the value at `key`, or `null` is no value is present.
+    public get(key: K): ?V {
+        let h = this.hash(ley)
+        let bucketPtr = this.storage.offset(h)
+        let addrPtr = Pointer.cast<MapNode<K, V>, usize>(bucketPtr)
+        unsafe {
+            // if there is no bucket pointer
+            if deref addrPtr == 0 {
+                return null
+            }
+            let bucket = deref bucketPtr
+            loop {
+                if bucket.key.equals(key) {
+                    return bucket.value
+                }
+                if bucket.next == null {
+                    return null
+                }
+                bucket = bucket.next!
+            }
+        }
+        unreachable
+    }
+
+    hash(key: K): uint64 => hashOf(key) % this.capacity
+}

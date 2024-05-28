@@ -13,7 +13,7 @@ source_filename = "abi.ll"
 ;  i32 (class flags)
 ;    TYPE_CLASS  = 0x00
 ;    TYPE_STRUCT = 0x01
-;  ptr to %KeidAbiClassInfo (superclass pointer, or null if this represents the core::object::Object type)
+;  ptr to %KeidAbiClassInfo (superclass pointer, or null if this represents the core.object.Object type)
 %KeidAbiClassInfo = type { ptr, ptr, i32, ptr, ptr, i32, ptr }
 
 ; const char* keid_reflect_get_object_class_name(KeidAbiClass*)

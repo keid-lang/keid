@@ -1,28 +1,28 @@
-namespace core::object::test 
+namespace core.object.test 
 
 import (
-    core::collections
-    core::object
+    core.collections
+    core.object
 )
 
 public function testClassFromInstance() {
     let strCls = Class.fromInstance("this is a string")
-    test.assertEqual(strCls.name, "core::string::String")
+    test.assertEqual(strCls.name, "core.string.String")
 
     let objCls = Class.fromInstance(object {})
-    test.assertEqual(objCls.name, "core::object::Object")
+    test.assertEqual(objCls.name, "core.object.Object")
 
     let stringArray = [string] { "Hello", "World!" }
     let stringArrayIterator = ArrayIterator.create<string>(stringArray)
     let stringArrayIteratorCls = Class.fromInstance(stringArrayIterator)
-    test.assertEqual(stringArrayIteratorCls.name, "core::collections::ArrayIterator<core::string::String>")
+    test.assertEqual(stringArrayIteratorCls.name, "core.collections.ArrayIterator<core.string.String>")
 
     // TODO these tests should pass
     // let int32Cls = Class.fromInstance(5)
-    // test.assertEqual(int32Cls.name, "core::object::Int32")
+    // test.assertEqual(int32Cls.name, "core.object.Int32")
 
     // let uint32StructCls = Class.fromInstance(new UInt32 {
     //     value = 5,
     // })
-    // test.assertEqual(uint32StructCls.name, "core::object::UInt32")
+    // test.assertEqual(uint32StructCls.name, "core.object.UInt32")
 }

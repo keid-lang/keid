@@ -72,6 +72,12 @@ public enum SeekWhence {
 }
  
 public class File extends FileSystemObject {
+    public static create(path: string, mode: FileOpenMode): File {
+        return new File {
+            handle = std::impl::fs.createFile(path, mode)
+        }
+    }
+
     public static open(path: string, mode: FileOpenMode): File {
         return new File {
             handle = std::impl::fs.openFile(path, mode)
@@ -103,10 +109,10 @@ public class File extends FileSystemObject {
     /// Writes all the bytes to the file, beginning at the start of the file.
     /// This function does not affect the cursor position.
     public writeAllBytes(bytes: [uint8]) {
-        let pos = std::impl::fs.getSeekFilePos(this.handle)
-        this.seek(0)
+        let pos = std::impl::fs.seekFile(this.handle, 0, SeekWhence.Current)
+        this.seek(0, SeekWhence.Start)
         this.write(bytes)
-        this.seek(pos)
+        this.seek(pos, SeekWhence.Start)
     }
 
     public get length: int64 {
