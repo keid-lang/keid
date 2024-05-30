@@ -4,13 +4,20 @@ import (
     core.error
 )
 
-public function assertionError(message: string): Error => Error.create(string.format("assertion failed: ", message))
+let DEBUG_LEVEL: uint32 = 1
 
 function fail(msg: string) {
-    throw assertionError(msg)
+    if DEBUG_LEVEL >= 1 {
+        std.io.println("assertion failed: ",  msg)
+    }
+    if DEBUG_LEVEL >= 2 { 
+        runtime.printStackFrames()
+    }
 }
 
-let DEBUG_LEVEL: uint32 = 1
+function foo<T>(bar: [T]): string {
+    return "Hello, world!"
+}
 
 function pass(msg: string) {
     if DEBUG_LEVEL >= 1 {

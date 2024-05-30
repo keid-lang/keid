@@ -10,7 +10,7 @@ public function toString<T: ToString>(arr: [T]): string {
         return "[]"
     }
 
-    let strArr = [string]("", arr.length)
+    let strArr = [string](""; arr.length)
     for i in range.create(arr.length) {
         strArr[i] = arr[i].toString()
     }
@@ -67,7 +67,7 @@ public function fill<T>(dst: [T], value: T) {
 /// A slice of type `[T]` is returned.
 /// This operation is unsafe as it depends upon deferencing arbitrary pointers.
 public unsafe function copyFromPtr<T>(ptr: Pointer<T>, len: usize): [T] {
-    let arr = new T[default(T); len]
+    let arr = [T](default(T); len)
     with let arrPtr = ref arr {
         mem.copy<T>(ptr, arrPtr, len)
     }

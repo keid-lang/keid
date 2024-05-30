@@ -7,7 +7,7 @@ import (
 const DEFAULT_PRIME: uint64 = 7
 const ELEMENT_PRIME: uint64 = 31
 
-macro $DEF_WRITE(#type)
+macro $DEF_WRITE(#type: tokens)
     public write(val: #type) {
         this.state = ELEMENT_PRIME * this.state + val as uint64
     }
@@ -18,17 +18,17 @@ public class Hasher {
 
     public static create(): Hasher => Hasher { state = DEFAULT_PRIME, }
 
-    $DEF_WRITE(`uint8`)
-    $DEF_WRITE(`uint16`)
-    $DEF_WRITE(`uint32`)
-    $DEF_WRITE(`uint64`)
-    $DEF_WRITE(`usize`)
-    $DEF_WRITE(`int8`)
-    $DEF_WRITE(`int16`)
-    $DEF_WRITE(`int32`)
-    $DEF_WRITE(`int64`)
-    $DEF_WRITE(`isize`)
-    $DEF_WRITE(`char`)
+    $DEF_WRITE(uint8)
+    $DEF_WRITE(uint16)
+    $DEF_WRITE(uint32)
+    $DEF_WRITE(uint64)
+    $DEF_WRITE(usize)
+    $DEF_WRITE(int8)
+    $DEF_WRITE(int16)
+    $DEF_WRITE(int32)
+    $DEF_WRITE(int64)
+    $DEF_WRITE(isize)
+    $DEF_WRITE(char)
 }
 
 public function hashOf<T: Hash>(val: T): uint64 {

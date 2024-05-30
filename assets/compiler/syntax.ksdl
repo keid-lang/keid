@@ -113,6 +113,7 @@ RULE FunctionDecl
     $params = RULE FuncParamsDecl
     OPTIONAL COMPOUND(OPERATOR :, $returnType = ALIAS ValueType)
     $body = OPTIONAL OR(RULE CodeBlock, RULE ArrowBlock)
+    NEWLINE
 END RULE
 
 RULE ConstructorDecl
@@ -229,19 +230,27 @@ END RULE
 
 ALIAS ExprOperand OR(RULE FuncCallExpr, RULE GroupingExpr, RULE MatchExpr, RULE NewArrayExpr, RULE NewSliceExpr, RULE ConstSliceExpr, RULE NewExpr, LITERAL, RULE DerefExpr, IDENTIFIER)
 
-RULE LetStatement
+RULE InlineLetStatement
     $modifiers = OPTIONAL REPEATED ALIAS Modifier
     $kind = OR(KEYWORD let, KEYWORD const)
     MOVE
     $name = IDENTIFIER
     OPTIONAL COMPOUND(OPERATOR :, $type = ALIAS ValueType)
     OPTIONAL COMPOUND(OPERATOR =, $initialValue = RULE Expr)
+    OPTIONAL REPEATED COMPOUND(OPERATOR COMMA, $name = IDENTIFIER, OPERATOR =, $initialValue = OPTIONAL RULE Expr)
+END RULE
+
+RULE LetStatement
+    $let = RULE InlineLetStatement
+    MOVE
+    NEWLINE
 END RULE
 
 RULE ReturnStatement
     KEYWORD return
     MOVE
     $operand = OPTIONAL RULE Expr
+    NEWLINE
 END RULE
 
 RULE IfStatement
@@ -251,12 +260,14 @@ RULE IfStatement
     $conditionalBlocks = RULE CodeBlock
     OPTIONAL REPEATED COMPOUND(KEYWORD else, KEYWORD if, $tests = RULE Expr, $conditionalBlocks = RULE CodeBlock)
     OPTIONAL COMPOUND(KEYWORD else, $fallback = RULE CodeBlock)
+    NEWLINE
 END RULE
 
 RULE ForLoop
     KEYWORD for
     $condition = RULE Expr
     $block = RULE CodeBlock
+    NEWLINE
 END RULE
 
 RULE ForEachLoop
@@ -266,11 +277,13 @@ RULE ForEachLoop
     MOVE
     $iterable = RULE Expr
     $block = RULE CodeBlock
+    NEWLINE
 END RULE
 
 RULE IndefiniteLoop
     KEYWORD for
     $block = RULE CodeBlock
+    NEWLINE
 END RULE
 
 ALIAS SelfOperator OR(OPERATOR =, OPERATOR +=, OPERATOR -=)
@@ -281,23 +294,35 @@ RULE AssignStatement
     $op = ALIAS SelfOperator
     MOVE
     $rhs = RULE Expr
+    NEWLINE
 END RULE
 
 RULE ThrowStatement
     KEYWORD throw
     MOVE
     $error = RULE Expr
+    NEWLINE
 END RULE
 
-// ALIAS BlockStatement OR(RULE TryStatement, RULE BreakStatement, RULE ContinueStatement, RULE WhileLoop, RULE IndefiniteLoop, RULE UnsafeBlock, RULE FixedBlock, RULE CodeBlock, RULE AssignStatement, RULE ImportStatement, RULE LetStatement, RULE ReturnStatement, RULE UnreachableStatement, RULE ThrowStatement, RULE Expr)
-ALIAS BlockStatement OR(RULE ThrowStatement, RULE ReturnStatement, RULE LetStatement, RULE IfStatement, RULE ForEachLoop, RULE ForLoop, RULE IndefiniteLoop, RULE UnsafeBlock, RULE AssignStatement, RULE Expr)
+RULE WithStatement
+    KEYWORD with
+    MOVE
+    $let = RULE InlineLetStatement
+    $block = RULE CodeBlock
+END RULE
 
-ALIAS BlockStatementNewline COMPOUND($statements = ALIAS BlockStatement, REPEATED NEWLINE)
+RULE ExprStatement
+    $expr = RULE Expr
+    MOVE
+    NEWLINE
+END RULE
+
+ALIAS BlockStatement OR(RULE WithStatement, RULE ThrowStatement, RULE ReturnStatement, RULE LetStatement, RULE IfStatement, RULE ForEachLoop, RULE ForLoop, RULE IndefiniteLoop, RULE UnsafeBlock, RULE AssignStatement, RULE ExprStatement)
 
 RULE CodeBlock
     OPERATOR {
     MOVE
-    OPTIONAL REPEATED OR(NEWLINE, ALIAS BlockStatementNewline)
+    OPTIONAL REPEATED OR(NEWLINE, ALIAS BlockStatement)
     OPERATOR }
 END RULE
 
@@ -310,10 +335,11 @@ END RULE
 RULE UnsafeBlock
     KEYWORD unsafe
     $inner = RULE CodeBlock
+    NEWLINE
 END RULE
 
 RULE PrefixOperator
-    $op = OR(OPERATOR not, OPERATOR ...)
+    $op = OR(OPERATOR not, OPERATOR ref, OPERATOR deref, OPERATOR ...)
 END RULE
 
 RULE InfixOperator
@@ -332,16 +358,18 @@ RULE OpIndex
 END RULE
 
 RULE OpAs
-    KEYWORD as
+    OPERATOR as
     MOVE
     $type = ALIAS ValueType
 END RULE
+
+ALIAS InfixOperatorNewline COMPOUND($parts = RULE InfixOperator, OPTIONAL REPEATED NEWLINE)
 
 RULE Expr
     $parts = OPTIONAL REPEATED RULE PrefixOperator
     $parts = ALIAS ExprOperand
     $parts = OPTIONAL REPEATED RULE PostfixOperator
-    OPTIONAL REPEATED COMPOUND($parts = RULE InfixOperator, $parts = OPTIONAL REPEATED RULE PrefixOperator, $parts = ALIAS ExprOperand, $parts = OPTIONAL REPEATED RULE PostfixOperator)
+    OPTIONAL REPEATED COMPOUND(ALIAS InfixOperatorNewline, $parts = OPTIONAL REPEATED RULE PrefixOperator, $parts = ALIAS ExprOperand, $parts = OPTIONAL REPEATED RULE PostfixOperator)
 END RULE
 
 RULE FieldDecl
@@ -381,6 +409,7 @@ RULE ClassDecl
     REPEATED NEWLINE
     OPTIONAL REPEATED COMPOUND($statements = ALIAS ClassBodyStatement, REPEATED NEWLINE)
     OPERATOR }
+    NEWLINE
 END RULE
 
 RULE EnumDecl
@@ -394,6 +423,7 @@ RULE EnumDecl
     OPTIONAL REPEATED COMPOUND($members = RULE EnumMemberStatement, REPEATED NEWLINE)
     OPTIONAL REPEATED COMPOUND($statements = ALIAS ClassBodyStatement, REPEATED NEWLINE)
     OPERATOR }
+    NEWLINE
 END RULE
 
 RULE AnonymousTypeField
@@ -440,6 +470,7 @@ RULE ImplementDecl
     REPEATED NEWLINE
     OPTIONAL REPEATED COMPOUND($statements = ALIAS ClassBodyStatement, REPEATED NEWLINE)
     OPERATOR }
+    NEWLINE
 END RULE
 
 RULE QualifiedPath
@@ -458,10 +489,11 @@ RULE ImportStatement
     MOVE
     OPERATOR (
     REPEATED NEWLINE
-    $modules = RULE QualifiedPath
-    OPTIONAL REPEATED COMPOUND(REPEATED NEWLINE, $modules = RULE QualifiedPath)
+    $namespaces = RULE QualifiedPath
+    OPTIONAL REPEATED COMPOUND(REPEATED NEWLINE, $namespaces = RULE QualifiedPath)
     OPTIONAL REPEATED NEWLINE
     OPERATOR )
+    NEWLINE
 END RULE
 
 ALIAS RootStatement OR(RULE ImportStatement, RULE LetStatement, RULE ClassDecl, RULE EnumDecl, RULE ImplementDecl, RULE FunctionDecl)
@@ -470,6 +502,6 @@ RULE Program
     MOVE
     OPTIONAL REPEATED NEWLINE
     $namespace = RULE NamespaceStatement
-    OPTIONAL REPEATED NEWLINE
-    OPTIONAL REPEATED COMPOUND($statements = ALIAS RootStatement, REPEATED NEWLINE)
+    REPEATED NEWLINE
+    OPTIONAL REPEATED OR(NEWLINE, $statements = ALIAS RootStatement)
 END RULE

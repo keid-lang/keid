@@ -63,6 +63,26 @@ public class AstFunction {
     body: ?List<AstToken<AstStatement>>
 }
 
+implement ToString for AstFunction {
+    toString(): string {
+        let sb = StringBuilder.empty()
+        sb.append(this.name.node)
+        sb.append("(")
+        for param in this.params {
+            sb.append(param.name.node)
+            sb.append(": ")
+            sb.append(param.type.node.toString())
+            sb.append(", ")
+        }
+        sb.append(")")
+        if this.returnType != null {
+            sb.append(": ")
+            sb.append(this.returnType!.node.toString())
+        }
+        return sb.toString()
+    }
+}
+
 implement Resolvable for AstFunction {
     resolve(trc: TypeResolveContext) {
         for param in this.params {
@@ -125,7 +145,7 @@ public class AstLet {
 
 implement Resolvable for AstLet {
     resolve(trc: TypeResolveContext) {
-        this.name.node = string.format(trc.namespace, "::", this.name.node)
+        this.name.node = string.format(trc.namespace, ".", this.name.node)
         if this.valueType != null {
             this.valueType!.node = trc.resolve(this.valueType!.node)
         }
@@ -154,7 +174,7 @@ public class AstClass {
 
 implement Resolvable for AstClass {
     resolve(trc: TypeResolveContext) {
-        this.name.node = string.format(trc.namespace, "::", this.name.node)
+        this.name.node = string.format(trc.namespace, ".", this.name.node)
         if this.superclass != null {
             this.superclass = trc.resolveTypeName(this.superclass!)
         }
@@ -308,6 +328,11 @@ implement ToString for AstOperator {
     }
 }
 
+public class AstField {
+    name: AstToken<string>
+    value: ?AstToken<AstExpr>
+}
+
 public enum AstExpr {
     NullLit
     BoolLit {
@@ -356,6 +381,10 @@ public enum AstExpr {
         generics: ?List<AstToken<ComplexType>>
         params: List<AstToken<AstExpr>>
     }
+    NewObject {
+        type: AstToken<ComplexType>
+        fields: List<AstField>
+    }
 }
 
 public class AstKeidProgram {
@@ -388,6 +417,12 @@ implement ToString for AstKeidProgram {
         for impl in this.impls {
             sb.append("  ")
             sb.append(impl.toString())
+            sb.append(",\n")
+        }
+        sb.append("], functions=[\n")
+        for func in this.functions {
+            sb.append("  ")
+            sb.append(func.toString())
             sb.append(",\n")
         }
         sb.append("])")

@@ -414,13 +414,7 @@ implement ParserStatement for RepeatedStatement {
         }
     }
 
-    describe(): string {
-        if this.optional {
-            return string.format("zero or more ", this.child.describe())
-        } else {
-            return string.format("one or more ", this.child.describe())
-        }
-    }
+    describe(): string => this.child.describe()
 }
 
 public class CompoundStatement {

@@ -287,6 +287,28 @@ class KeidParser {
         }) 
     }
 
+    parseNewExpr(ast: RuleMatch): AstToken<AstExpr> {
+        let type = this.parseValueType(ast.getGroupValue("type").rule())
+        let astFields = ast.getGroupValue("fields").rule().getGroup("fields")
+        let fields = List.withCapacity<AstField>(astFields.length)
+
+        for astField in astFields {
+            let rule = astField.rule()
+            let name = tokenizeIdentifier(rule.getGroupValue("name").token())
+            let value: ?AstToken<AstExpr> = null
+            if rule.hasGroup("value") {
+                value = this.parseExpr(rule.getGroupValue("value").rule())
+            }
+
+            fields.push(new AstField { name, value, })
+        }
+        
+        return tokenize<AstExpr>(ast.loc, new AstExpr.NewObject {
+            type
+            fields
+        })
+    }
+
     parseThrow(ast: RuleMatch): AstToken<AstExpr> {
         let error = this.parseExpr(ast.getGroupValue("error").rule())
         return tokenize<AstExpr>(ast.loc, new AstExpr.Throw {
@@ -361,6 +383,7 @@ class KeidParser {
                     "GroupingExpr" => return this.parseExprOperand(rule.getGroupValue("expr"))
                     "NewSliceExpr" => return this.parseNewSliceExpr(rule)
                     "FuncCallExpr" => return this.parseFuncCallExpr(rule)
+                    "NewExpr" => return this.parseNewExpr(rule)
                     _ => throw Error.create(string.format("invalid rule as expr operand '", rule.ruleName, "'"))
                 }
             }
@@ -437,7 +460,7 @@ class KeidParser {
                     "ReturnStatement" => new AstStatement.Return { operand = this.parseExpr(rule.getGroupValue("operand").rule()), }
                     "Expr" => new AstStatement.Expr { value = this.parseExpr(rule), }
                     "UnsafeBlock" => new AstStatement.UnsafeBlock { statements = this.parseCodeBlock(rule.getGroupValue("inner").rule()) }
-                    "LetStatement" => new AstStatement.Let { statement = this.parseLet(rule) }
+                    "LetStatement" => new AstStatement.Let { statement = this.parseLet(rule.getGroupValue("let").rule()) }
                     "AssignStatement" => new AstStatement.Assign { statement = this.parseAssign(rule) }
                     "ThrowStatement" => new AstStatement.Throw { error = this.parseExpr(rule.getGroupValue("error").rule()) }
                     "IfStatement" => this.parseIfStatement(rule)
@@ -451,8 +474,13 @@ class KeidParser {
 
     parseValueTypeNode(ast: RuleMatch): ComplexType {
         match ast.ruleName {
-            "ArrayType" => return new ComplexType.Array {
-                element = this.parseValueTypeNode(ast.getGroupValue("elementType").rule())
+            "SliceType" => {
+                return new ComplexType.Slice {
+                    element = this.parseValueTypeNode(ast.getGroupValue("elementType").rule())
+                }
+            }
+            "ArrayType" => {
+                throw Error.create("TODO: ArrayType")
             }
             "NullableType" => return new ComplexType.Nullable {
                 element = this.parseValueTypeNode(ast.getGroupValue("elementType").rule())
@@ -493,6 +521,7 @@ class KeidParser {
                     basic
                 }
             }
+            _ => throw Error.create(string.format("invalid rule for parseValueType: ", ast.ruleName))
         }
 
         unreachable
@@ -604,6 +633,9 @@ class KeidParser {
         let paramsDecl = decl.getGroupValue("params").rule()
         if paramsDecl.hasGroup("params") {
             for paramDecl in paramsDecl.getGroup("params") {
+                if name.node == "foo" {
+                    std::io.println("foo: parseFunctionParam")
+                }
                 params.push(this.parseFunctionParam(paramDecl.rule()))
             }
         }
@@ -739,9 +771,9 @@ class KeidParser {
                 let rule = statement.rule()
                 match rule.ruleName {
                     "ImportStatement" => {
-                        let modules = rule.getGroup("modules")
-                        for module in modules {
-                            imports.push(parseQualifiedPath(module.rule()))
+                        let namespaces = rule.getGroup("namespaces")
+                        for namespace in namespaces {
+                            imports.push(parseQualifiedPath(namespace.rule()))
                         }
                     }
                     "ClassDecl" => {
@@ -757,7 +789,7 @@ class KeidParser {
                         functions.push(this.parseFunction(rule))
                     }
                     "LetStatement" => {
-                        globals.push(this.parseLet(rule))
+                        globals.push(this.parseLet(rule.getGroupValue("let").rule()))
                     }
                     _ => throw Error.create("NotYetImplemented: root statement: " + rule.ruleName)
                 }
@@ -802,7 +834,6 @@ class KeidPreprocessor {
     }
 
     public preprocess(): List<LexerToken> {
-        io.println("Preprocess: decls = ", this.macroDecls.length.toString(), ", calls = ", this.macroCalls.length.toString())
         let tokens = this.collectRegularTokens()
         for macroCall in this.macroCalls {
             let macroName = macroCall.getGroupValue("name").token().kind.identifier()
@@ -997,7 +1028,7 @@ public function parseKeidSource(preprocessor: KsdlParser, parser: KsdlParser, fi
     programFile.close()
 
     let reader = TokenReader.create(programText)
-    let tokens = ksdl.tokenize(reader)
+    let tokens = ksdl.tokenize(reader, file)
     let stream = TokenStream.create(tokens)
 
     let initialPreprocessResult = runPreprocessorParser(preprocessor, reader, stream, file, programText)
@@ -1005,6 +1036,7 @@ public function parseKeidSource(preprocessor: KsdlParser, parser: KsdlParser, fi
 
     stream.offset = 0
     let processedTokens = preprocess(preprocessor, reader, stream, file, programText, macroDecls)
+
     let processedStream = TokenStream.create(processedTokens)
 
     let programRule = parser.getRule("Program")

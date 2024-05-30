@@ -3,6 +3,7 @@ namespace keidc
 import (
     core::collections
     core::string
+    std::io
     std::fs
     std::os
     keidc::ast
@@ -36,25 +37,25 @@ public extern function main(): int32 {
     let tmc = TypeMetadataCompiler.create()
     
     for file in files {
-        std::io.println("Parsing ", file, "...")
+        io.println("Parsing ", file, "...")
 
         let prevTime = std::time.getSystemTime()
         let ast = parser.parseKeidSource(ksdlPreprocessor, ksdlParser, file)
         let elapsedTime = std::time.getSystemTime() - prevTime
         tmc.include(ast)
     
-        std::io.println("Parsing took ", elapsedTime.milliseconds.toString(), "ms")
-        std::io.println("AST: ", ast.toString(), "\n")
+        io.println("Parsing took ", elapsedTime.milliseconds.toString(), "ms")
+        io.println("AST: ", ast.toString(), "\n")
     }
 
     let startResolveTime = std::time.getSystemTime()
     let resolveErrors = tmc.resolveAll()    
     let endResolveTime = std::time.getSystemTime() - startResolveTime
-    std::io.println("Type resolver took ", endResolveTime.milliseconds.toString(), "ms")
+    io.println("Type resolver took ", endResolveTime.milliseconds.toString(), "ms")
 
     if resolveErrors.length > 0 {
         for resolveError in resolveErrors {
-            std::io.println(resolveError.toString())
+            io.println(resolveError.toString())
         }
 
         os.exit(1)

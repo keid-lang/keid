@@ -36,6 +36,20 @@ public struct Char {
     public get isWhitespace: bool => this.value == ' ' || this.value == '\n' || this.value == '\r' || this.value == '\t'
 
     public get isNumber: bool => this.value >= '0' && this.value <= '9'
+
+    public get lower: char {
+        if this.value >= 'A' && this.value <= 'Z' {
+            return this.value - 'A' + 'a'
+        }
+        return this.value
+    }
+
+    public get upper: char {
+        if this.value >= 'a' && this.value <= 'z' {
+            return this.value - 'a' + 'A'
+        }
+        return this.value
+    }
 }
 
 implement ToString for Char {
@@ -48,43 +62,14 @@ macro $IMPL_INT_TYPE(#wrapper, #primitive, #signed)
     public struct #wrapper {
         value: #primitive
 
-        public static parse(s: string): #primitive {
-            let val: #primitive = 0
-            let place: #primitive = 1
-            let sign: #primitive = 1
-            let signSpecified = false
-
-            for i in range.create(s.length) {
-                // parse from right to left
-                let c = s.chars[s.length - i - 1]
-                if c == '-' {
-                    if signSpecified {
-                        throw Error.create("unexpected token '-'")
-                    }
-                    if !#signed {
-                        throw Error.create(string.format("cannot parse a negative integer as an unsigned type"))
-                    }
-                    sign = -1
-                    signSpecified = true
-                } else if c == '+' {
-                    if signSpecified {
-                        throw Error.create("unexpected token '+'")
-                    }
-                    signSpecified = true
-                } else if c.isNumber {
-                    if signSpecified {
-                        throw Error.create("sign must be the start of the string")
-                    }
-
-                    let v = (c - 48) as #primitive
-                    val += v * place
-                    place *= 10
-                } else {
-                    throw Error.create(string.format("unexpected token '", c.toString(), "'"))
-                }
+        public static parse(s: string, base: uint8): #primitive {
+            if #signed {
+                let i = parseSignedInteger(s, base)
+                return i as #primitive // TODO: bounds check
+            } else {
+                let u = parseUnsignedInteger(s, base)
+                return u as #primitive // TODO: bounds check
             }
-
-            return val * sign
         }
     }
 
@@ -142,3 +127,64 @@ $IMPL_INT_TYPE(USize,  usize,  false)
 
 // $IMPL_FLOAT_TYPE(Float32, float32)
 // $IMPL_FLOAT_TYPE(Float64, float64)
+
+function throwParseFailure(c: char) {
+    throw Error.create(string.format("unexpected token '", c.toString(), "'"))
+}
+
+public function parseSignedInteger(s: string, base: uint8): int64 {
+    let sign: int64 = 1
+    if s.chars[0] == '-' {
+        sign = -1
+        s = s.substringAfter(1)
+    } else if s.chars[0] == '+' {
+        s = s.substringAfter(1)
+    }
+
+    let n = parseUnsignedInteger(s, base) as int64
+    return n * sign
+}
+
+public function parseUnsignedInteger(s: string, base: uint8): uint64 {
+    let val: uint64 = 0
+
+    if s.length == 0 {
+        throw Error.create("empty string cannot be parsed into an integer")
+    }
+
+    if base == 0 {
+        base = 10
+        if s.chars[0] == '0' {
+            if s.length >= 3 {
+                if s.chars[1] == 'b' || s.chars[1] == 'B' {
+                    base = 2
+                    s = s.substringAfter(2)
+                } else if s.chars[1] == 'o' || s.chars[1] == 'O' {
+                    base = 8
+                    s = s.substringAfter(2)
+                } else if s.chars[1] == 'x' || s.chars[1] == 'X' {
+                    base = 16
+                    s = s.substringAfter(2)
+                }
+            }
+        }
+    }
+
+    for c in s.chars {
+        let d: uint8 = 0
+        if c >= '0' && c <= '9' {
+            d = (c - '0') as uint8
+        } else if c.lower >= 'a' && c.lower <= 'z' {
+            d = (c.lower - 'a') as uint8 + 10
+        } else {
+            throwParseFailure(c)
+        }
+        if d >= base {
+            throwParseFailure(c)
+        }
+        val *= base as uint64
+        val += d as uint64
+    }
+
+    return val
+}

@@ -56,7 +56,7 @@ macro $IMPL_INT_TYPE(#wrapper: ident, #primitive: ident)
             }
             
             let sb = StringBuilder.empty()
-            while current > 0 {
+            for current > 0 {
                 let digit = (current % 10) + 0x30 // converts the digit to its ascii equivalent
                 sb.insert(0, String.fromUtf8(new uint8[digit as uint8]))
                 current /= 10
@@ -73,17 +73,17 @@ macro $IMPL_INT_TYPE(#wrapper: ident, #primitive: ident)
     }
 end macro
 
-$IMPL_INT_TYPE(`Int8`,  `int8`)
-$IMPL_INT_TYPE(`Int16`, `int16`)
-$IMPL_INT_TYPE(`Int32`, `int32`)
-$IMPL_INT_TYPE(`Int64`, `int64`)
-$IMPL_INT_TYPE(`ISize`, `isize`)
+$IMPL_INT_TYPE(Int8,  int8)
+$IMPL_INT_TYPE(Int16, int16)
+$IMPL_INT_TYPE(Int32, int32)
+$IMPL_INT_TYPE(Int64, int64)
+$IMPL_INT_TYPE(ISize, isize)
 
-$IMPL_INT_TYPE(`UInt8`,  `uint8`)
-$IMPL_INT_TYPE(`UInt16`, `uint16`)
-$IMPL_INT_TYPE(`UInt32`, `uint32`)
-$IMPL_INT_TYPE(`UInt64`, `uint64`)
-$IMPL_INT_TYPE(`USize`,  `usize`)
+$IMPL_INT_TYPE(UInt8,  uint8)
+$IMPL_INT_TYPE(UInt16, uint16)
+$IMPL_INT_TYPE(UInt32, uint32)
+$IMPL_INT_TYPE(UInt64, uint64)
+$IMPL_INT_TYPE(USize,  usize)
 
 // $IMPL_FLOAT_TYPE(Float32, float32)
 // $IMPL_FLOAT_TYPE(Float64, float64)
