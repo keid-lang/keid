@@ -11,6 +11,6 @@ function testHashMapStringKeyStringValue() {
     // test.assertEqual(map.length, 1)
     test.assertTrue(map.capacity >= 1)
 
-    let value = map.get("Hello")
+    let value = map.elementAt("Hello")
     test.assertEqual(value, "World")
 }

@@ -70,7 +70,7 @@ public class RuleMatch {
         if group.length != 1 {
             throw Error.create(string.format("group '", variable, "' in rule '", this.ruleName, "' does not have only one match"))
         }
-        return group.get(0)
+        return group.elementAt(0)
     }
 
     public getAllTokens(): List<LexerToken> {

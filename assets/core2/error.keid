@@ -10,19 +10,16 @@ public class Error {
     message: string
     stacktrace: string
 
-    public static create(message: string): Error {
-        return new Error {
-            cause = null
-            message
-            stacktrace = runtime.getStackFrames()
-        }
+    public constructor new(this.message: string) {
+        super.new()
+        this.cause = null
+        this.stacktrace = runtime.getStackFrames()
     }
 
     public withCause(cause: Error): Error {
-        return new Error {
-            cause
-            message = this.message
-            stacktrace = this.stacktrace
+        return Error.new(this.message) {
+            .cause
+            .stacktrace = this.stacktrace
         }
     }
 

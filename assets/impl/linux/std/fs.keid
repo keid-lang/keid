@@ -102,7 +102,7 @@ public function writeFileBytes(fd: usize, buf: [uint8]): int64 {
 public function listDirectory(fd: usize): [string] {
     unsafe {
         let list = List.empty<string>()
-        let entry: Pointer<void> = Pointer.null<void>()
+        let entry: Pointer<void> = Pointer.nullptr<void>()
         loop {
             entry = readdir(fd)
             if entry.isNull {

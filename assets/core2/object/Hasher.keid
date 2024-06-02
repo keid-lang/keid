@@ -16,7 +16,10 @@ end macro
 public class Hasher {
     state: uint64
 
-    public static create(): Hasher => Hasher { state = DEFAULT_PRIME, }
+    public constructor new() {
+        super.new()
+        this.state = DEFAULT_PRIME
+    }
 
     $DEF_WRITE(uint8)
     $DEF_WRITE(uint16)
@@ -32,7 +35,7 @@ public class Hasher {
 }
 
 public function hashOf<T: Hash>(val: T): uint64 {
-    let hasher = Hasher.create()
+    let hasher = Hasher.new()
     val.hash(hasher)
     return hasher.state
 }

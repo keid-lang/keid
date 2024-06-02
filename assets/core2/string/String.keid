@@ -11,6 +11,15 @@ import (
 public class String {
     chars: [char]
 
+    public constructor new() {
+        super.new()
+        this.chars = [char](default(char); 0)
+    }
+
+    public constructor fromChars(this.chars: [char]) {
+        super.new()
+    }
+
     public get length: usize => this.chars.length
 
     /// Gets the length of a NUL-terminated 7-bit ASCII encoded string.
@@ -40,12 +49,12 @@ public class String {
 
     /// Note that any changes to the new underlying array will be reflected in the string's value.
     public static fromUtf8(bytes: [uint8]): string {
-        let chars = [char](default(char), bytes.length)
-        for i in range.create(bytes.length) {
+        let chars = [char](default(char); bytes.length)
+        for i in range.new(bytes.length) {
             chars[i] = bytes[i] as char
         }
 
-        return string { chars, }
+        return string.fromChars(chars)
     }
 
     /// Returns the string as a UTF-8 encoded byte slice.
@@ -55,8 +64,8 @@ public class String {
             return [uint8]{}
         }
 
-        let utf8 = [uint8](0, this.chars.length)
-        for i in range.create(0, this.chars.length) {
+        let utf8 = [uint8](0; this.chars.length)
+        for i in range.new(0, this.chars.length) {
             utf8[i] = this.chars[i] as uint8
         }
         return utf8
@@ -69,33 +78,11 @@ public class String {
         }
 
         // the last char stays zero, making it null terminated
-        let terminated = [uint8](0, this.chars.length + 1)
-        for i in range.create(0, this.chars.length) {
+        let terminated = [uint8](0; this.chars.length + 1)
+        for i in range.new(0, this.chars.length) {
             terminated[i] = this.chars[i] as uint8
         }
         return terminated
-    }
-
-    public parse<T>(): T {
-        let value: T = 0
-        for i in range.create(this.length) {
-            let ch = this.chars[this.length - i - 1]
-            let digit: usize = match ch {
-                '0' => 0
-                '1' => 1
-                '2' => 2
-                '3' => 3
-                '4' => 4
-                '5' => 5
-                '6' => 6
-                '7' => 7
-                '8' => 8
-                '9' => 9
-                // _ => throw core.error.Error.create(string.format("invalid integer digit: ", ch.toString()))
-            }
-            value += math.pow<T>(digit, i + 1)
-        }
-        return value
     }
 
     /// Returns the character index of the `substr` within this string, or `null` if no match exists.
@@ -109,7 +96,7 @@ public class String {
         }
 
         let streak: usize = 0
-        for i in range.create(from, this.length) {
+        for i in range.new(from, this.length) {
             if this.chars[i] != substr.chars[streak] {
                 streak = 0
             } else {
@@ -135,11 +122,9 @@ public class String {
         if end > this.length {
             throw error.indexOutOfBounds(end)
         }
-        let charsCopy = [char](default(char), end - start)
+        let charsCopy = [char](default(char); end - start)
         array.copy<char>(this.chars, start, charsCopy, 0, end - start)
-        return string {
-            chars = charsCopy
-        }
+        return string.fromChars(charsCopy)
     }
 
     /// Returns a substring containing the characters of this string only at and after `start`.
@@ -222,7 +207,7 @@ implement Equals<String> for String {
             return false
         }
 
-        for i in range.create(0, this.length) {
+        for i in range.new(0, this.length) {
             if this.chars[i] != other.chars[i] {
                 return false
             }

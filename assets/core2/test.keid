@@ -15,10 +15,6 @@ function fail(msg: string) {
     }
 }
 
-function foo<T>(bar: [T]): string {
-    return "Hello, world!"
-}
-
 function pass(msg: string) {
     if DEBUG_LEVEL >= 1 {
         std.io.println("assertion passed: ",  msg)

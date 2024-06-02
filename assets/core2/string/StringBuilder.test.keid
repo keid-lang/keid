@@ -1,0 +1,87 @@
+namespace core.string.test
+
+import (
+    core.string
+)
+
+function testEmptyStringBuilder() {
+    let e = StringBuilder.empty()
+    test.assertEqual(e.pos, 0)
+    test.assertEqual(e.capacity, 0)
+    test.assertEqual(e.toString(), "")
+}
+
+function testEmptyAppend() {
+    let e = StringBuilder.empty()
+    e.append("Hello")
+    test.assertEqual(e.pos, 5)
+    test.assertEqual(e.capacity, 8)
+    test.assertEqual(e.toString(), "Hello")
+}
+
+function testEmptyDoubleAppend() {
+    let e = StringBuilder.empty()
+    e.append("Hello")
+    e.append(", World!")
+    test.assertEqual(e.pos, 13)
+    test.assertEqual(e.capacity, 17)
+    test.assertEqual(e.toString(), "Hello, World!")
+}
+
+function testPreallocatedTooSmall() {
+    let e = StringBuilder.withCapacity(2)
+    test.assertEqual(e.pos, 0)
+    test.assertEqual(e.capacity, 2)
+    test.assertEqual(e.toString(), "")
+
+    e.append("This string is longer than the initial capacity.")
+
+    test.assertEqual(e.pos, 48)
+    test.assertEqual(e.capacity, 80)
+    test.assertEqual(e.toString(), "This string is longer than the initial capacity.")
+}
+
+function testPreallocatedTooBig() {
+    let e = StringBuilder.withCapacity(10)
+    test.assertEqual(e.pos, 0)
+    test.assertEqual(e.capacity, 10)
+    test.assertEqual(e.toString(), "")
+
+    e.append("small")
+
+    test.assertEqual(e.pos, 5)
+    test.assertEqual(e.capacity, 10)
+    test.assertEqual(e.toString(), "small")
+}
+
+function testInsert() {
+    let e = StringBuilder.empty()
+    e.append("short")
+    e.insert(3, "lengthy")
+    test.assertEqual(e.toString(), "sholengthyrt")
+
+    e = StringBuilder.empty()
+    e.append("short")
+    e.insert(0, "lengthy")
+    test.assertEqual(e.toString(), "lengthyshort")
+
+    e = StringBuilder.empty()
+    e.append("short")
+    e.insert(5, "lengthy")
+    test.assertEqual(e.toString(), "shortlengthy")
+
+    e = StringBuilder.empty()
+    e.append("lengthy")
+    e.insert(3, "short")
+    test.assertEqual(e.toString(), "lenshortgthy")
+
+    e = StringBuilder.empty()
+    e.append("lengthy")
+    e.insert(0, "short")
+    test.assertEqual(e.toString(), "shortlengthy")
+
+    e = StringBuilder.empty()
+    e.append("lengthy")
+    e.insert(7, "short")
+    test.assertEqual(e.toString(), "lengthyshort")
+}

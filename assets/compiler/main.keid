@@ -45,7 +45,7 @@ public extern function main(): int32 {
         tmc.include(ast)
     
         io.println("Parsing took ", elapsedTime.milliseconds.toString(), "ms")
-        io.println("AST: ", ast.toString(), "\n")
+        // io.println("AST: ", ast.toString(), "\n")
     }
 
     let startResolveTime = std::time.getSystemTime()

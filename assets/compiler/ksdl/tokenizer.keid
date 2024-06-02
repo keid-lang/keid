@@ -132,13 +132,12 @@ const KEYWORDS: [string] = new string[
     "enum", "extends", "extern", "for", "function", "get", "if", "implement",
     "import", "in", "interface", "let", "macro", "match", "namespace", "public",
     "return", "set", "static", "struct", "throw", "type", "unsafe", "unreachable",
-    "with",
+    "with", "this", "super", "This",
 ]
 const OPERATORS: [string] = new string[
     "==", "!=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "|=", "^=",
-    "+", "-", "*", "/", "%", "<<", ">>", "<=", ">=", "=>", "<", ">", "!",
-    "...", "??", "?", "&", "|", "^", "=", ",", "@", ":", ".", "(", ")", "[",
-    "]", "{", "}", ";",
+    "+", "-", "*", "/", "%", "<=", ">=", "=>", "<", ">", "!", "...", "??", "?",
+    "&", "|", "^", "=", ",", "@", ":", ".", "(", ")", "[", "]", "{", "}", ";",
 ]
 const KEYWORD_OPERATORS: [string] = new string["and", "or", "not", "as", "ref", "deref"]
 
@@ -192,9 +191,6 @@ public function stringifyTokens(tokens: List<LexerToken>): string {
 }
 
 public function dumpTokens(tokens: List<LexerToken>): string {
-    for operator in OPERATORS {
-        std::io.println("OPERATOR ", operator)
-    }
     let sb = StringBuilder.empty()
     for token in tokens {
         sb.append("[")

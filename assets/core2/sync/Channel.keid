@@ -16,7 +16,7 @@ namespace core.sync
 
 //     public read(): T {
 //         with lock {
-//             while !this.hasData {
+//             for !this.hasData {
 //                 lock.wait()
 //             }
             

@@ -24,13 +24,17 @@ public class RegisteredType {
 public class TypeResolveContext {
     at: TokenLocation
     allTypes: List<RegisteredType>
-    source: string
+    file: SourceFile
     namespace: string
     imports: List<string>
     generics: List<string>
     errors: List<CompileError>
 
     public resolveTypeName(name: string): string {
+        if name == "This" {
+            return "This"
+        }
+        
         if this.generics.contains(name) {
             return name
         }
@@ -57,10 +61,10 @@ public class TypeResolveContext {
         } else if candidates.length > 1 {
             // ambiguous error
         } else {
-            return candidates.get(0)
+            return candidates.elementAt(0)
         }
 
-        this.errors.push(CompileError.create(this.source, this.at, "No such type could be found with the identifier"))
+        this.errors.push(CompileError.create(this.file, this.at, string.format("No such type could be found with the identifier '", name, "'")))
 
         return "{error}"
     }
@@ -136,7 +140,7 @@ public class TypeMetadataCompiler {
             let trc = new TypeResolveContext {
                 at = TokenLocation.create(0, 0)
                 allTypes
-                source = program.source
+                file = program.file
                 namespace = program.namespace.node
                 imports
                 errors
@@ -149,6 +153,9 @@ public class TypeMetadataCompiler {
                         trc.generics.push(generic.name.node)
                     }
                 }
+                for associatedType in class.associatedTypes {
+                    trc.generics.push(associatedType.name.node)
+                }
 
                 class.resolve(trc)
             }
@@ -158,6 +165,9 @@ public class TypeMetadataCompiler {
                     for generic in impl.generics! {
                         trc.generics.push(generic.name.node)
                     }
+                }
+                for associatedType in impl.associatedTypes {
+                    trc.generics.push(associatedType.name.node)
                 }
 
                 impl.resolve(trc)

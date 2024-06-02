@@ -18,7 +18,6 @@ public enum StatementResult {
     Failure
     /// Returned by statements when a hard fail occurs.
     ImmediateFailure {
-        rule: Rule
         statement: ParserStatement
         result: Box<StatementResult>
         loc: TokenLocation
@@ -224,7 +223,7 @@ implement ParserStatement for SubruleStatement {
                 matches = List.from<ParserMatch>(match)
             }
             SoftFail => StatementResult.Failure
-            HardFail { rule, statement, result, loc, } => new StatementResult.ImmediateFailure { rule, statement, result, loc, }
+            HardFail { statement, result, loc, } => new StatementResult.ImmediateFailure { statement, result, loc, }
         }
     }
 
@@ -274,11 +273,17 @@ public class OptionalStatement {
 
 implement ParserStatement for OptionalStatement {
     execute(stream: TokenStream, state: RuleState): StatementResult {
-        return match this.statement.execute(stream, state) {
-            Match { matches, } => new StatementResult.Match { matches, }
-            ImmediateFailure { rule, statement, result, loc, } => new StatementResult.ImmediateFailure { rule, statement, result, loc, }
-            _ => StatementResult.Matchless
+        let offset = stream.offset
+        match this.statement.execute(stream, state) {
+            Match { matches, } => return new StatementResult.Match { matches, }
+            ImmediateFailure { statement, result, loc, } => return new StatementResult.ImmediateFailure { statement, result, loc, }
+            Matchless => return StatementResult.Matchless
+            Failure => {
+                stream.offset = offset
+                return StatementResult.Matchless
+            }
         }
+        unreachable
     }
 
     describe(): string => string.format("optional ", this.statement.describe())
@@ -307,17 +312,17 @@ implement ParserStatement for OrStatement {
 
     describe(): string {
         if this.options.length == 2 {
-            return string.format("either ", this.options.get(0).describe(), " or ", this.options.get(1).describe())
+            return string.format("either ", this.options.elementAt(0).describe(), " or ", this.options.elementAt(1).describe())
         }
 
         let sb = StringBuilder.empty()
         sb.append("either ")
         for i in range.create(this.options.length - 1) {
-            sb.append(this.options.get(i).describe())
+            sb.append(this.options.elementAt(i).describe())
             sb.append(", ")
         }
         sb.append("or ")
-        sb.append(this.options.get(this.options.length - 1).describe())
+        sb.append(this.options.elementAt(this.options.length - 1).describe())
         return sb.toString()
     }
 }
@@ -333,7 +338,7 @@ implement ParserStatement for NotStatement {
         return match this.statement.execute(stream, state) {
             Match { matches, } => StatementResult.Failure
             Matchless => StatementResult.Failure
-            ImmediateFailure { rule, statement, result, loc, } => new StatementResult.ImmediateFailure { rule, statement, result, loc, }
+            ImmediateFailure { statement, result, loc, } => new StatementResult.ImmediateFailure { statement, result, loc, }
             Failure => StatementResult.Matchless
         }
     }
@@ -386,7 +391,7 @@ implement ParserStatement for RepeatedStatement {
         if !this.optional {
             match this.child.execute(stream, state) {
                 Failure => return StatementResult.Failure
-                ImmediateFailure { rule, statement, result, loc, } => return new StatementResult.ImmediateFailure { rule, statement, result, loc, }
+                ImmediateFailure { statement, result, loc, } => return new StatementResult.ImmediateFailure { statement, result, loc, }
                 Match { matches, } => {
                     resultMatches.extend(matches)
                 }
@@ -401,7 +406,7 @@ implement ParserStatement for RepeatedStatement {
                     stream.offset = offset
                     break
                 }
-                ImmediateFailure { rule, statement, result, loc, } => return new StatementResult.ImmediateFailure { rule, statement, result, loc, }
+                ImmediateFailure { statement, result, loc, } => return new StatementResult.ImmediateFailure { statement, result, loc, }
                 Match { matches, } => {
                     resultMatches.extend(matches)
                 }
@@ -427,7 +432,7 @@ implement ParserStatement for CompoundStatement {
     execute(stream: TokenStream, state: RuleState): StatementResult {
         for statement in this.statements {
             match statement.execute(stream, state) {
-                ImmediateFailure { rule, statement, result, loc, } => return new StatementResult.ImmediateFailure { rule, statement, result, loc, }
+                ImmediateFailure { statement, result, loc, } => return new StatementResult.ImmediateFailure { statement, result, loc, }
                 Failure => return StatementResult.Failure
                 _ => {}
             }
@@ -437,16 +442,16 @@ implement ParserStatement for CompoundStatement {
 
     describe(): string {
         if this.statements.length == 2 {
-            return string.format(this.statements.get(0).describe(), " and ", this.statements.get(1).describe())
+            return string.format(this.statements.elementAt(0).describe(), " and ", this.statements.elementAt(1).describe())
         }
 
         let sb = StringBuilder.empty()
         for i in range.create(this.statements.length - 1) {
-            sb.append(this.statements.get(i).describe())
+            sb.append(this.statements.elementAt(i).describe())
             sb.append(", ")
         }
         sb.append("and ")
-        sb.append(this.statements.get(this.statements.length - 1).describe())
+        sb.append(this.statements.elementAt(this.statements.length - 1).describe())
         return sb.toString()
     }
 }

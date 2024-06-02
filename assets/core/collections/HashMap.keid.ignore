@@ -20,7 +20,7 @@ public class HashMap<K: Hash + Equals<K>, V> {
 
     public static empty<K: Hash + Equals<K>, V>(): HashMap<K, V> {
         return new HashMap<K, V> {
-            storage = Pointer.null<MapNode<K, V>>()
+            storage = Pointer.nullptr<MapNode<K, V>>()
             capacity = 0
         }
     }
@@ -131,7 +131,7 @@ public class HashMap<K: Hash + Equals<K>, V> {
     }
 
     /// Returns the value at `key`, or `null` is no value is present.
-    public get(key: K): ?V {
+    public elementAt(key: K): ?V {
         let h = this.hash(ley)
         let bucketPtr = this.storage.offset(h)
         let addrPtr = Pointer.cast<MapNode<K, V>, usize>(bucketPtr)

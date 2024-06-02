@@ -8,31 +8,46 @@ RULE ArrayType
     OPERATOR [
     $elementType = ALIAS ValueType
     OPERATOR ;
+    MOVE
     $length = LITERAL
     OPERATOR ]
 END RULE
 
 RULE SliceType
     OPERATOR [
+    MOVE
     $elementType = ALIAS ValueType
     OPERATOR ]
 END RULE
 
 RULE NullableType
     OPERATOR ?
+    MOVE
     $elementType = ALIAS ValueType
 END RULE
 
 RULE BasicType
-    $path = RULE QualifiedPath
+    $path = OR(KEYWORD This, RULE QualifiedPath)
+    MOVE
     $generics = OPTIONAL RULE GenericArgs
 END RULE
 
-ALIAS ValueType OR(RULE ArrayType, RULE SliceType, RULE NullableType, RULE BasicType)
+RULE CompoundType
+    $types = ALIAS NonCompoundValueType
+    OPERATOR +
+    $types = ALIAS NonCompoundValueType
+    MOVE
+    OPTIONAL REPEATED COMPOUND(OPERATOR +, $types = ALIAS NonCompoundValueType)
+END RULE
 
-ALIAS Modifier OR(KEYWORD public, KEYWORD static, KEYWORD extern, KEYWORD unsafe)
+ALIAS NonCompoundValueType OR(RULE ArrayType, RULE SliceType, RULE NullableType, RULE BasicType)
+
+ALIAS ValueType OR(RULE CompoundType, RULE ArrayType, RULE SliceType, RULE NullableType, RULE BasicType)
+
+ALIAS Modifier OR(KEYWORD public, KEYWORD static, KEYWORD extern, KEYWORD unsafe, KEYWORD namespace, KEYWORD constructor)
 
 RULE GenericDecl
+    MOVE
     $name = IDENTIFIER
     OPTIONAL REPEATED COMPOUND(OPERATOR :, $constraints = ALIAS ValueType)
 END RULE
@@ -40,6 +55,7 @@ END RULE
 RULE GenericDecls
     OPERATOR <
     $decls = RULE GenericDecl
+    MOVE
     OPTIONAL REPEATED COMPOUND(OPERATOR COMMA, $decls = RULE GenericDecl)
     OPERATOR >
 END RULE
@@ -53,8 +69,9 @@ END RULE
 
 RULE AttributeArgs
     OPERATOR (
-    OPTIONAL REPEATED COMPOUND($args = LITERAL, OPERATOR COMMA)
-    $args = OPTIONAL LITERAL
+    MOVE
+    OPTIONAL REPEATED COMPOUND($args = RULE Expr, OPERATOR COMMA)
+    $args = OPTIONAL RULE Expr
     OPERATOR )
 END RULE
 
@@ -68,6 +85,7 @@ END RULE
 ALIAS Attributes OPTIONAL REPEATED COMPOUND($attributes = RULE AttributeStatement, NEWLINE)
 
 RULE FuncParamDecl
+    OPTIONAL COMPOUND($this = KEYWORD this, OPERATOR .)
     $name = IDENTIFIER
     OPERATOR :
     $type = ALIAS ValueType
@@ -101,6 +119,7 @@ RULE MethodDecl
     MOVE
     OPTIONAL COMPOUND(OPERATOR :, $returnType = ALIAS ValueType)
     $body = OPTIONAL OR(RULE CodeBlock, RULE ArrowBlock)
+    NEWLINE
 END RULE
 
 RULE FunctionDecl
@@ -116,16 +135,11 @@ RULE FunctionDecl
     NEWLINE
 END RULE
 
-RULE ConstructorDecl
-    KEYWORD constructor
-    MOVE
-    $body = OR(RULE CodeBlock, RULE ArrowBlock)
-END RULE
-
 RULE DestructorDecl
     KEYWORD destructor
     MOVE
     $body = OR(RULE CodeBlock, RULE ArrowBlock)
+    NEWLINE
 END RULE
 
 RULE GetAccessorDecl
@@ -136,6 +150,7 @@ RULE GetAccessorDecl
     OPERATOR :
     $type = ALIAS ValueType
     $body = OPTIONAL OR(RULE CodeBlock, RULE ArrowBlock)
+    NEWLINE
 END RULE
 
 RULE SetAccessorDecl
@@ -146,20 +161,22 @@ RULE SetAccessorDecl
     OPERATOR :
     $type = ALIAS ValueType
     $body = OPTIONAL OR(RULE CodeBlock, RULE ArrowBlock)
+    NEWLINE
 END RULE
 
 ALIAS AccessorDecl OR(RULE GetAccessorDecl, RULE SetAccessorDecl)
 
 RULE FuncCallExpr
-    $callee = OR(RULE GroupingExpr, IDENTIFIER)
+    $callee = OR(RULE GroupingExpr, IDENTIFIER, KEYWORD this, KEYWORD super)
     $generics = OPTIONAL RULE GenericArgs
     OPERATOR (
     MOVE
     OPTIONAL REPEATED NEWLINE
-    OPTIONAL REPEATED COMPOUND($params = RULE Expr, ALIAS NewlineOrComma)
+    OPTIONAL REPEATED COMPOUND($params = RULE Expr, OPERATOR COMMA, OPTIONAL REPEATED NEWLINE)
     $params = OPTIONAL RULE Expr
     OPTIONAL ALIAS NewlineOrComma
     OPERATOR )
+    $fields = OPTIONAL RULE FieldSet
 END RULE
 
 RULE GroupingExpr
@@ -188,11 +205,6 @@ RULE MatchExpr
     REPEATED NEWLINE
     OPTIONAL REPEATED COMPOUND($arms = RULE MatchArm, REPEATED NEWLINE)
     OPERATOR }
-END RULE
-
-RULE NewExpr
-    $type = ALIAS ValueType
-    $fields = RULE FieldSet
 END RULE
 
 RULE NewSliceExpr
@@ -227,8 +239,6 @@ RULE DerefExpr
     KEYWORD deref
     $pointer = RULE Expr
 END RULE
-
-ALIAS ExprOperand OR(RULE FuncCallExpr, RULE GroupingExpr, RULE MatchExpr, RULE NewArrayExpr, RULE NewSliceExpr, RULE ConstSliceExpr, RULE NewExpr, LITERAL, RULE DerefExpr, IDENTIFIER)
 
 RULE InlineLetStatement
     $modifiers = OPTIONAL REPEATED ALIAS Modifier
@@ -286,7 +296,7 @@ RULE IndefiniteLoop
     NEWLINE
 END RULE
 
-ALIAS SelfOperator OR(OPERATOR =, OPERATOR +=, OPERATOR -=)
+ALIAS SelfOperator OR(OPERATOR =, OPERATOR +=, OPERATOR -=, OPERATOR *=, OPERATOR /=, OPERATOR %=)
 
 RULE AssignStatement
     $deref = OPTIONAL KEYWORD deref
@@ -343,7 +353,17 @@ RULE PrefixOperator
 END RULE
 
 RULE InfixOperator
-    $op = OR(OPERATOR ., OPERATOR ==, OPERATOR !=, OPERATOR +, OPERATOR -, OPERATOR *, OPERATOR /, OPERATOR %, OPERATOR <<, OPERATOR >>, OPERATOR or, OPERATOR and, OPERATOR <=, OPERATOR >=, OPERATOR <, OPERATOR >, OPERATOR ??)
+    $op = OR(OPERATOR ., OPERATOR ==, OPERATOR !=, OPERATOR +, OPERATOR -, OPERATOR *, OPERATOR /, OPERATOR %, RULE LeftShift, RULE RightShift, OPERATOR or, OPERATOR and, OPERATOR <=, OPERATOR >=, OPERATOR <, OPERATOR >, OPERATOR ??)
+END RULE
+
+RULE LeftShift
+    OPERATOR <
+    OPERATOR <
+END RULE
+
+RULE RightShift
+    OPERATOR >
+    OPERATOR >
 END RULE
 
 RULE PostfixOperator
@@ -353,8 +373,14 @@ END RULE
 RULE OpIndex
     OPERATOR [
     MOVE
-    $index = RULE Expr
+    $index = OR(RULE OpSlice, RULE Expr)
     OPERATOR ]
+END RULE
+
+RULE OpSlice
+    $start = OPTIONAL RULE Expr
+    OPERATOR :
+    $end = OPTIONAL RULE Expr
 END RULE
 
 RULE OpAs
@@ -363,11 +389,14 @@ RULE OpAs
     $type = ALIAS ValueType
 END RULE
 
+ALIAS ExprOperand OR(RULE FuncCallExpr, RULE GroupingExpr, RULE MatchExpr, RULE NewArrayExpr, RULE NewSliceExpr, RULE ConstSliceExpr, RULE DerefExpr, KEYWORD this, KEYWORD super, LITERAL, IDENTIFIER)
+
 ALIAS InfixOperatorNewline COMPOUND($parts = RULE InfixOperator, OPTIONAL REPEATED NEWLINE)
 
 RULE Expr
     $parts = OPTIONAL REPEATED RULE PrefixOperator
     $parts = ALIAS ExprOperand
+    MOVE
     $parts = OPTIONAL REPEATED RULE PostfixOperator
     OPTIONAL REPEATED COMPOUND(ALIAS InfixOperatorNewline, $parts = OPTIONAL REPEATED RULE PrefixOperator, $parts = ALIAS ExprOperand, $parts = OPTIONAL REPEATED RULE PostfixOperator)
 END RULE
@@ -379,15 +408,18 @@ RULE FieldDecl
     MOVE
     $type = ALIAS ValueType
     OPTIONAL COMPOUND(OPERATOR =, $initialValue = RULE Expr)
+    NEWLINE
 END RULE
 
 RULE AssociatedTypeDecl
     KEYWORD type
+    MOVE
     $name = IDENTIFIER
     OPTIONAL COMPOUND(OPERATOR =, $aliasee = ALIAS ValueType)
+    NEWLINE
 END RULE
 
-ALIAS ClassBodyStatement OR(RULE AssociatedTypeDecl, RULE ConstructorDecl, RULE DestructorDecl, ALIAS AccessorDecl, RULE MethodDecl, RULE FieldDecl)
+ALIAS ClassBodyStatement OR(RULE AssociatedTypeDecl, RULE DestructorDecl, ALIAS AccessorDecl, RULE MethodDecl, RULE FieldDecl)
 
 ALIAS ClassDeclKind OR(KEYWORD class, KEYWORD struct, KEYWORD interface)
 
@@ -406,8 +438,7 @@ RULE ClassDecl
     $generics = OPTIONAL RULE GenericDecls
     $extends = OPTIONAL RULE ClassExtends
     OPERATOR {
-    REPEATED NEWLINE
-    OPTIONAL REPEATED COMPOUND($statements = ALIAS ClassBodyStatement, REPEATED NEWLINE)
+    OPTIONAL REPEATED OR($statements = ALIAS ClassBodyStatement, NEWLINE)
     OPERATOR }
     NEWLINE
 END RULE
@@ -420,8 +451,8 @@ RULE EnumDecl
     $generics = OPTIONAL RULE GenericDecls
     OPERATOR {
     REPEATED NEWLINE
-    OPTIONAL REPEATED COMPOUND($members = RULE EnumMemberStatement, REPEATED NEWLINE)
-    OPTIONAL REPEATED COMPOUND($statements = ALIAS ClassBodyStatement, REPEATED NEWLINE)
+    OPTIONAL REPEATED OR($members = RULE EnumMemberStatement, NEWLINE)
+    OPTIONAL REPEATED OR($statements = ALIAS ClassBodyStatement, NEWLINE)
     OPERATOR }
     NEWLINE
 END RULE
@@ -448,27 +479,29 @@ END RULE
 RULE FieldSet
     OPERATOR {
     OPTIONAL REPEATED NEWLINE
-    OPTIONAL REPEATED COMPOUND($fields = RULE FieldSetField, ALIAS NewlineOrComma)
+    COMPOUND(OPERATOR ., MOVE, $fields = RULE FieldSetField, ALIAS NewlineOrComma)
+    OPTIONAL REPEATED COMPOUND(OPERATOR ., $fields = RULE FieldSetField, ALIAS NewlineOrComma)
     OPERATOR }
 END RULE
 
 RULE EnumMemberStatement
     $name = IDENTIFIER
     $data = OPTIONAL RULE AnonymousType
+    NEWLINE
 END RULE
 
 RULE ImplementDecl
     KEYWORD implement
     MOVE
     $generics = OPTIONAL RULE GenericDecls
-    $interface = IDENTIFIER
+    $interface = RULE QualifiedPath
     $interfaceGenerics = OPTIONAL RULE GenericArgs
     KEYWORD for
-    $target = IDENTIFIER
+    $target = RULE QualifiedPath
     $targetGenerics = OPTIONAL RULE GenericArgs
     OPERATOR {
     REPEATED NEWLINE
-    OPTIONAL REPEATED COMPOUND($statements = ALIAS ClassBodyStatement, REPEATED NEWLINE)
+    OPTIONAL REPEATED OR($statements = ALIAS ClassBodyStatement, NEWLINE)
     OPERATOR }
     NEWLINE
 END RULE

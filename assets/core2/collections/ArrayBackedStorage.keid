@@ -7,16 +7,14 @@ import (
 public class ArrayBackedStorage<T: Default> {
     array: [T]
 
-    public static empty<T: Default>(): ArrayBackedStorage<T> {
-        return new ArrayBackedStorage<T> {
-            array = new T[default(T); 0]
-        }
+    public constructor empty<T: Default>() {
+        super.new()
+        this.array = [T](default(T); 0)
     }
 
-    public static withCapacity<T: Default>(capacity: usize): ArrayBackedStorage<T> {
-        return new ArrayBackedStorage<T> {
-            array = new T[default(T); capacity]
-        }
+    public constructor withCapacity<T: Default>(capacity: usize) {
+        super.new()
+        this.array = [T](default(T); capacity)
     }
 }
 
@@ -30,11 +28,11 @@ implement <T: Default> PositionalStorage<T> for ArrayBackedStorage<T> {
     ensureCapacity(capacity: usize) {
         if capacity > this.array.length {
             let newCapacity = this.array.length * 2 + 1
-            while newCapacity < capacity {
+            for newCapacity < capacity {
                 newCapacity *= 2
             }
 
-            let newBuffer = new T[default(T); newCapacity]
+            let newBuffer = [T](default(T); newCapacity)
             array.copy<T>(this.array, 0, newBuffer, 0, this.array.length)
             this.array = newBuffer
         }

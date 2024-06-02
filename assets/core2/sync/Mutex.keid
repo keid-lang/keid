@@ -24,7 +24,7 @@ public class Semaphore {
 public class Mutex {
 }
 
-implement ContextMonitor for Mutex {
+implement ContextReceiver for Mutex {
     enter() {
         // lock
     }

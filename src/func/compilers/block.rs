@@ -28,6 +28,7 @@ impl<'a> BlockCompiler for FunctionCompiler<'a> {
             }
             let result = match &tkn.token {
                 Statement::Unreachable => {
+                    // TODO: throw an error
                     self.emit(Insn::Unreachable);
                     returns = true;
 

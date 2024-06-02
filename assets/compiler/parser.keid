@@ -23,7 +23,7 @@ function tokenize<T>(loc: TokenLocation, node: T): AstToken<T> {
 function tokenizeIdentifier(token: LexerToken): AstToken<string> {
     return new AstToken<string> {
         node = token.kind.identifier()
-        loc = token.loc
+        loc = token.originalLoc
     }
 }
 
@@ -34,11 +34,11 @@ function parseQualifiedPath(ast: RuleMatch): AstToken<string> {
     let fullPath = StringBuilder.withCapacity(ast.loc.length)
     let pathGroup = ast.getGroup("path")
     for i in range.create(pathGroup.length - 1) {
-        let ident = pathGroup.get(i).token().kind.identifier()
+        let ident = pathGroup.elementAt(i).token().kind.identifier()
         fullPath.append(ident)
         fullPath.append(".")
     }
-    let lastIdent = pathGroup.get(pathGroup.length - 1).token().kind.identifier()
+    let lastIdent = pathGroup.elementAt(pathGroup.length - 1).token().kind.identifier()
     fullPath.append(lastIdent)
     return tokenize<string>(ast.loc, fullPath.toString())
 }
@@ -96,7 +96,6 @@ implement ToString for PrattParserOperator {
 }
 
 public class PrattParser {
-    source: string
     parts: List<ParserMatch>
     offset: usize
     operators: [PrattParserOperator]
@@ -131,7 +130,7 @@ public class PrattParser {
         if this.offset == this.parts.length {
             return 0
         }
-        let next = this.parts.get(this.offset)
+        let next = this.parts.elementAt(this.offset)
         match next {
             Token { token, } => {
                 match token.kind {
@@ -142,20 +141,34 @@ public class PrattParser {
                         }
                         return prattOp!.precedence
                     }
+                    _ => {}
                 }
             }
+            _ => {}
         }
         return 0
     }
 
     led(lhs: AstToken<AstExpr>): AstToken<AstExpr> {
-        let next = this.parts.get(this.offset)
+        let next = this.parts.elementAt(this.offset)
         this.offset += 1
         match next {
             Rule { rule, } => {
                 match rule.ruleName {
                     "InfixOperator" => {
-                        let op = rule.getGroupValue("op").token().kind.operator()
+                        let op = ""
+                        match rule.getGroupValue("op") {
+                            Token { token, } => {
+                                op = token.kind.operator()
+                            }
+                            Rule { rule, } => {
+                                op = match rule.ruleName {
+                                    "LeftShift" => "<<"
+                                    "RightShift" => ">>"
+                                    _ => throw Error.create("invalid infix operator rule: " + rule.ruleName)
+                                }
+                            }
+                        }
                         let infixOperator = this.findOperator(op)
                         if infixOperator == null {
                             throw Error.create("No such operator: " + op)
@@ -179,7 +192,7 @@ public class PrattParser {
     }
 
     nud(): AstToken<AstExpr> {
-        let next = this.parts.get(this.offset)
+        let next = this.parts.elementAt(this.offset)
         this.offset += 1
         match next {
             Rule { rule, } => {
@@ -193,13 +206,14 @@ public class PrattParser {
                     return (this.prefixParser)(tokenize<AstOperator>(rule.loc, prefixOperator!.ast), rhs)
                 }
             }
+            _ => {}
         }
         return (this.primaryParser)(next)
     }
 }
 
 class KeidParser {
-    source: string
+    file: SourceFile
 
     parseGenericDecls(ast: RuleMatch): List<AstGenericDecl> {
         let decls = List.empty<AstGenericDecl>()
@@ -238,11 +252,15 @@ class KeidParser {
             let modifiers = List.withCapacity<AstToken<Modifier>>(astModifiers.length)
             for astModifier in astModifiers {
                 let modifierToken = astModifier.token()
-                let modifier = match modifierToken.kind.keyword() {
+                let modifierName = modifierToken.kind.keyword()
+                let modifier = match modifierName {
                     "public" => Modifier.Public
                     "extern" => Modifier.Extern
                     "static" => Modifier.Static
-                    // TODO: fix this not compiling _ => throw Error.create("ParseError: invalid modifier: " + text)
+                    "namespace" => Modifier.Namespace
+                    "constructor" => Modifier.Constructor
+                    "unsafe" => Modifier.Unsafe
+                    _ => throw Error.create("invalid modifier: " + modifierName)
                 }
                 modifiers.push(new AstToken<Modifier> {
                     node = modifier
@@ -272,7 +290,11 @@ class KeidParser {
                 Identifier { name, } => tokenize<AstExpr>(token.loc, new AstExpr.Ident {
                     value = name
                 })
-                _ => unreachable
+                // "this" and "super" are valid callee identifiers tokenized as a keyword
+                Keyword { name, } => tokenize<AstExpr>(token.loc, new AstExpr.Ident {
+                    value = name
+                })
+                _ => throw Error.create("invalid func call expr callee token: " + token.kind.toString())
             }
         }
         let generics = this.parseGenericArgs(ast, "generics")
@@ -326,8 +348,8 @@ class KeidParser {
 
         let conditionals = List.empty<AstIfBlock>()
         for i in range.create(tests.length) {
-            let condition = this.parseExpr(tests.get(i).rule())
-            let block = this.parseCodeBlock(conditionalBlocks.get(i).rule())
+            let condition = this.parseExpr(tests.elementAt(i).rule())
+            let block = this.parseCodeBlock(conditionalBlocks.elementAt(i).rule())
             conditionals.push(new AstIfBlock {
                 condition
                 block
@@ -394,6 +416,12 @@ class KeidParser {
                             value = name
                         })
                     }
+                    // treat keywords in an expr as identifiers; they will be either "this" or "super"
+                    Keyword { name, } => {
+                        return tokenize<AstExpr>(token.loc, new AstExpr.Ident {
+                            value = name
+                        })
+                    }
                     Literal { lit, } => {
                         let astLiteral = match lit {
                             Bool { val, } => new AstExpr.BoolLit {
@@ -415,6 +443,7 @@ class KeidParser {
                         }
                         return tokenize<AstExpr>(token.loc, astLiteral)
                     }
+                    _ => throw Error.create("invalid expr operand token kind: " + token.kind.toString())
                 }
             }
         }
@@ -423,7 +452,6 @@ class KeidParser {
 
     parseExpr(expr: RuleMatch): AstToken<AstExpr> {
         let pratt = new PrattParser {
-            source = this.source
             parts = expr.getGroup("parts")
             offset = 0
             operators = OPERATORS
@@ -446,9 +474,8 @@ class KeidParser {
                 }
                 return List.from<AstToken<AstStatement>>(tokenize<AstStatement>(exprDecl.loc, statement))
             }
+            _ => throw Error.create("invalid body rule kind: " + bodyDecl.ruleName)
         }
-
-        unreachable
     }
 
     parseCodeBlock(ast: RuleMatch): List<AstToken<AstStatement>> {
@@ -474,6 +501,16 @@ class KeidParser {
 
     parseValueTypeNode(ast: RuleMatch): ComplexType {
         match ast.ruleName {
+            "CompoundType" => {
+                let astTypes = ast.getGroup("types")
+                let types = List.withCapacity<ComplexType>(astTypes.length)
+                for astType in astTypes {
+                    types.push(this.parseValueTypeNode(astType.rule()))
+                }
+                return new ComplexType.Compound {
+                    types
+                }
+            }
             "SliceType" => {
                 return new ComplexType.Slice {
                     element = this.parseValueTypeNode(ast.getGroupValue("elementType").rule())
@@ -486,7 +523,14 @@ class KeidParser {
                 element = this.parseValueTypeNode(ast.getGroupValue("elementType").rule())
             }
             "BasicType" => {
-                let path = parseQualifiedPath(ast.getGroupValue("path").rule())
+                let path = match ast.getGroupValue("path") {
+                    Rule { rule, } => parseQualifiedPath(rule)
+                    Token { token, } => match token.kind {
+                        // "This" keyword is a valid BasicType
+                        Keyword { name, } => tokenize<string>(token.loc, name)
+                        _ => throw Error.create("invalid token type for BasicType: " + token.kind.toString())
+                    }
+                }
                 let generics = this.parseGenericArgsNodes(ast)
                 let basic = match path.node {
                     "void"    => BasicType.Void
@@ -523,17 +567,16 @@ class KeidParser {
             }
             _ => throw Error.create(string.format("invalid rule for parseValueType: ", ast.ruleName))
         }
-
-        unreachable
     }
 
     parseValueType(ast: RuleMatch): AstToken<ComplexType> => tokenize<ComplexType>(ast.loc, this.parseValueTypeNode(ast))
 
     parseLet(ast: RuleMatch): AstLet {
-        let kind = match ast.getGroupValue("kind").token().kind.keyword() {
+        let kindName = ast.getGroupValue("kind").token().kind.keyword()
+        let kind = match kindName {
             "let" => LetKind.Mutable
             "const" => LetKind.Constant
-            _ => unreachable
+            _ => throw Error.create(string.format("invalid let kind: ", kindName))
         }
         let name = tokenizeIdentifier(ast.getGroupValue("name").token())
         let valueType: ?AstToken<ComplexType> = null
@@ -696,8 +739,8 @@ class KeidParser {
             superclassGenerics = this.parseGenericArgs(extendsDecl, "generics")
         }
 
-        let constructor: ?List<AstToken<AstStatement>> = null
         let destructor: ?List<AstToken<AstStatement>> = null
+        let associatedTypes = List.empty<AstAssociatedType>()
         let fields = List.empty<AstClassField>()
         let methods = List.empty<AstFunction>()
         if ast.hasGroup("statements") {
@@ -705,7 +748,9 @@ class KeidParser {
             for statement in statements {
                 let rule = statement.rule()
                 match rule.ruleName {
-                    "ConstructorDecl" => constructor = this.parseBody(rule.getGroupValue("body").rule())
+                    "AssociatedTypeDecl" => {
+                        associatedTypes.push(this.parseAssociatedTypeDecl(rule))
+                    }
                     "DestructorDecl"  => destructor  = this.parseBody(rule.getGroupValue("body").rule())
                     "FieldDecl" => {
                         fields.push(this.parseClassField(rule))
@@ -727,10 +772,22 @@ class KeidParser {
             generics
             superclass
             superclassGenerics
-            constructor
             destructor
+            associatedTypes
             fields
             methods
+        }
+    }
+
+    parseAssociatedTypeDecl(ast: RuleMatch): AstAssociatedType {
+        let name = tokenizeIdentifier(ast.getGroupValue("name").token())
+        let aliasee: ?AstToken<ComplexType> = null
+        if ast.hasGroup("aliasee") {
+            aliasee = this.parseValueType(ast.getGroupValue("aliasee").rule())
+        }
+        return new AstAssociatedType {
+            name
+            aliasee
         }
     }
 
@@ -745,7 +802,18 @@ class KeidParser {
         let target = parseQualifiedPath(ast.getGroupValue("target").rule())
         let targetGenerics: ?List<AstToken<ComplexType>> = this.parseGenericArgs(ast, "targetGenerics")
 
+        let associatedTypes = List.empty<AstAssociatedType>()
         let methods = List.empty<AstFunction>()
+
+        for statement in ast.getGroup("statements") {
+            let rule = statement.rule()
+            match rule.ruleName {
+                "AssociatedTypeDecl" => {
+                    associatedTypes.push(this.parseAssociatedTypeDecl(rule))
+                }
+                _ => {}
+            }
+        }
 
         return new AstImplement {
             generics
@@ -753,6 +821,7 @@ class KeidParser {
             interfaceGenerics
             target
             targetGenerics
+            associatedTypes
             methods
         }
     }
@@ -797,7 +866,7 @@ class KeidParser {
         }
 
         return new AstKeidProgram {
-            source = this.source
+            file = this.file
             namespace
             imports
             classes
@@ -903,8 +972,8 @@ class KeidPreprocessor {
 
     preprocessToken(paramNames: List<string>, paramValues: List<ParserMatch>, bodyToken: LexerToken, name: string): List<LexerToken> {
         for p in range.create(paramNames.length) {
-            let paramName = paramNames.get(p)
-            let paramValue = paramValues.get(p)
+            let paramName = paramNames.elementAt(p)
+            let paramValue = paramValues.elementAt(p)
             if paramName == name {
                 match paramValue {
                     Rule { rule, } => {
@@ -931,6 +1000,7 @@ class KeidPreprocessor {
                     processedTokens.extend(this.preprocessToken(paramNames, paramValues, bodyToken, name))
                     continue
                 }
+                _ => {}
             }
             processedTokens.push(bodyToken)
         }
@@ -1002,8 +1072,8 @@ function runPreprocessorParser(preprocessor: KsdlParser, reader: TokenReader, st
         Success { match, } => {
             return match.rule()
         }
-        HardFail { rule, statement, result, } => {
-            throw Error.create(string.format("Failed preprocessing statement '", Class.fromInstance(statement).name, "' in rule '", rule.name, "'"))
+        HardFail { statement, result, } => {
+            throw Error.create(string.format("Failed preprocessing statement: ", statement.describe()))
         }
         _ => {}
     }
@@ -1036,7 +1106,6 @@ public function parseKeidSource(preprocessor: KsdlParser, parser: KsdlParser, fi
 
     stream.offset = 0
     let processedTokens = preprocess(preprocessor, reader, stream, file, programText, macroDecls)
-
     let processedStream = TokenStream.create(processedTokens)
 
     let programRule = parser.getRule("Program")
@@ -1069,13 +1138,15 @@ public function parseKeidSource(preprocessor: KsdlParser, parser: KsdlParser, fi
     match parseResult {
         Success { match, } => {
             let keidParser = new KeidParser {
-                source = programText
+                file = new SourceFile {
+                    path = file
+                    text = programText
+                }
             }
             return keidParser.parseProgram(match.rule())
         }
-        HardFail { rule, statement, result, loc, } => {
+        HardFail { statement, result, loc, } => {
             io.println("Failed parsing statement: ", Class.fromInstance(statement).name)
-            io.println("in rule ", rule.name)
 
             reader.cursor = loc.start
             let pos3 = reader.documentPosition

@@ -13,39 +13,37 @@ public class List<T> {
     length: usize
     capacity: usize
 
-    public static empty<T>(): List<T> {
-        return new List<T> {
-            storage = Pointer.null<T>()
-            length = 0
-            capacity = 0
-        }
+    public constructor empty<T>() {
+        super.new()
+        this.storage = Pointer.nullptr<T>()
+        this.length = 0
+        this.capacity = 0
     }
 
-    public static from<T>(...elements: [T]): List<T> {
-        let list = List.withCapacity<T>(elements.length)
+    public constructor from<T>(...elements: [T]) {
+        this.withCapacity(elements.length)
+
         for element in elements {
-            list.push(element)
+            this.push(element)
         }
-        return list
     }
 
-    public static withCapacity<T>(capacity: usize): List<T> {
-        return new List<T> {
-            storage = mem.alloc<T>(capacity)
-            length = 0
-            capacity
-        }
+    public constructor withCapacity<T>(capacity: usize) {
+        super.new()
+        this.storage = mem.alloc<T>(capacity)
+        this.length = 0
+        this.capacity
     }
 
     public ensureCapacity(capacity: usize) {
         if capacity > this.capacity {
             let newCapacity = this.capacity * 2 + 1
-            while newCapacity < capacity {
+            for newCapacity < capacity {
                 newCapacity *= 2
             }
             
             let newStorage = mem.alloc<T>(newCapacity)
-            if !this.storage.isNull {
+            if not this.storage.isNull {
                 mem.copy<T>(this.storage, newStorage, this.length)
                 mem.dealloc<T>(this.storage)
             }
@@ -78,7 +76,7 @@ public class List<T> {
             throw error.indexOutOfBounds(index)
         }
 
-        let toRemove = this.get(index)
+        let toRemove = this.elementAt(index)
 
         unsafe {
             // manually drop the reference to the object
@@ -96,7 +94,7 @@ public class List<T> {
         return toRemove
     }
 
-    public get(index: usize): T {
+    public elementAt(index: usize): T {
         if index >= this.length {
             throw error.indexOutOfBounds(index)
         }
@@ -106,7 +104,7 @@ public class List<T> {
         }
     }
 
-    public set(index: usize, element: T) {
+    public setElementAt(index: usize, element: T) {
         if index >= this.length {
             throw error.indexOutOfBounds(index)
         }
@@ -118,8 +116,8 @@ public class List<T> {
     }
 
     public contains(value: T): bool {
-        for i in range.create(0, this.length) {
-            if this.get(i) == value {
+        for i in range.new(0, this.length) {
+            if this.elementAt(i) == value {
                 return true
             }
         }
@@ -127,15 +125,15 @@ public class List<T> {
     }
 
     public clear() {
-        this.storage = Pointer.null<T>()
+        this.storage = Pointer.nullptr<T>()
         this.length = 0
         this.capacity = 0
     }
 
     public toArray(): [T] {
-        let array = new T[default(T); this.length]
-        for i in range.create(0, this.length) {
-            array[i] = this.get(i)
+        let array = [T](default(T); this.length)
+        for i in range.new(0, this.length) {
+            array[i] = this.elementAt(i)
         }
         return array
     }
@@ -152,14 +150,14 @@ implement <T: ToString + Default> ToString for List<T> {
 implement <T> Index<usize> for List<T> {
     type Element = T
 
-    index(key: usize): Element => this.get(key)
+    index(key: usize): Element => this.elementAt(key)
 }
 
 implement <T> IndexAssign<usize> for List<T> {
     type Element = T
 
     indexAssign(key: usize, element: Element) {
-        this.set(key, element)
+        this.setElementAt(key, element)
     }
 }
 
@@ -167,11 +165,9 @@ public class ListIterator<T> {
     list: List<T>
     idx: usize
 
-    static create<T>(list: List<T>): ListIterator<T> {
-        return new ListIterator<T> {
-            list
-            idx = 0
-        }
+    constructor new<T>(this.list: List<T>) {
+        super.new()
+        this.idx = 0
     }
 }
 
@@ -181,7 +177,7 @@ implement <T> Iterator<T> for ListIterator<T> {
             return null
         }
 
-        let element = this.list.get(this.idx)
+        let element = this.list.elementAt(this.idx)
         this.idx += 1
         return element
     }

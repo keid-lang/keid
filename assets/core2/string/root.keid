@@ -1,0 +1,31 @@
+namespace core.string
+
+import (
+    core.collections
+)
+
+public function join<T: ToString>(arr: Iterator<T>, delimiter: string): string {
+    let b = StringBuilder.empty()
+    for e in arr {
+        b.append(e.toString())
+        b.append(delimiter)
+    }
+    return b.toRefString()
+}
+
+public function format(format: string, ...args: [string]): string {
+    let capacity = format.length
+    for arg in args {
+        capacity += arg.length
+    }
+    let builder = StringBuilder.withCapacity(capacity)
+    builder.append(format)
+    for arg in args {
+        builder.append(arg)
+    }
+    return builder.toRefString()
+}
+
+public interface ToString {
+    toString(): string
+}

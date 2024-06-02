@@ -1,14 +1,12 @@
 namespace core.collections
 
-public class ArrayIterator<T> {
+class ArrayIterator<T> {
     arr: [T]
     idx: usize
 
-    static create<T>(arr: [T]): ArrayIterator<T> {
-        return new ArrayIterator<T> {
-            arr
-            idx = 0
-        }
+    constructor create<T>(this.arr: [T]) {
+        super.new()
+        this.idx = 0
     }
 }
 

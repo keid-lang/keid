@@ -6,10 +6,17 @@ import (
 )
 
 public interface Default {
-    static default(): object
+    static default(): This
 }
 
+// The root superclass for all class-type objects.
 public class Object {
+    public constructor new() { }
+}
+
+// The root superclass for all struct-type objects.
+public struct Struct {
+    public constructor new() { }
 }
 
 public class Box<T> {
@@ -38,9 +45,7 @@ public struct Char {
 }
 
 implement ToString for Char {
-    toString(): string => string {
-        chars = [char] { this.value }
-    }
+    toString(): string => string.fromChars([char] { this.value })
 }
 
 macro $IMPL_INT_TYPE(#wrapper: ident, #primitive: ident)
@@ -58,7 +63,7 @@ macro $IMPL_INT_TYPE(#wrapper: ident, #primitive: ident)
             let sb = StringBuilder.empty()
             for current > 0 {
                 let digit = (current % 10) + 0x30 // converts the digit to its ascii equivalent
-                sb.insert(0, String.fromUtf8(new uint8[digit as uint8]))
+                sb.insert(0, String.fromUtf8([uint8] { digit as uint8 }))
                 current /= 10
             }
 

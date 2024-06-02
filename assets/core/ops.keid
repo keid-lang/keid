@@ -58,3 +58,10 @@ public interface Slice<K> {
 
     slice(start: K, end: K): Output
 }
+
+public interface Compare<T> {
+    // A return value of zero indicates that the two objects are equal.
+    // A return value less than zero indicates that `this` is less than `o`.
+    // A return value greater than zero indicates that `this` is great than `o`.
+    compare(o: T): int32
+}

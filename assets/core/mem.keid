@@ -8,7 +8,7 @@ import (
 public struct Pointer<T> {
     address: usize
 
-    public static null<T>(): Pointer<T> {
+    public static nullptr<T>(): Pointer<T> {
         return Pointer.to<T>(0)
     }
 

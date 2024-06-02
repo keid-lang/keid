@@ -8,28 +8,17 @@ import (
 public struct Pointer<T> {
     address: usize
 
-    public static null<T>(): Pointer<T> {
-        return Pointer.to<T>(0)
+    public constructor nullptr() {
+        super.new()
+        this.address = 0
     }
 
-    public static to<T>(address: usize): Pointer<T> {
-        return new Pointer<T> {
-            address
-        }
+    public constructor to(this.address: usize): Pointer<T> {
+        super.new()
     }
 
-    public static cast<A, B>(from: Pointer<A>): Pointer<B> {
-        return new Pointer<B> {
-            address = from.address
-        }
-    }
-
-    /// Returns a pointer to the data fields of the underlying struct, skipping any class metadata.
-    /// This is useful for passing a struct to C code when it is undesirable for the C code to be aware of the struct metadata field.
-    public forStructInterop(): Pointer<T> {
-        return new Pointer<T> {
-            address = this.address + sizeof(usize)
-        }
+    public cast<U>(): Pointer<U> {
+        return Pointer.to<U>()
     }
 
     public offset(val: isize): Pointer<T> {

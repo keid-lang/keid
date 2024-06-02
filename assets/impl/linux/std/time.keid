@@ -23,7 +23,7 @@ public function getSystemTime(): std::time::Duration {
 
     unsafe {
         with let timeOfDayPtr: Pointer<c_timeval> = ref timeOfDay {
-            if gettimeofday(timeOfDayPtr.forStructInterop(), Pointer.null<void>()) != 0 {
+            if gettimeofday(timeOfDayPtr.forStructInterop(), Pointer.nullptr<void>()) != 0 {
                 let msg = std::impl::sys.getErrorMessage(std::impl::sys.getErrorCode())
                 throw Error.create(msg)
             }

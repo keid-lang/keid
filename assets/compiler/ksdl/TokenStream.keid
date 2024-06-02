@@ -22,10 +22,10 @@ public class TokenStream {
             return LexerToken.create(TokenLocation.create(0, 0), LexerTokenKind.EOF)
         }
         if this.isFinished {
-            let lastToken = this.tokens.get(this.tokens.length - 1)
+            let lastToken = this.tokens.elementAt(this.tokens.length - 1)
             return LexerToken.create(TokenLocation.create(lastToken.originalLoc.start + lastToken.originalLoc.length, 0), LexerTokenKind.EOF)
         }
-        return this.tokens.get(this.offset)
+        return this.tokens.elementAt(this.offset)
     }
 
     public next() {

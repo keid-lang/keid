@@ -11,7 +11,7 @@ public function toString<T: ToString>(arr: [T]): string {
     }
 
     let strArr = [string](""; arr.length)
-    for i in range.create(arr.length) {
+    for i in range.new(arr.length) {
         strArr[i] = arr[i].toString()
     }
 
@@ -22,7 +22,7 @@ public function toString<T: ToString>(arr: [T]): string {
 
     let sb = StringBuilder.withCapacity(cap)
     sb.append("[")
-    for i in range.create(strArr.length) {
+    for i in range.new(strArr.length) {
         let val = strArr[i]
         sb.append(val)
         if i < strArr.length - 1 {
@@ -45,7 +45,7 @@ public function equals<T>(a: [T], b: [T]): bool {
         return false
     }
 
-    for i in range.create(a.length) {
+    for i in range.new(a.length) {
         if a[i] != b[i] {
             return false
         }
@@ -58,7 +58,7 @@ public function fill<T>(dst: [T], value: T) {
     if dst.length == 0 {
         return
     }
-    for i in range.create(dst.length) {
+    for i in range.new(dst.length) {
         dst[i as usize] = value
     }
 }

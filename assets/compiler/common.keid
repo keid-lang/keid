@@ -6,17 +6,25 @@ import (
     keidc::types
 )
 
+public class SourceFile {
+    path: string
+    text: string
+}
+
 public class CompileError {
-    source: string
+    file: SourceFile
     loc: TokenLocation
     message: string
 
-    public static create(source: string, loc: TokenLocation, message: string): CompileError => new CompileError { source, loc, message, }
+    public static create(file: SourceFile, loc: TokenLocation, message: string): CompileError => new CompileError { file, loc, message, }
 }
 
 implement ToString for CompileError {
     toString(): string {
-        return string.format(this.message, " at `", this.loc.getText(this.source), "` @", this.loc.start.toString(), "+", this.loc.length.toString())
+        let tr = TokenReader.create(this.file.text)
+        tr.cursor = this.loc.start
+        let pos = tr.documentPosition
+        return string.format(this.message, " at ", this.file.path, ":", pos.line.toString(), ":", pos.col.toString())
     }
 }
 
@@ -24,6 +32,9 @@ public enum Modifier {
     Public
     Static
     Extern
+    Namespace
+    Constructor
+    Unsafe
 }
 
 implement ToString for Modifier {
@@ -32,6 +43,9 @@ implement ToString for Modifier {
             Public => "public"
             Static => "static"
             Extern => "extern"
+            Namespace => "namespace"
+            Constructor => "constructor"
+            Unsafe => "unsafe"
         } 
     }
 }

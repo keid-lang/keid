@@ -51,7 +51,6 @@ public enum RuleResult {
     }
     SoftFail
     HardFail {
-        rule: Rule
         statement: ParserStatement
         result: StatementResult
         loc: TokenLocation
@@ -76,9 +75,7 @@ public class Rule {
             match result {
                 Failure => {
                     if state.moved {
-                        std::io.println("HardFail: ", this.name)
                         return new RuleResult.HardFail {
-                            rule = this
                             statement
                             result
                             loc = stream.currentToken.loc
@@ -86,7 +83,7 @@ public class Rule {
                     }
                     return RuleResult.SoftFail
                 }
-                ImmediateFailure { rule, statement, result, loc, } => return new RuleResult.HardFail { rule, statement, result, loc, }
+                ImmediateFailure { statement, result, loc, } => return new RuleResult.HardFail { statement, result, loc, }
                 _ => {}
             }
         }

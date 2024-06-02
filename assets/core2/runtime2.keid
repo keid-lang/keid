@@ -39,7 +39,7 @@ namespace core.runtime
 //         return
 //     }
 //     preventRecursivePush += 1
-//     for i in range.create(0, stackFrames.length) {
+//     for i in range.new(0, stackFrames.length) {
 //         io.println("  at ", stackFrames.get<string>(stackFrames.length - i - 1))
 //     }
 //     preventRecursivePush -= 1
