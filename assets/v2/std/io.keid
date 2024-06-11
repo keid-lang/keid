@@ -1,0 +1,6 @@
+namespace std.io
+
+public function println(format: string, ...args: [string]) {
+    let message = core.string.format(format, ...args)
+    std.impl.io.println(message)
+}

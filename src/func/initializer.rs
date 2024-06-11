@@ -52,7 +52,8 @@ impl<'a> GlobalInitializerCompiler for FunctionCompiler<'a> {
                             });
                             self.store(Operator::Equals, compiled, &TypedValue::new(field_type.clone(), global_ref))?;
                         }
-                        None => return Err(compiler_error!(self, "Global variables must have an initial value")),
+                        // None => return Err(compiler_error!(self, "Global variables must have an initial value")),
+                        None => {},
                     }
                 }
             }

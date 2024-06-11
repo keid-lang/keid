@@ -35,6 +35,8 @@ public enum Modifier {
     Namespace
     Constructor
     Unsafe
+    Abstract
+    Override
 }
 
 implement ToString for Modifier {
@@ -46,6 +48,8 @@ implement ToString for Modifier {
             Namespace => "namespace"
             Constructor => "constructor"
             Unsafe => "unsafe"
+            Abstract => "abstract"
+            Override => "override"
         } 
     }
 }

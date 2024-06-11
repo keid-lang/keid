@@ -1,0 +1,14 @@
+namespace std.impl.os
+
+import (
+    core.runtime
+    std.impl.syscall
+)
+
+public function platform(): string {
+    return "linux"
+}
+
+public function exit(code: int32) {
+    syscall.exit(code)
+}

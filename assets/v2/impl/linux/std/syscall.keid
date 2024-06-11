@@ -1,0 +1,97 @@
+namespace std.impl.syscall
+
+import (
+    core.mem
+    core.runtime
+)
+
+const AT_FDCWD:    isize = -100
+
+const TRAP_OPENAT: usize = 257
+const TRAP_CLOSE:  usize = 3
+const TRAP_EXIT:   usize = 60
+const TRAP_LSEEK:  usize = 8
+const TRAP_READ:   usize = 0
+const TRAP_WRITE:  usize = 1
+const TRAP_FSTAT:  usize = 5
+const TRAP_LSTAT:  usize = 6
+const TRAP_ACCESS: usize = 21
+
+/// Sets the seek offset to be `n` bytes from the start of the file.
+const WHENCE_SET: usize = 0
+/// Sets the seek offset to be `n` bytes from the current seek offset of the file.
+const WHENCE_CUR: usize = 1
+/// Sets the seek offset to be at the end of the file.
+const WHENCE_END: usize = 2
+
+@ExternalFunction("keid.syscall3")
+extern function ksyscall3(trap: usize, a1: usize, a2: usize, a3: usize): usize
+@ExternalFunction("keid.syscall6")
+extern function ksyscall6(trap: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize, a6: usize): usize
+
+function syscall3(trap: usize, a1: usize, a2: usize, a3: usize): usize {
+    unsafe {
+        return ksyscall3(trap, a1, a2, a3)
+    }
+}
+
+function syscall6(trap: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize, a6: usize): usize {
+    unsafe {
+        return ksyscall6(trap, a1, a2, a3, a4, a5, a6)
+    }
+}
+
+public function seek(fd: usize, offset: int64, whence: std.fs.SeekWhence): int64 {
+    let w: usize = match whence {
+        Start =>   WHENCE_SET
+        Current => WHENCE_CUR
+        End =>     WHENCE_END
+    }
+    return syscall3(TRAP_LSEEK, fd, offset as usize, w) as int64
+}
+
+public function openat(dirfd: usize, path: string, flags: usize, mode: uint32): usize {
+    with let pathPtr = ref path.toNullTerminated() {
+        return syscall6(TRAP_OPENAT, dirfd, pathPtr.address, flags, mode as usize, 0, 0)
+    }
+}
+
+public function open(path: string, mode: usize, perm: uint32): usize {
+    return openat(AT_FDCWD as usize, path, mode, perm)
+}
+
+public function read(fd: usize, buf: [uint8]): int64 {
+    with let bufPtr = ref buf {
+        return syscall3(TRAP_READ, fd, bufPtr.address, buf.length) as int64
+    }
+}
+
+public function write(fd: usize, buf: [uint8]): int64 {
+    with let bufPtr = ref buf {
+        return syscall3(TRAP_WRITE, fd, bufPtr.address, buf.length) as int64
+    }
+}
+
+public function stat(fd: usize, buf: Pointer<void>, followLinks: bool): usize {
+    let res: usize = 0
+    if followLinks {
+        res = syscall3(TRAP_FSTAT, fd, buf.address, 0)
+    } else {
+        res = syscall3(TRAP_LSTAT, fd, buf.address, 0)
+    }
+    return res
+}
+
+public function access(path: string, mode: usize): bool {
+    with let pathPtr = ref path.toNullTerminated() {
+        return syscall3(TRAP_ACCESS, pathPtr.address, mode, 0) == 0
+    }
+}
+
+public function close(fd: usize): usize {
+    return syscall3(TRAP_CLOSE, fd, 0, 0)
+}
+
+public function exit(code: int32): usize {
+    return syscall3(TRAP_EXIT, code as usize, 0, 0)
+}

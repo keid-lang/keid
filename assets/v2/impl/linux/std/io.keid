@@ -1,0 +1,18 @@
+namespace std.impl.io
+
+import (
+    std.impl.syscall
+)
+
+const newline: [uint8] = [uint8] { 10 }
+
+public function print(message: string) {
+    let cstr = message.toNullTerminated()
+    syscall.write(0, cstr)
+}
+
+public function println(message: string) {
+    let cstr = message.toUtf8()
+    syscall.write(0, cstr)
+    syscall.write(0, newline)
+}

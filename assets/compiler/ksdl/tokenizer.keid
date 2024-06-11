@@ -9,19 +9,19 @@ import (
 
 public enum LexerLiteral {
     Bool {
-        val: bool
+        value: bool
     }
     SignedInteger {
-        val: int64
+        value: int64
     }
     UnsignedInteger {
-        val: uint64
+        value: uint64
     }
     String {
-        val: String
+        value: String
     }
     Char {
-        val: char
+        value: char
     }
     Null
 }
@@ -29,11 +29,11 @@ public enum LexerLiteral {
 implement ToString for LexerLiteral {
     toString(): string {
         return match this {
-            Bool { val, } => string.format("Bool(", val.toString(), ")")
-            SignedInteger { val, } => string.format("SignedInteger(", val.toString(), ")")
-            UnsignedInteger { val, } => string.format("UnsignedInteger(", val.toString(), ")")
-            String { val, } => string.format("String(", val, ")")
-            Char { val, } => string.format("Char(", val.toString(), ")")
+            Bool { value, } => string.format("Bool(", value.toString(), ")")
+            SignedInteger { value, } => string.format("SignedInteger(", value.toString(), ")")
+            UnsignedInteger { value, } => string.format("UnsignedInteger(", value.toString(), ")")
+            String { value, } => string.format("String(", value, ")")
+            Char { value, } => string.format("Char(", value.toString(), ")")
             Null => "Null"
         }
     }
@@ -132,7 +132,7 @@ const KEYWORDS: [string] = new string[
     "enum", "extends", "extern", "for", "function", "get", "if", "implement",
     "import", "in", "interface", "let", "macro", "match", "namespace", "public",
     "return", "set", "static", "struct", "throw", "type", "unsafe", "unreachable",
-    "with", "this", "super", "This",
+    "with", "this", "super", "abstract", "override", "sizeof", "This",
 ]
 const OPERATORS: [string] = new string[
     "==", "!=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "|=", "^=",
@@ -156,23 +156,23 @@ public function stringifyTokens(tokens: List<LexerToken>): string {
             }
             Literal { lit, } => {
                 match lit {
-                    Bool { val, } => {
-                        sb.append(val.toString())
+                    Bool { value, } => {
+                        sb.append(value.toString())
                     }
-                    SignedInteger { val, } => {
-                        sb.append(val.toString())
+                    SignedInteger { value, } => {
+                        sb.append(value.toString())
                     }
-                    UnsignedInteger { val, } => {
-                        sb.append(val.toString())
+                    UnsignedInteger { value, } => {
+                        sb.append(value.toString())
                     }
-                    String { val, } => {
+                    String { value, } => {
                         sb.append('"')
-                        sb.append(val.toString())
+                        sb.append(value.toString())
                         sb.append('"')
                     }
-                    Char { val, } => {
+                    Char { value, } => {
                         sb.append("'")
-                        sb.append(val.toString())
+                        sb.append(value.toString())
                         sb.append("'")
                     }
                     Null => {
@@ -239,10 +239,10 @@ public function tokenize(reader: TokenReader, filePath: string): List<LexerToken
             tokens.push(LexerToken.create(TokenLocation.create(start, reader.cursor - start), new LexerTokenKind.Literal {
                 lit = match delimiter {
                     '"' => new LexerLiteral.String {
-                        val = str
+                        value = str
                     }
                     '\'' => new LexerLiteral.Char {
-                        val = str.chars[0]
+                        value = str.chars[0]
                     }
                 }
             }))
@@ -296,10 +296,10 @@ public function tokenize(reader: TokenReader, filePath: string): List<LexerToken
                 let s = sb.toString()
                 let lit = match s.startsWith("-") {
                     true => new LexerLiteral.SignedInteger {
-                        val = Int64.parse(s, base)
+                        value = Int64.parse(s, base)
                     }
                     false => new LexerLiteral.UnsignedInteger {
-                        val = UInt64.parse(s, base)
+                        value = UInt64.parse(s, base)
                     }
                 }
 
@@ -322,7 +322,7 @@ public function tokenize(reader: TokenReader, filePath: string): List<LexerToken
         if advanceKeyword(reader, "true") {
             tokens.push(LexerToken.create(TokenLocation.create(pos, 4), new LexerTokenKind.Literal {
                 lit = new LexerLiteral.Bool {
-                    val = true
+                    value = true
                 }
             }))
             continue
@@ -330,7 +330,7 @@ public function tokenize(reader: TokenReader, filePath: string): List<LexerToken
         if advanceKeyword(reader, "false") {
             tokens.push(LexerToken.create(TokenLocation.create(pos, 5), new LexerTokenKind.Literal {
                 lit = new LexerLiteral.Bool {
-                    val = false
+                    value = false
                 }
             }))
             continue

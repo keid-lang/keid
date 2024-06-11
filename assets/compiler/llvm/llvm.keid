@@ -1,0 +1,405 @@
+namespace llvm
+
+import (
+    core::collections
+    core::error
+    core::mem
+    core::string
+    llvm::sys
+)
+
+type LLVMContext       = core::mem::Pointer<void>
+type LLVMModule        = core::mem::Pointer<void>
+type LLVMType          = core::mem::Pointer<void>
+type LLVMTarget        = core::mem::Pointer<void>
+type LLVMTargetMachine = core::mem::Pointer<void>
+type LLVMTargetData    = core::mem::Pointer<void>
+type LLVMBuilder       = core::mem::Pointer<void>
+type LLVMValue         = core::mem::Pointer<void>
+type LLVMBasicBlock    = core::mem::Pointer<void>
+
+const context: Context = Context.create()
+
+public class Target {
+    machine: LLVMTargetMachine
+    data: LLVMTargetData
+
+    public static null(): Target {
+        return new Target {
+            machine = Pointer.nullptr<void>()
+            data = Pointer.nullptr<void>()
+        }
+    }
+
+    public static fromTriple(triple: string): Target {
+        let target = Pointer.nullptr<void>()
+        let errorMessage = new uint8[0; 255]
+        unsafe {
+            with let nativeTriple = ref triple.toNullTerminated(), targetRef = ref target, nativeErrorMessage = ref errorMessage {
+                if sys.LLVMGetTargetFromTriple(nativeTriple, targetRef, nativeErrorMessage) != 0 {
+                    throw Error.create(String.fromCStr(nativeErrorMessage))
+                }
+                let cpu = "generic"
+                let features = ""
+
+                with let nativeCpu = ref cpu.toNullTerminated(), nativeFeatures = ref features.toNullTerminated() {
+                    let machine = sys.LLVMCreateTargetMachine(target, nativeTriple, nativeCpu, nativeFeatures, 0, 0, 0)
+                    let data = sys.LLVMCreateTargetDataLayout(machine)
+
+                    return new Target {
+                        machine
+                        data
+                    }
+                }
+            }
+        }
+    }
+}
+
+class CachedStruct {
+    name: string
+    ty: LLVMType
+}
+
+public class Context {
+    target: Target
+    c: LLVMContext
+    cachedStructs: List<CachedStruct>
+
+    public static create(): Context {
+        unsafe {
+            return new Context {
+                target = Target.null()
+                c = sys.LLVMContextCreate()
+                cachedStructs = List.empty<CachedStruct>()
+            }
+        }
+    }
+
+    public initialize(target: Target) {
+        this.target = target
+    }
+
+    public get voidType: LLVMType {
+        unsafe {
+            return sys.LLVMVoidTypeInContext(this.c)
+        }
+    }
+
+    public get int1Type: LLVMType {
+        unsafe {
+            return sys.LLVMInt1TypeInContext(this.c)
+        }
+    }
+
+    public get int8Type: LLVMType {
+        unsafe {
+            return sys.LLVMInt8TypeInContext(this.c)
+        }
+    }
+
+    public get int16Type: LLVMType {
+        unsafe {
+            return sys.LLVMInt16TypeInContext(this.c)
+        }
+    }
+
+    public get int32Type: LLVMType {
+        unsafe {
+            return sys.LLVMInt32TypeInContext(this.c)
+        }
+    }
+
+    public get int64Type: LLVMType {
+        unsafe {
+            return sys.LLVMInt64TypeInContext(this.c)
+        }
+    }
+
+    public get floatType: LLVMType {
+        unsafe {
+            return sys.LLVMFloatTypeInContext(this.c)
+        }
+    }
+
+    public get doubleType: LLVMType {
+        unsafe {
+            return sys.LLVMDoubleTypeInContext(this.c)
+        }
+    }
+
+    // Integer type that is exactly the width of a pointer on the target platform.
+    public get intPtrType: LLVMType {
+        unsafe {
+            match sys.LLVMPointerSize(this.target.data) {
+                1 => this.int1Type
+                2 => this.int16Type
+                4 => this.int32Type
+                8 => this.int64Type
+                _ => throw Error.create("invalid pointer size")
+            }
+        }
+    }
+
+    public createModule(name: string): Module {
+        unsafe {
+            with let cName = ref name.toNullTerminated() {
+                let m = sys.LLVMModuleCreateWithNameInContext(m, this.c)
+                return new Module {
+                    m
+                }
+            }
+        }
+    }
+
+    public getFunctionType(returnType: LLVMType, params: List<LLVMType>, isVarArg: bool): LLVMType {
+        let nativeIsVarArg: int32 = match isVarArg {
+            true => 1
+            false => 0
+        }
+        unsafe {
+            with let nativeParams = ref params.toArray() {
+                return sys.LLVMFunctionType(returnType, nativeParams, params.length as uint32, nativeIsVarArg)
+            }
+        }
+    }
+
+    public getArrayType(elementType: LLVMType, elementCount: uint32): LLVMType {
+        unsafe {
+            return sys.LLVMArrayType(elementType, elementCount)
+        }
+    }
+
+    public getPointerType(elementType: LLVMType): LLVMType {
+        unsafe {
+            return sys.LLVMPointerType(elementType, 0)
+        }
+    }
+
+    public getStructType(name: string, elementTypes: List<LLVMType>): LLVMType {
+        for cachedStruct in this.cachedStructs {
+            if cachedStruct.name == name {
+                return cachedStruct.ty
+            }
+        }
+
+        unsafe {
+            with let cName = ref name.toNullTerminated() {
+                let ty = sys.LLVMStructCreateNamed(this.c, cName)
+                with let nativeElementTypes = ref elementTypes.toArray() {
+                    sys.LLVMStructSetBody(this.c, nativeElementTypes, elementTypes.length as uint32, 0)
+                }
+
+                this.cachedStructs.push(new CachedStruct {
+                    name
+                    ty
+                })
+                return ty
+            }
+        }
+    }
+}
+
+public class Module {
+    m: LLVMModule
+}
+
+public class Builder {
+    b: LLVMBuilder
+
+    public emit(insn: Insn) {
+        match insn {
+            _ => unreachable
+        }
+    }
+}
+
+public enum IntPredicate {
+    // Equal
+    EQ
+    // Not equal
+    NE
+    // Unsigned greater than
+    UGT
+    // Unsigned greater than or equal to
+    UGE
+    // Unsigned less than
+    ULT
+    // Unsigned less than or equal to
+    ULE
+    // Signed greater than
+    SGT
+    // Signed greater than or equal to
+    SGE
+    // Signed less than
+    SLT
+    // Signed less than or equal to
+    SLE
+}
+
+public enum Insn {
+    Unreachable
+    Nop
+    RetVoid
+    Ret {
+        operand: LLVMValue
+    }
+    Alloca {
+        ty: LLVMType
+    }
+    // Returns pointer to global string
+    GlobalString {
+        str: string
+    }                                            
+    Store {
+        src: LLVMValue
+        dst: LLVMValue
+    }
+    Load {
+        ptr: LLVMValue
+        ty: LLVMType
+    }
+    Call {
+        funcRef: LLVMValue
+        funcType: LLVMType
+        args: List<LLVMValue>
+    }
+    GetElementPtr {
+        structRef: LLVMValue
+        structType: LLVMType
+        index: uint32
+    }
+    GetElementPtrDynamic {
+        arrayRef: LLVMValue
+        arrayType: LLVMType
+        index: LLVMValue
+    }
+    CondBr {
+        test: LLVMValue
+        then: LLVMBasicBlock
+        fallback: LLVMBasicBlock
+    }
+    Br {
+        block: LLVMBasicBlock
+    }
+    ICmp {
+        op: IntPredicate
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    Xor {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    // truncate par0 per the type of par1
+    Trunc {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    IAdd {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    IAnd {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    ISub {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    IMul {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    IOr {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    IXor {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    SDiv {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    SRem {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    UDiv {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    URem {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    FAdd {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    FSub {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    FMul {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    FDiv {
+        lhs: LLVMValue
+        rhs: LLVMValue
+    }
+    PointerCast {
+        val: LLVMValue
+        ty: LLVMType
+    }
+    Memset {
+        ptr: LLVMValue
+        val: LLVMValue
+        len: LLVMValue
+    }
+    Memmove {
+        src: LLVMValue
+        dst: LLVMValue
+        len: LLVMValue
+    }
+    PtrToInt {
+        ptr: LLVMValue
+    }
+    IntToPtr {
+        int: LLVMValue
+        ty: LLVMType
+    }
+    BitCast {
+        val: LLVMValue
+        ty: LLVMType
+    }
+    IntCast {
+        int: LLVMValue
+        intType: LLVMType
+        signed: bool
+    }
+    FloatCast {
+        float: LLVMValue
+        floatTYpe: LLVMType
+    }
+    IntToFloat {
+        int: LLVMValue
+        floatType: LLVMType
+        signed: bool
+    }
+    FloatToInt {
+        float: LLVMValue
+        intType: LLVMType
+        signed: bool
+    }
+    INeg {
+        int: LLVMValue
+    }
+    FNeg {
+        float: LLVMValue
+    }
+}

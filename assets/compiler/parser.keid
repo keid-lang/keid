@@ -59,27 +59,29 @@ implement ToString for PrattParserAffix {
 
 const PRECEDENCE_STEP: uint32 = 10
 const OPERATORS: [PrattParserOperator] = new PrattParserOperator[
-    PrattParserOperator.create(PrattParserAffix.Infix,   ".",   AstOperator.MemberAccess,        PRECEDENCE_STEP * 1),
-    PrattParserOperator.create(PrattParserAffix.Infix,   "??",  AstOperator.NullCoalesce,        PRECEDENCE_STEP * 2),
-    PrattParserOperator.create(PrattParserAffix.Infix,   "||",  AstOperator.BooleanOr,           PRECEDENCE_STEP * 3),
-    PrattParserOperator.create(PrattParserAffix.Infix,   "&&",  AstOperator.BooleanAnd,          PRECEDENCE_STEP * 4),
-    PrattParserOperator.create(PrattParserAffix.Infix,   "==",  AstOperator.Equals,              PRECEDENCE_STEP * 5),
-    PrattParserOperator.create(PrattParserAffix.Infix,   "!=",  AstOperator.NotEquals,           PRECEDENCE_STEP * 5),
-    PrattParserOperator.create(PrattParserAffix.Infix,   "<",   AstOperator.LessThan,            PRECEDENCE_STEP * 6),
-    PrattParserOperator.create(PrattParserAffix.Infix,   "<=",  AstOperator.LessThanOrEquals,    PRECEDENCE_STEP * 6),
-    PrattParserOperator.create(PrattParserAffix.Infix,   ">",   AstOperator.GreaterThan,         PRECEDENCE_STEP * 6),
-    PrattParserOperator.create(PrattParserAffix.Infix,   ">=",  AstOperator.GreaterThanOrEquals, PRECEDENCE_STEP * 6),
-    PrattParserOperator.create(PrattParserAffix.Infix,   "<<",  AstOperator.LeftShift,           PRECEDENCE_STEP * 7),
-    PrattParserOperator.create(PrattParserAffix.Infix,   ">>",  AstOperator.RightShift,          PRECEDENCE_STEP * 7),
-    PrattParserOperator.create(PrattParserAffix.Infix,   "+",   AstOperator.Add,                 PRECEDENCE_STEP * 8),
-    PrattParserOperator.create(PrattParserAffix.Infix,   "-",   AstOperator.Subtract,            PRECEDENCE_STEP * 8),
-    PrattParserOperator.create(PrattParserAffix.Infix,   "*",   AstOperator.Multiply,            PRECEDENCE_STEP * 9),
-    PrattParserOperator.create(PrattParserAffix.Infix,   "/",   AstOperator.Divide,              PRECEDENCE_STEP * 9),
-    PrattParserOperator.create(PrattParserAffix.Infix,   "%",   AstOperator.Modulus,             PRECEDENCE_STEP * 9),
-    PrattParserOperator.create(PrattParserAffix.Infix,   "as",  AstOperator.As,                  PRECEDENCE_STEP * 10),
-    PrattParserOperator.create(PrattParserAffix.Prefix,  "not", AstOperator.Not,                 PRECEDENCE_STEP * 11),
-    PrattParserOperator.create(PrattParserAffix.Prefix,  "...", AstOperator.Spread,              PRECEDENCE_STEP * 12),
-    PrattParserOperator.create(PrattParserAffix.Postfix, "!",   AstOperator.NonNullAssertion,    PRECEDENCE_STEP * 13),
+    PrattParserOperator.create(PrattParserAffix.Infix,   ".",     AstOperator.MemberAccess,        PRECEDENCE_STEP * 1),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "??",    AstOperator.NullCoalesce,        PRECEDENCE_STEP * 2),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "or",    AstOperator.BooleanOr,           PRECEDENCE_STEP * 3),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "and",   AstOperator.BooleanAnd,          PRECEDENCE_STEP * 4),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "==",    AstOperator.Equals,              PRECEDENCE_STEP * 5),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "!=",    AstOperator.NotEquals,           PRECEDENCE_STEP * 5),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "<",     AstOperator.LessThan,            PRECEDENCE_STEP * 6),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "<=",    AstOperator.LessThanOrEquals,    PRECEDENCE_STEP * 6),
+    PrattParserOperator.create(PrattParserAffix.Infix,   ">",     AstOperator.GreaterThan,         PRECEDENCE_STEP * 6),
+    PrattParserOperator.create(PrattParserAffix.Infix,   ">=",    AstOperator.GreaterThanOrEquals, PRECEDENCE_STEP * 6),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "<<",    AstOperator.LeftShift,           PRECEDENCE_STEP * 7),
+    PrattParserOperator.create(PrattParserAffix.Infix,   ">>",    AstOperator.RightShift,          PRECEDENCE_STEP * 7),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "+",     AstOperator.Add,                 PRECEDENCE_STEP * 8),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "-",     AstOperator.Subtract,            PRECEDENCE_STEP * 8),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "*",     AstOperator.Multiply,            PRECEDENCE_STEP * 9),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "/",     AstOperator.Divide,              PRECEDENCE_STEP * 9),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "%",     AstOperator.Modulus,             PRECEDENCE_STEP * 9),
+    PrattParserOperator.create(PrattParserAffix.Infix,   "as",    AstOperator.As,                  PRECEDENCE_STEP * 10),
+    PrattParserOperator.create(PrattParserAffix.Prefix,  "not",   AstOperator.Not,                 PRECEDENCE_STEP * 11),
+    PrattParserOperator.create(PrattParserAffix.Prefix,  "ref",   AstOperator.Ref,                 PRECEDENCE_STEP * 12),
+    PrattParserOperator.create(PrattParserAffix.Prefix,  "deref", AstOperator.Deref,               PRECEDENCE_STEP * 12),
+    PrattParserOperator.create(PrattParserAffix.Prefix,  "...",   AstOperator.Spread,              PRECEDENCE_STEP * 13),
+    PrattParserOperator.create(PrattParserAffix.Postfix, "!",     AstOperator.NonNullAssertion,    PRECEDENCE_STEP * 14),
 ]
 
 public class PrattParserOperator {
@@ -213,6 +215,7 @@ public class PrattParser {
 }
 
 class KeidParser {
+    scope: DeclarationScope
     file: SourceFile
 
     parseGenericDecls(ast: RuleMatch): List<AstGenericDecl> {
@@ -260,6 +263,8 @@ class KeidParser {
                     "namespace" => Modifier.Namespace
                     "constructor" => Modifier.Constructor
                     "unsafe" => Modifier.Unsafe
+                    "abstract" => Modifier.Abstract
+                    "override" => Modifier.Override
                     _ => throw Error.create("invalid modifier: " + modifierName)
                 }
                 modifiers.push(new AstToken<Modifier> {
@@ -298,15 +303,36 @@ class KeidParser {
             }
         }
         let generics = this.parseGenericArgs(ast, "generics")
-        let params = List.empty<AstToken<AstExpr>>()
-        for param in ast.getGroup("params") {
-            params.push(this.parseExpr(param.rule()))
+        let astParams = match ast.hasGroup("params") {
+            true => ast.getGroup("params")
+            false => List.empty<ParserMatch>()
+        }
+        let params = List.withCapacity<AstToken<AstExpr>>(astParams.length)
+        for astParam in astParams {
+            params.push(this.parseExpr(astParam.rule()))
         }
         return tokenize<AstExpr>(ast.loc, new AstExpr.FuncCall {
             callee
             generics
             params
         }) 
+    }
+
+    parseConstSliceExpr(ast: RuleMatch): AstToken<AstExpr> {
+        let type = this.parseValueType(ast.getGroupValue("type").rule())
+        let astElements = match ast.hasGroup("elements") {
+            true => ast.getGroup("elements")
+            false => List.empty<ParserMatch>()
+        }
+        let elements = List.withCapacity<AstToken<AstExpr>>(astElements.length)
+        for astElement in astElements {
+            elements.push(this.parseExpr(astElement.rule()))
+        }
+
+        return tokenize<AstExpr>(ast.loc, new AstExpr.ConstSlice {
+            type
+            elements
+        })
     }
 
     parseNewExpr(ast: RuleMatch): AstToken<AstExpr> {
@@ -328,6 +354,79 @@ class KeidParser {
         return tokenize<AstExpr>(ast.loc, new AstExpr.NewObject {
             type
             fields
+        })
+    }
+
+    parseDeconstructionExpr(ast: RuleMatch): List<AstDestructionMember> {
+        let astMembers = ast.getGroup("members")
+        let members = List.withCapacity<AstDestructionMember>(astMembers.length)
+        for astMember in astMembers {
+            match astMember {
+                Rule { rule, } => {
+                    let name = tokenizeIdentifier(rule.getGroupValue("name").token())
+                    let alias: ?AstToken<string> = null
+                    if rule.hasGroup("alias") {
+                        alias = tokenizeIdentifier(rule.getGroupValue("alias").token())
+                    }
+                    let type: ?AstToken<ComplexType> = null
+                    if rule.hasGroup("type") {
+                        type = this.parseValueType(rule.getGroupValue("type").rule())
+                    }
+
+                    members.push(new AstDestructionMember.Field {
+                        field = new AstDestructionMemberField {
+                            name
+                            alias
+                            type
+                        }
+                    })
+                }
+                Token { token, } => {
+                    members.push(AstDestructionMember.Ellipsis)
+                }
+            }
+        }
+        return members
+    }
+
+    parseMatchTestEnumWithData(ast: RuleMatch): MatchArmKind {
+        let variant = tokenizeIdentifier(ast.getGroupValue("variant").token())
+        let data = this.parseDeconstructionExpr(ast.getGroupValue("data").rule())
+        return new MatchArmKind.EnumWithData {
+            variant
+            data
+        }
+    }
+
+    parseMatchExpr(ast: RuleMatch): AstToken<AstExpr> {
+        let operand = this.parseExpr(ast.getGroupValue("operand").rule())
+        let astArms = ast.getGroup("arms")
+        let arms = List.withCapacity<AstMatchArm>(astArms.length)
+        for astArm in astArms {
+            let astTest = astArm.rule().getGroupValue("test")
+            let kind = match astTest {
+                Rule { rule, } => this.parseMatchTestEnumWithData(rule)
+                Token { token, } => match token.kind {
+                    Literal { lit, } => new MatchArmKind.Literal {
+                        lit = tokenize<LexerLiteral>(token.loc, lit)
+                    }
+                    Identifier { name, } => new MatchArmKind.Identifier {
+                        ident = tokenize<string>(token.loc, name)
+                    }
+                    Operator { op, } => MatchArmKind.CatchAll
+                    _ => throw Error.create("invalid match arm test token: " + token.toString())
+                }
+            }
+            let statement = this.parseBlockStatement(astArm.rule().getGroupValue("statement").rule())
+            arms.push(new AstMatchArm {
+                kind
+                statement
+            })
+        }
+
+        return tokenize<AstExpr>(ast.loc, new AstExpr.Match {
+            operand
+            arms
         })
     }
 
@@ -367,6 +466,48 @@ class KeidParser {
         }
     }
 
+    parseForLoop(ast: RuleMatch): AstStatement {
+        let condition = this.parseExpr(ast.getGroupValue("condition").rule())
+        let block = this.parseCodeBlock(ast.getGroupValue("block").rule())
+
+        return new AstStatement.ForLoop {
+            condition
+            block
+        }
+    }
+
+    parseForEachLoop(ast: RuleMatch): AstStatement {
+        let elementName = tokenizeIdentifier(ast.getGroupValue("elementName").token())
+        let iterable = this.parseExpr(ast.getGroupValue("iterable").rule())
+        let block = this.parseCodeBlock(ast.getGroupValue("block").rule())
+
+        return new AstStatement.ForEachLoop {
+            elementName
+            iterable
+            block
+        }
+    }
+
+    parseWithStatement(ast: RuleMatch): AstStatement {
+        let binding = this.parseLet(ast.getGroupValue("binding").rule())
+        let block = this.parseCodeBlock(ast.getGroupValue("block").rule())
+
+        return new AstStatement.With {
+            binding
+            block
+        }
+    }
+
+    parseReturn(ast: RuleMatch): AstStatement {
+        let operand: ?AstToken<AstExpr> = null
+        if ast.hasGroup("operand") {
+            operand = this.parseExpr(ast.getGroupValue("operand").rule())
+        }
+        return new AstStatement.Return {
+            operand
+        }
+    }
+
     parsePrefixExpr(operator: AstToken<AstOperator>, operand: AstToken<AstExpr>): AstToken<AstExpr> {
         return new AstToken<AstExpr> {
             node = new AstExpr.Unary {
@@ -402,10 +543,13 @@ class KeidParser {
         match operand {
             Rule { rule, } => {
                 match rule.ruleName {
+                    "Expr" => return this.parseExpr(rule)
                     "GroupingExpr" => return this.parseExprOperand(rule.getGroupValue("expr"))
                     "NewSliceExpr" => return this.parseNewSliceExpr(rule)
                     "FuncCallExpr" => return this.parseFuncCallExpr(rule)
                     "NewExpr" => return this.parseNewExpr(rule)
+                    "ConstSliceExpr" => return this.parseConstSliceExpr(rule)
+                    "MatchExpr" => return this.parseMatchExpr(rule)
                     _ => throw Error.create(string.format("invalid rule as expr operand '", rule.ruleName, "'"))
                 }
             }
@@ -423,25 +567,9 @@ class KeidParser {
                         })
                     }
                     Literal { lit, } => {
-                        let astLiteral = match lit {
-                            Bool { val, } => new AstExpr.BoolLit {
-                                value = val
-                            }
-                            SignedInteger { val, } => new AstExpr.SignedIntLit {
-                                value = val
-                            }
-                            UnsignedInteger { val, } => new AstExpr.UnsignedIntLit {
-                                value = val
-                            }
-                            String { val, } => new AstExpr.StringLit {
-                                value = val
-                            }
-                            Char { val, } => new AstExpr.CharLit {
-                                value = val
-                            }
-                            Null => AstExpr.NullLit
-                        }
-                        return tokenize<AstExpr>(token.loc, astLiteral)
+                        return tokenize<AstExpr>(token.loc, new AstExpr.Literal {
+                            lit
+                        })
                     }
                     _ => throw Error.create("invalid expr operand token kind: " + token.kind.toString())
                 }
@@ -467,6 +595,8 @@ class KeidParser {
         match bodyDecl.ruleName {
             "CodeBlock" => return this.parseCodeBlock(bodyDecl)
             "ArrowBlock" => {
+                this.scope = DeclarationScope.Function
+
                 let exprDecl = bodyDecl.getGroupValue("expr").rule()
                 let expr = this.parseExpr(exprDecl)
                 let statement = new AstStatement.Expr {
@@ -478,22 +608,29 @@ class KeidParser {
         }
     }
 
+    parseBlockStatement(ast: RuleMatch): AstToken<AstStatement> {
+        return tokenize<AstStatement>(ast.loc, match ast.ruleName {
+            "ReturnStatement" => this.parseReturn(ast)
+            "ExprStatement" => new AstStatement.Expr { value = this.parseExpr(ast.getGroupValue("expr").rule()), }
+            "UnsafeBlock" => new AstStatement.UnsafeBlock { statements = this.parseCodeBlock(ast.getGroupValue("inner").rule()) }
+            "LetStatement" => new AstStatement.Let { statement = this.parseLet(ast.getGroupValue("let").rule()) }
+            "AssignStatement" => new AstStatement.Assign { statement = this.parseAssign(ast) }
+            "ThrowStatement" => new AstStatement.Throw { error = this.parseExpr(ast.getGroupValue("error").rule()) }
+            "IfStatement" => this.parseIfStatement(ast)
+            "ForLoop" => this.parseForLoop(ast)
+            "ForEachLoop" => this.parseForEachLoop(ast)
+            "IndefiniteLoop" => new AstStatement.IndefiniteLoop { block = this.parseCodeBlock(ast.getGroupValue("block").rule()) }
+            "WithStatement" => this.parseWithStatement(ast)
+            _ => throw Error.create("NotYetImplemented: block statement: " + ast.ruleName)
+        })
+    }
+
     parseCodeBlock(ast: RuleMatch): List<AstToken<AstStatement>> {
         let statements = List.empty<AstToken<AstStatement>>()
         if ast.hasGroup("statements") {
             for statement in ast.getGroup("statements") {
-                let rule = statement.rule()
-                let statementAst = match rule.ruleName {
-                    "ReturnStatement" => new AstStatement.Return { operand = this.parseExpr(rule.getGroupValue("operand").rule()), }
-                    "Expr" => new AstStatement.Expr { value = this.parseExpr(rule), }
-                    "UnsafeBlock" => new AstStatement.UnsafeBlock { statements = this.parseCodeBlock(rule.getGroupValue("inner").rule()) }
-                    "LetStatement" => new AstStatement.Let { statement = this.parseLet(rule.getGroupValue("let").rule()) }
-                    "AssignStatement" => new AstStatement.Assign { statement = this.parseAssign(rule) }
-                    "ThrowStatement" => new AstStatement.Throw { error = this.parseExpr(rule.getGroupValue("error").rule()) }
-                    "IfStatement" => this.parseIfStatement(rule)
-                    _ => throw Error.create("NotYetImplemented: block statement: " + rule.ruleName)
-                }
-                statements.push(tokenize<AstStatement>(rule.loc, statementAst))
+                this.scope = DeclarationScope.Function
+                statements.push(this.parseBlockStatement(statement.rule()))
             }
         }
         return statements
@@ -588,11 +725,33 @@ class KeidParser {
             initialValue = this.parseExpr(ast.getGroupValue("initialValue").rule())
         }
 
-        return new AstLet {
-            kind
+        let astSecondaries = match ast.hasGroup("secondaries") {
+            true => ast.getGroup("secondaries")
+            false => List.empty<ParserMatch>()
+        }
+        let decls = List.withCapacity<AstLetVariableDecl>(astSecondaries.length + 1)
+        decls.push(new AstLetVariableDecl {
             name
-            valueType
             initialValue
+        })
+        for astSecondary in astSecondaries {
+            let rule = astSecondary.rule()
+            let secondaryName = tokenizeIdentifier(rule.getGroupValue("name").token())
+            let secondaryInitialValue: ?AstToken<AstExpr> = null
+            if rule.hasGroup("initialValue") {
+                secondaryInitialValue = this.parseExpr(rule.getGroupValue("initialValue").rule())
+            }
+            decls.push(new AstLetVariableDecl {
+                name = secondaryName
+                initialValue = secondaryInitialValue
+            })
+        }
+
+        return new AstLet {
+            scope = this.scope
+            kind
+            valueType
+            decls
         }
     }
 
@@ -676,9 +835,6 @@ class KeidParser {
         let paramsDecl = decl.getGroupValue("params").rule()
         if paramsDecl.hasGroup("params") {
             for paramDecl in paramsDecl.getGroup("params") {
-                if name.node == "foo" {
-                    std::io.println("foo: parseFunctionParam")
-                }
                 params.push(this.parseFunctionParam(paramDecl.rule()))
             }
         }
@@ -689,10 +845,10 @@ class KeidParser {
         }
 
         let varargs = VarargsMode.None
-        if decl.hasGroup("nativeVarargs") {
+        if paramsDecl.hasGroup("nativeVarargs") {
             varargs = VarargsMode.Native
-        } else if decl.hasGroup("varargs") {
-            let paramDecl = decl.getGroupValue("varargs").rule().getGroupValue("param").rule()
+        } else if paramsDecl.hasGroup("varargs") {
+            let paramDecl = paramsDecl.getGroupValue("varargs").rule().getGroupValue("param").rule()
             varargs = new VarargsMode.Array {
                 param = this.parseFunctionParam(paramDecl)
             }
@@ -704,6 +860,7 @@ class KeidParser {
         }
 
         return new AstFunction {
+            scope = this.scope
             modifiers
             name
             generics
@@ -712,6 +869,39 @@ class KeidParser {
             varargs
             body
         }
+    }
+
+    parseGetAccessorDecl(ast: RuleMatch): AstAccessor {
+        let modifiers = this.parseModifers(ast)
+        let name = tokenizeIdentifier(ast.getGroupValue("name").token())
+        let type = this.parseValueType(ast.getGroupValue("type").rule())
+        let body: ?List<AstToken<AstStatement>> = null
+        if ast.hasGroup("body") {
+            body = this.parseBody(ast.getGroupValue("body").rule())
+        }
+
+        return new AstAccessor {
+            kind = AccessorKind.Get
+            modifiers
+            name
+            type
+            body
+        }
+    }
+
+    parseAnonymousTypeDecl(ast: RuleMatch): List<AstFieldDecl> {
+        let astFields = ast.getGroup("fields")
+        let fields = List.withCapacity<AstFieldDecl>(astFields.length)
+        for astField in astFields {
+            let rule = astField.rule()
+            let name = tokenizeIdentifier(rule.getGroupValue("name").token())
+            let type = this.parseValueType(rule.getGroupValue("type").rule()) 
+            fields.push(new AstFieldDecl {
+                name
+                type
+            })
+        }
+        return fields
     }
 
     parseClass(ast: RuleMatch): AstClass {
@@ -739,13 +929,31 @@ class KeidParser {
             superclassGenerics = this.parseGenericArgs(extendsDecl, "generics")
         }
 
+        let enumMembers = List.empty<AstEnumMember>()
+        if ast.hasGroup("members") {
+            for member in ast.getGroup("members") {
+                let rule = member.rule()
+                let memberName = tokenizeIdentifier(rule.getGroupValue("name").token())
+                let memberData = List.empty<AstFieldDecl>()
+                if rule.hasGroup("data") {
+                    memberData = this.parseAnonymousTypeDecl(rule.getGroupValue("data").rule())
+                }
+                enumMembers.push(new AstEnumMember {
+                    name = memberName
+                    data = memberData
+                })
+            }
+        }
+
         let destructor: ?List<AstToken<AstStatement>> = null
         let associatedTypes = List.empty<AstAssociatedType>()
         let fields = List.empty<AstClassField>()
         let methods = List.empty<AstFunction>()
+        let accessors = List.empty<AstAccessor>()
         if ast.hasGroup("statements") {
             let statements = ast.getGroup("statements")
             for statement in statements {
+                this.scope = DeclarationScope.Object
                 let rule = statement.rule()
                 match rule.ruleName {
                     "AssociatedTypeDecl" => {
@@ -757,6 +965,9 @@ class KeidParser {
                     }
                     "MethodDecl" => {
                         methods.push(this.parseFunction(rule))
+                    }
+                    "GetAccessorDecl" => {
+                        accessors.push(this.parseGetAccessorDecl(rule))
                     }
                     _ => {
                         io.println("TODO: Class-level statement: ", rule.ruleName)
@@ -774,8 +985,10 @@ class KeidParser {
             superclassGenerics
             destructor
             associatedTypes
+            enumMembers
             fields
             methods
+            accessors
         }
     }
 
@@ -806,6 +1019,8 @@ class KeidParser {
         let methods = List.empty<AstFunction>()
 
         for statement in ast.getGroup("statements") {
+            this.scope = DeclarationScope.Object
+
             let rule = statement.rule()
             match rule.ruleName {
                 "AssociatedTypeDecl" => {
@@ -837,6 +1052,8 @@ class KeidParser {
 
         if ast.hasGroup("statements") {
             for statement in ast.getGroup("statements") {
+                this.scope = DeclarationScope.Namespace
+
                 let rule = statement.rule()
                 match rule.ruleName {
                     "ImportStatement" => {
@@ -1138,6 +1355,7 @@ public function parseKeidSource(preprocessor: KsdlParser, parser: KsdlParser, fi
     match parseResult {
         Success { match, } => {
             let keidParser = new KeidParser {
+                scope = DeclarationScope.Namespace
                 file = new SourceFile {
                     path = file
                     text = programText

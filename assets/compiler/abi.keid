@@ -1,0 +1,88 @@
+namespace keidc::abi
+
+import (
+    core::collections
+    core::string
+    keidc::types
+    llvm
+)
+
+public struct AbiClassMetadata {
+    public static create(): AbiClassMetadata => new AbiClassMetadata {}
+}
+
+implement ToLLVMType for AbiClassMetadata {
+    public get llvmType: LLVMType => llvm.context.getStructType("$AbiClassMetadata", List.from<LLVMType>(
+        llvm.context.getPointerType(AbiObjectInfo.create().llvmType), // object info pointer
+        llvm.context.int32Type,                                       // strong ref count
+        llvm.context.int32Type,                                       // weak ref count
+    ))
+}
+
+public struct AbiObjectInfo {
+    public static create(): AbiObjectInfo => new AbiObjectInfo {}
+}
+
+implement ToLLVMType for AbiObjectInfo {
+    public get llvmType: LLVMType => llvm.context.getStructType("$AbiObjectInfo", List.from<LLVMType>(
+        llvm.context.int32Type,                             // flags
+        llvm.context.getPointerType(llvm.context.int8Type), // name
+        llvm.context.getPointerType(llvm.context.voidType), // destructor
+        llvm.context.getPointerType(llvm.context.voidType), // vtable
+        llvm.context.int32Type,                             // interfaces len
+        llvm.context.getPointerType(llvm.context.voidType), // interfaces
+    ))
+}
+
+public struct AbiArray {
+    element: ComplexType
+    length: uint32
+
+    public static create(element: ComplexType, length: uint32): AbiArray => new AbiArray { element, length, }
+}
+
+implement ToLLVMType for AbiArray {
+    public get llvmType: LLVMType => llvm.context.getArrayType(this.element.llvmType, this.length)
+}
+
+public struct AbiSlice {
+    element: ComplexType
+
+    public static create(element: ComplexType): AbiSlice => new AbiSlice { element, }
+}
+
+implement ToLLVMType for AbiSlice {
+    public get llvmType: LLVMType => llvm.context.getStructType(string.format("[", this.element.toString(), "]"), List.from<LLVMType>(
+        llvm.context.getPointerType(AbiObjectInfo.create().llvmType),               // object info pointer
+        llvm.context.intPtrType,                                                    // offset
+        llvm.context.intPtrType,                                                    // length
+        llvm.context.getPointerType(AbiBackingArray.create(this.element).llvmType), // backing array 
+    ))
+}
+
+public struct AbiBackingArray {
+    element: ComplexType
+
+    public static create(element: ComplexType): AbiBackingArray => new AbiBackingArray { element, }
+}
+
+implement ToLLVMType for AbiBackingArray {
+    public get llvmType: LLVMType => llvm.context.getStructType(string.format("$AbiBackingArray$", this.element.toString()), List.from<LLVMType>(
+        llvm.context.int32Type,                             // strong ref count
+        llvm.context.int32Type,                             // weak ref count
+        llvm.context.getPointerType(this.element.llvmType), // contiguous, heap-allocated array data
+    ))
+}
+
+public struct AbiNullable {
+    element: ComplexType
+
+    public static create(element: ComplexType): AbiNullable => new AbiNullable { element, }
+}
+
+implement ToLLVMType for AbiNullable {
+    public get llvmType: LLVMType => llvm.context.getStructType(string.format("?", this.element.toString()), List.from<LLVMValue>(
+        this.element.llvmType, // element
+        llvm.context.int1Type, // null marker
+    ))
+}

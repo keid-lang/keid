@@ -12,6 +12,7 @@ import (
     keidc::parser
     keidc::ksdl
     keidc::types
+    llvm
 )
 
 function listKeidFiles(path: string, files: List<string>) {
@@ -30,23 +31,21 @@ function listKeidFiles(path: string, files: List<string>) {
 
 public extern function main(): int32 {
     let files = List.empty<string>()
-    listKeidFiles("../keid/assets/core2", files)
+    listKeidFiles("../keid/assets/v2", files)
 
     let ksdlPreprocessor = parser.createPreprocessor()
     let ksdlParser = parser.createParser()
     let tmc = TypeMetadataCompiler.create()
     
+    let prevTime = std::time.getSystemTime()
     for file in files {
         io.println("Parsing ", file, "...")
 
-        let prevTime = std::time.getSystemTime()
         let ast = parser.parseKeidSource(ksdlPreprocessor, ksdlParser, file)
-        let elapsedTime = std::time.getSystemTime() - prevTime
         tmc.include(ast)
-    
-        io.println("Parsing took ", elapsedTime.milliseconds.toString(), "ms")
-        // io.println("AST: ", ast.toString(), "\n")
     }
+    let elapsedTime = std::time.getSystemTime() - prevTime
+    io.println("Parsing took ", elapsedTime.milliseconds.toString(), "ms")
 
     let startResolveTime = std::time.getSystemTime()
     let resolveErrors = tmc.resolveAll()    
@@ -60,6 +59,10 @@ public extern function main(): int32 {
 
         os.exit(1)
     }
+
+    let target = Target.fromTriple("x86_64-unknown-linux")
+    llvm.context.initialize(target)
+    let module = llvm.context.createModule("main")
 
     // core::array tests
     // core::array::test.testArrayLength()

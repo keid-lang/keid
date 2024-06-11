@@ -19,6 +19,7 @@ pub trait AssignmentCompiler {
 
 impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
     fn compile_assign(&mut self, lhs: &Token<Expr>, op: Operator, rhs: &Token<Expr>, deref: bool) -> Result<()> {
+        // println!("{}", self.func.callable_name);
         if deref {
             let pointer = self.compile_expr(lhs, None)?;
             let element = match &pointer.ty {
@@ -38,10 +39,8 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
             let addr_ptr = self.emit(Insn::IntToPtr(addr_int, element.clone().to_reference().as_llvm_type(self.cpl)));
 
             if element.is_struct(&self.cpl.type_provider) {
-                let const_size = self
-                    .cpl
-                    .context
-                    .const_int(self.cpl.context.get_isize_type(), self.cpl.context.target.get_type_size(element.as_llvm_type(&self.cpl)));
+                let const_size =
+                    self.cpl.context.const_int(self.cpl.context.get_isize_type(), self.cpl.context.target.get_type_size(element.as_llvm_type(&self.cpl)));
                 self.emit(Insn::Memmove(rhs.val, addr_ptr, const_size)); // copy the bytes from the local stack to the pointer
             } else {
                 self.emit(Insn::Store(rhs.val, addr_ptr));
@@ -52,9 +51,7 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
         match &lhs.token {
             Expr::Member(member_expr) => {
                 let previous_members = &member_expr.members[0..member_expr.members.len() - 1];
-                let previous_result = if !previous_members.is_empty()
-                    && member_expr.prefix.is_some()
-                {
+                let previous_result = if !previous_members.is_empty() && member_expr.prefix.is_some() {
                     self.compile_expr(
                         &Token {
                             loc: lhs.loc.clone(),
@@ -67,12 +64,16 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                     )?
                 } else if previous_members.len() == 1 && member_expr.prefix.is_none() {
                     self.compile_expr(&member_expr.members[0].value, None)?
-                } else if previous_members.is_empty() && let Some(namespace) = &member_expr.prefix {
+                } else if previous_members.is_empty()
+                    && let Some(namespace) = &member_expr.prefix
+                {
                     // x.y = z
                     // x = namespace
                     // y = active member
                     // no previous members
-                    if namespace.0.len() == 1 && let Ok(local_ident) = self.resolve_ident(&namespace.0[0]) {
+                    if namespace.0.len() == 1
+                        && let Ok(local_ident) = self.resolve_ident(&namespace.0[0])
+                    {
                         // if x is a local variable then just use that
                         // self.load_local_var(local_ident)?
                         self.load_local_var(&local_ident)?
@@ -84,12 +85,7 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                     // no namespace
                     // x = active member
                     // no previous members
-                    return self.compile_assign(
-                        &member_expr.members[0].value,
-                        op,
-                        rhs,
-                        deref,
-                    );
+                    return self.compile_assign(&member_expr.members[0].value, op, rhs, deref);
                 };
 
                 let last_member = member_expr.members.last().unwrap();
@@ -97,11 +93,8 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
 
                 match &previous_result.ty {
                     ComplexType::Basic(BasicType::Object(ident)) => {
-                        let class_impl = self
-                            .cpl
-                            .type_provider
-                            .get_class_by_name(ident)
-                            .ok_or_else(|| compiler_error!(self, "No such type `{}`", ident.to_string()))?;
+                        let class_impl =
+                            self.cpl.type_provider.get_class_by_name(ident).ok_or_else(|| compiler_error!(self, "No such type `{}`", ident.to_string()))?;
                         match &last_member.value.token {
                             Expr::Ident(field_name) => {
                                 let class_member = self.resolve_class_member_ptr(&previous_result, &class_impl, field_name)?;
@@ -130,13 +123,7 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                         self.loc(&rhs.loc);
                         self.store_array_element(&previous_result, &compiled_rhs, &index, false)?;
                     }
-                    _ => {
-                        return Err(compiler_error!(
-                            self,
-                            "[ER8] The `.` operator is forbidden on type `{}`",
-                            previous_result.ty.to_string()
-                        ))
-                    }
+                    _ => return Err(compiler_error!(self, "[ER8] The `.` operator is forbidden on type `{}`", previous_result.ty.to_string())),
                 }
             }
             Expr::Ident(ident) => match self.resolve_static_field_reference(&Qualifier(vec![ident.clone()])) {
@@ -185,10 +172,11 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                     self.loc(&initial_value.loc);
                     self.assert_assignable_to(&initial_ref.ty, &var_type)?;
 
-                    (initial_ref, var_type)
+                    (Some(initial_ref), var_type)
                 }
-                (Some(_var_type), None) => {
-                    panic!("Variables without an initial value are WIP: {:#?}", lt);
+                (Some(var_type), None) => {
+                    let var_type = self.resolve_type(&var_type.complex)?;
+                    (None, var_type)
                 }
                 (None, Some(initial_value)) => {
                     self.loc(&initial_value.loc);
@@ -197,28 +185,30 @@ impl<'a> AssignmentCompiler for FunctionCompiler<'a> {
                     if var_type == BasicType::Void.to_complex() {
                         return Err(compiler_error!(self, "Illegal variable type `void`"));
                     }
-                    (initial_ref, var_type)
+                    (Some(initial_ref), var_type)
                 }
                 (None, None) => unreachable!(),
             };
 
-            self.try_scope(&TypedValue::new(var_type.clone(), initial_ref.val))?;
+            if let Some(initial_ref) = initial_ref {
+                self.try_scope(&TypedValue::new(var_type.clone(), initial_ref.val))?;
 
-            let var_ref = self.emit(Insn::Alloca(var_type.as_llvm_type(self.cpl)));
-            let typed_local_var = TypedValue::new(var_type, var_ref);
-            self.copy(&initial_ref, &typed_local_var)?;
+                let var_ref = self.emit(Insn::Alloca(var_type.as_llvm_type(self.cpl)));
+                let typed_local_var = TypedValue::new(var_type, var_ref);
+                self.copy(&initial_ref, &typed_local_var)?;
 
-            for i in (0..self.state.block_stack.len()).rev() {
-                let locals = &mut self.state.block_stack[i].locals;
-                for local in locals {
-                    if local.name == binding.name.token.0 {
-                        local.value = typed_local_var;
-                        continue 'bindings;
+                for i in (0..self.state.block_stack.len()).rev() {
+                    let locals = &mut self.state.block_stack[i].locals;
+                    for local in locals {
+                        if local.name == binding.name.token.0 {
+                            local.value = typed_local_var;
+                            continue 'bindings;
+                        }
                     }
                 }
-            }
 
-            panic!("failed to assign to let binding")
+                panic!("failed to assign to let binding")
+            }
         }
 
         Ok(())

@@ -1,0 +1,9 @@
+namespace v2
+
+import (
+    std.io
+)
+
+public extern function main() {
+    io.println("Hello, world!")
+}

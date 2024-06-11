@@ -379,9 +379,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
 
                 let metadata_val = self.emit(Insn::Load(
                     casted_metadata_ptr,
-                    self.cpl.context.get_pointer_type(
-                        self.cpl.context.get_abi_array_data_type(element_type.as_llvm_type(self.cpl), &element_type.to_string()),
-                    ),
+                    self.cpl.context.get_pointer_type(self.cpl.context.get_abi_array_data_type(element_type.as_llvm_type(self.cpl), &element_type.to_string())),
                 ));
                 self.emit(Insn::Store(metadata_val, dest_metadata_ptr));
             }
@@ -403,10 +401,8 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                         self.assert_assignable_to(&src.ty, &dest.ty)?;
 
                         let src_classinfo_ptr = self.emit(Insn::GetElementPtr(casted.val, casted.ty.as_llvm_type(self.cpl), 0));
-                        let src_classinfo = self.emit(Insn::Load(
-                            src_classinfo_ptr,
-                            self.cpl.context.get_pointer_type(self.cpl.context.get_abi_class_info_type()),
-                        ));
+                        let src_classinfo =
+                            self.emit(Insn::Load(src_classinfo_ptr, self.cpl.context.get_pointer_type(self.cpl.context.get_abi_class_info_type())));
 
                         let dest_classinfo_ptr = self.emit(Insn::GetElementPtr(dest.val, dest.ty.as_llvm_type(self.cpl), 0));
                         self.emit(Insn::Store(src_classinfo, dest_classinfo_ptr));
@@ -514,6 +510,14 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                 let unboxed_value = self.emit(Insn::Load(value_ptr, unboxed_type.as_llvm_type(&self.cpl)));
                 return Ok(TypedValue::new(unboxed_type, unboxed_value));
             }
+            (ComplexType::Basic(BasicType::Object(src_ident)), dest) => {
+                if src_ident.name == "core::object::Box" && &src_ident.generic_args[0] == dest {
+                    // element 2 is the Box element; 0 = classinfo ptr, 1 = ref count
+                    let element_ptr = self.emit(Insn::GetElementPtr(src.val, src.ty.as_llvm_type(self.cpl), 2));
+                    let element = TypedValueContainer(TypedValue::new(dest.clone(), element_ptr)).load(self).unwrap();
+                    return Ok(element);
+                }
+            }
             // (ComplexType::Array(src_element), ComplexType::Array(dst_element)) => {
 
             // }
@@ -559,11 +563,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
                 } else {
                     // if no generic args were specified, return the first generic implementation
                     return Ok(Some(TypedValue {
-                        ty: BasicType::Object(GenericIdentifier::from_name_with_args(
-                            parent,
-                            &resolved_interface_impl.interface_generic_impls,
-                        ))
-                        .to_complex(),
+                        ty: BasicType::Object(GenericIdentifier::from_name_with_args(parent, &resolved_interface_impl.interface_generic_impls)).to_complex(),
                         val: src.val,
                     }));
                 }
@@ -618,8 +618,7 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
 
         let rotated_parent = self.builder.create_block();
         if check {
-            let check_unhandled_error_callable =
-                ResolvedFunctionNode::externed("keid.check_unhandled_error", &[], Varargs::None, BasicType::Bool.to_complex());
+            let check_unhandled_error_callable = ResolvedFunctionNode::externed("keid.check_unhandled_error", &[], Varargs::None, BasicType::Bool.to_complex());
             let check_unhandled_error_ref = self.get_function_ref(&check_unhandled_error_callable)?;
             let check_unhandled_error_val = self.call_function(check_unhandled_error_ref, &check_unhandled_error_callable, &[])?;
 
@@ -656,12 +655,8 @@ impl<'a> FunctionCompilerUtils for FunctionCompiler<'a> {
     }
 
     fn heap_allocate(&mut self, ty: OpaqueType, count: Option<OpaqueValue>) -> Result<OpaqueValue> {
-        let malloc_func = ResolvedFunctionNode::externed(
-            "keid_malloc",
-            &[BasicType::USize.to_complex()],
-            Varargs::None,
-            BasicType::Void.to_complex().to_reference(),
-        );
+        let malloc_func =
+            ResolvedFunctionNode::externed("keid_malloc", &[BasicType::USize.to_complex()], Varargs::None, BasicType::Void.to_complex().to_reference());
 
         let size = self.cpl.context.target.get_type_size(ty);
         let mut size_const = self.cpl.context.const_int(self.cpl.context.get_i64_type(), size);
@@ -683,8 +678,7 @@ pub fn get_import_map_with(imports: &[ImportNode], all_type_names: Vec<&String>)
     map.insert("range".to_owned(), "core::collections::Range".to_owned());
     map.insert("object".to_owned(), "core::object::Object".to_owned());
     for node in imports {
-        let types: Vec<String> =
-            all_type_names.iter().filter(|type_name| get_type_namespace(type_name) == node.module).map(|str| str.to_string()).collect();
+        let types: Vec<String> = all_type_names.iter().filter(|type_name| get_type_namespace(type_name) == node.module).map(|str| str.to_string()).collect();
         for item in &types {
             map.try_insert(get_type_leaf(item).to_owned(), item.to_string()).unwrap();
         }
@@ -700,8 +694,7 @@ pub struct ImportedMember {
 }
 
 pub fn lookup_import_map(map: &[ImportedMember], key: &str) -> Vec<String> {
-    let mut imports: Vec<String> =
-        map.iter().filter(|member| member.local_name == key).map(|member| member.absolute_name.clone()).collect();
+    let mut imports: Vec<String> = map.iter().filter(|member| member.local_name == key).map(|member| member.absolute_name.clone()).collect();
     imports.push(key.to_owned());
     imports
 }
@@ -836,9 +829,7 @@ pub fn generate_vtable(type_provider: &TypeProvider, ident: &GenericIdentifier) 
                     let source_class = type_provider.get_source_class(&class_impl);
                     for function_id in &source_class.functions {
                         let function = type_provider.get_function_node(class_impl.module_id, *function_id).unwrap();
-                        if function.modifiers.contains(&FunctionModifier::Abstract)
-                            || function.modifiers.contains(&FunctionModifier::Virtual)
-                        {
+                        if function.modifiers.contains(&FunctionModifier::Abstract) || function.modifiers.contains(&FunctionModifier::Virtual) {
                             layer_vtable.push(VirtualMethodTableEntry {
                                 definition_name: GenericIdentifier::from_name_with_args(&function.base_name, &class_impl.generic_impls),
                                 implementation_name: None,

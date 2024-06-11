@@ -59,6 +59,7 @@ public enum VarargsMode {
 }
 
 public class AstFunction {
+    scope: DeclarationScope
     modifiers: List<AstToken<Modifier>>
     name: AstToken<string>
     generics: ?List<AstGenericDecl>
@@ -90,6 +91,10 @@ implement ToString for AstFunction {
 
 implement Resolvable for AstFunction {
     resolve(trc: TypeResolveContext) {
+        match this.scope {
+            Namespace => this.name.node = string.format(trc.namespace, ".", this.name.node)
+            _ => {}
+        }
         for param in this.params {
             param.type = trc.resolve(param.type)
         }
@@ -142,21 +147,50 @@ implement Resolvable for AstImplement {
     }
 }
 
+public enum DeclarationScope {
+    // The item is declared at the root of the file as an item of the namespace.
+    Namespace
+    // The item is declared as a member variable of an object.
+    Object
+    // The item is declared within a function.
+    Function
+}
+
+implement ToString for DeclarationScope {
+    toString(): string => match this {
+        Namespace => "Namespace"
+        Object => "Object"
+        Function => "Function"
+    }
+}
+
 public enum LetKind {
     Mutable
     Constant
 }
 
-public class AstLet {
-    kind: LetKind
+public struct AstLetVariableDecl {
     name: AstToken<string>
-    valueType: ?AstToken<ComplexType>
     initialValue: ?AstToken<AstExpr>
+}
+
+public class AstLet {
+    scope: DeclarationScope
+    kind: LetKind
+    valueType: ?AstToken<ComplexType>
+    decls: List<AstLetVariableDecl>
 }
 
 implement Resolvable for AstLet {
     resolve(trc: TypeResolveContext) {
-        this.name.node = string.format(trc.namespace, ".", this.name.node)
+        match this.scope {
+            Namespace => {
+                for decl in this.decls {
+                    decl.name.node = string.format(trc.namespace, ".", decl.name.node)
+                }
+            }
+            _ => {}
+        }
         if this.valueType != null {
             this.valueType!.node = trc.resolve(this.valueType!.node)
         }
@@ -170,6 +204,30 @@ public class AstAssign {
     rhs: AstToken<AstExpr>
 }
 
+public class AstEnumMember {
+    name: AstToken<string>
+    data: List<AstFieldDecl>
+}
+
+public enum AccessorKind {
+    Get
+    Set
+}
+
+public class AstAccessor {
+    kind: AccessorKind
+    modifiers: List<AstToken<Modifier>>
+    name: AstToken<string>
+    type: AstToken<ComplexType>
+    body: ?List<AstToken<AstStatement>>
+}
+
+implement Resolvable for AstAccessor {
+    resolve(trc: TypeResolveContext) {
+        this.type = trc.resolve(this.type)
+    }
+}
+
 public class AstClass {
     kind: AstToken<ObjectKind>
     modifiers: List<AstToken<Modifier>>
@@ -179,8 +237,10 @@ public class AstClass {
     superclassGenerics: ?List<AstToken<ComplexType>>
     destructor: ?List<AstToken<AstStatement>>
     associatedTypes: List<AstAssociatedType>
+    enumMembers: List<AstEnumMember>
     fields: List<AstClassField>
     methods: List<AstFunction>
+    accessors: List<AstAccessor>
 }
 
 implement Resolvable for AstClass {
@@ -293,6 +353,22 @@ public enum AstStatement {
         conditionals: List<AstIfBlock>
         fallback: ?List<AstToken<AstStatement>>
     }
+    ForLoop {
+        condition: AstToken<AstExpr>
+        block: List<AstToken<AstStatement>>
+    }
+    ForEachLoop {
+        elementName: AstToken<string>
+        iterable: AstToken<AstExpr>
+        block: List<AstToken<AstStatement>>
+    }
+    IndefiniteLoop {
+        block: List<AstToken<AstStatement>>
+    }
+    With {
+        binding: AstLet
+        block: List<AstToken<AstStatement>>
+    }
 }
 
 public enum AstOperator {
@@ -318,6 +394,8 @@ public enum AstOperator {
     Spread
     NullCoalesce
     MemberAccess
+    Ref
+    Deref
 }
 
 implement ToString for AstOperator {
@@ -348,27 +426,51 @@ implement ToString for AstOperator {
     }
 }
 
+public class AstFieldDecl {
+    name: AstToken<string>
+    type: AstToken<ComplexType>
+}
+
 public class AstField {
     name: AstToken<string>
     value: ?AstToken<AstExpr>
 }
 
+public class AstDestructionMemberField {
+    name: AstToken<string>
+    alias: ?AstToken<string>
+    type: ?AstToken<ComplexType>
+}
+
+public enum AstDestructionMember {
+    Field {
+        field: AstDestructionMemberField
+    }
+    Ellipsis
+}
+
+public enum MatchArmKind {
+    Identifier {
+        ident: AstToken<string>
+    }
+    Literal {
+        lit: AstToken<LexerLiteral>
+    }
+    EnumWithData {
+        variant: AstToken<string>
+        data: List<AstDestructionMember>
+    }
+    CatchAll
+}
+
+public class AstMatchArm {
+    kind: MatchArmKind
+    statement: AstToken<AstStatement>
+}
+
 public enum AstExpr {
-    NullLit
-    BoolLit {
-        value: bool
-    }
-    StringLit {
-        value: string
-    }
-    CharLit {
-        value: char
-    }
-    UnsignedIntLit {
-        value: uint64
-    }
-    SignedIntLit {
-        value: int64
+    Literal {
+        lit: LexerLiteral
     }
     Ident {
         value: string
@@ -404,6 +506,14 @@ public enum AstExpr {
     NewObject {
         type: AstToken<ComplexType>
         fields: List<AstField>
+    }
+    ConstSlice {
+        type: AstToken<ComplexType>
+        elements: List<AstToken<AstExpr>>
+    }
+    Match {
+        operand: Box<AstToken<AstExpr>>
+        arms: List<AstMatchArm>
     }
 }
 

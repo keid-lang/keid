@@ -18,7 +18,7 @@ public class RegisteredType {
     name: string
     kind: ObjectKind
 
-    get fullName: string => string.format(this.namespace, "::", this.name)
+    get fullName: string => string.format(this.namespace, ".", this.name)
 }
 
 public class TypeResolveContext {
@@ -43,9 +43,9 @@ public class TypeResolveContext {
 
         // special cases for pseudo-primitive types
         if name == "string" {
-            candidates.push("core::string::String")
+            candidates.push("core.string.String")
         } else if name == "object" {
-            candidates.push("core::object::Object")
+            candidates.push("core.object.Object")
         }
 
         for test in this.allTypes {

@@ -1,12 +1,12 @@
-namespace std::impl::fs
+namespace std.impl.fs
 
 import (
-    core::collections
-    core::mem
-    core::error
-    core::runtime
-    std::os
-    std::impl::syscall
+    core.collections
+    core.mem
+    core.error
+    core.runtime
+    std.os
+    std.impl.syscall
 )
 
 const O_RDONLY: uint64 = 0x00000
@@ -20,11 +20,14 @@ extern function opendir(name: Pointer<uint8>): usize
 extern function readdir(fd: usize): Pointer<void>
 
 function getIoError(prefix: string): Error {
-    let msg = std::impl::sys.getErrorMessage(std::impl::sys.getErrorCode())
+    let msg = std.impl.sys.getErrorMessage(std.impl.sys.getErrorCode())
     return error.io(string.format(prefix, " (", msg, ")"))
 }
 
-public function openFile(path: string, mode: std::fs::FileOpenMode): usize {
+public function openFile(path: string, mode: std.fs.FileOpenMode): usize {
+    match mode {
+        Foo => Bar
+    }
     let flags = match mode {
         ReadOnly => O_RDONLY
         ReadWrite => O_RDWR
@@ -40,7 +43,7 @@ public function openFile(path: string, mode: std::fs::FileOpenMode): usize {
     return fd
 }
 
-public function createFile(path: string, mode: std::fs::FileOpenMode): usize {
+public function createFile(path: string, mode: std.fs.FileOpenMode): usize {
     let flags = match mode {
         ReadOnly => O_RDONLY
         ReadWrite => O_RDWR
@@ -78,12 +81,12 @@ public function closeDirectory(fd: usize): uint32 {
 }
 
 public function getFileLength(fd: usize): int64 {
-    let size = syscall.seek(fd, 0, std::fs::SeekWhence.End)
-    syscall.seek(fd, 0, std::fs::SeekWhence.Start)
+    let size = syscall.seek(fd, 0, std.fs.SeekWhence.End)
+    syscall.seek(fd, 0, std.fs.SeekWhence.Start)
     return size
 }
 
-public function seekFile(fd: usize, pos: int64, whence: std::fs::SeekWhence): int64 {
+public function seekFile(fd: usize, pos: int64, whence: std.fs.SeekWhence): int64 {
     return syscall.seek(fd, pos, whence)
 }
 
@@ -103,14 +106,14 @@ public function listDirectory(fd: usize): [string] {
     unsafe {
         let list = List.empty<string>()
         let entry: Pointer<void> = Pointer.nullptr<void>()
-        loop {
+        for {
             entry = readdir(fd)
             if entry.isNull {
                 break
             }
             let namePtr = Pointer.cast<void, uint8>(entry.offsetBytes(19))
             let entryName = string.fromCStr(namePtr)
-            if entryName == "." || entryName == ".." {
+            if entryName == "." or entryName == ".." {
                 continue
             }
             list.push(entryName)
@@ -126,8 +129,8 @@ public function exists(path: string): bool {
 const ST_MODE_FILE:      usize = 0o100000
 const ST_MODE_DIRECTORY: usize = 0o40000
 
-public function stat(fd: usize, followLinks: bool): std::fs::Stats {
-    let buffer = new usize[default(usize); 18]
+public function stat(fd: usize, followLinks: bool): std.fs.Stats {
+    let buffer = [usize](default(usize); 18)
 
     with let statsPtr = ref buffer {
         if syscall.stat(fd, Pointer.cast<usize, void>(statsPtr), followLinks) != 0 {
@@ -136,8 +139,7 @@ public function stat(fd: usize, followLinks: bool): std::fs::Stats {
     }
 
     let mode = buffer[3]
-    return new std::fs::Stats {
-        isFile = (mode & ST_MODE_FILE) == ST_MODE_FILE
-        isDirectory = (mode & ST_MODE_DIRECTORY) == ST_MODE_DIRECTORY
-    }
+    let isFile = (mode & ST_MODE_FILE) == ST_MODE_FILE
+    let isDirectory = (mode & ST_MODE_DIRECTORY) == ST_MODE_DIRECTORY
+    return std.fs.Stats.new(isFile, isDirectory)
 }

@@ -480,15 +480,15 @@ impl Compiler {
         // const OPT_LEVEL: u32 = 3;
 
         // for unit in &self.units {
-        // for function in unit.mdl.get_all_functions() {
-        // let fpm = PassManager::for_function(OPT_LEVEL, unit.mdl.as_val());
-        // if fpm.initialize_function() {
-        //     panic!("initialize_function failed");
-        // }
-        // if fpm.run_function(function) {
-        //     panic!("run_function failed");
-        // }
-        // }
+        //     for function in unit.mdl.get_all_functions() {
+        //         let fpm = PassManager::for_function(OPT_LEVEL, unit.mdl.as_val());
+        //         if fpm.initialize_function() {
+        //             panic!("initialize_function failed");
+        //         }
+        //         if fpm.run_function(function) {
+        //             panic!("run_function failed");
+        //         }
+        //     }
         // }
 
         // for unit in &self.units {

@@ -726,8 +726,8 @@ impl<'a> ExprCompiler for FunctionCompiler<'a> {
                     },
                 };
 
-                // take a pointer to the first element of the struct
-                let data_ptr = self.emit(Insn::GetElementPtr(val.val, struct_type, 0));
+                // take a pointer to the second element of the struct, the first is the classinfo pointer
+                let data_ptr = self.emit(Insn::GetElementPtr(val.val, struct_type, 1));
 
                 let ty = BasicType::Object(GenericIdentifier::from_name_with_args("core::mem::Pointer", &[val.ty.clone()])).to_complex();
                 let pointer_struct = self.instantiate_object(ty)?;

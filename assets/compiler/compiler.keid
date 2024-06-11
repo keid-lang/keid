@@ -1,0 +1,15 @@
+namespace keidc
+
+import (
+    keidc::ast
+    llvm
+)
+
+public class FunctionCompiler {
+    module: Module
+    ast: AstFunction
+
+    public compile() {
+        
+    }
+}

@@ -1,0 +1,35 @@
+namespace llvm::sys
+
+import (
+    core::mem
+    llvm
+)
+
+extern function LLVMContextCreate(): LLVMContext
+extern function LLVMContextDispose(context: LLVMContext)
+extern function LLVMModuleCreateWithNameInContext(name: Pointer<uint8>, context: LLVMContext): LLVMModule
+extern function LLVMCloneModule(module: LLVMModule)
+extern function LLVMDisposeModule(module: LLVMModule)
+extern function LLVMAddFunction(module: LLVMModule, name: Pointer<uint8>, ty: LLVMType)
+extern function LLVMFunctionType(returnType: LLVMType, paramTypes: Pointer<LLVMType>, paramCount: uint32, isVarArg: int32): LLVMType
+extern function LLVMVoidTypeInContext(context: LLVMContext): LLVMType
+extern function LLVMInt1TypeInContext(context: LLVMContext): LLVMType
+extern function LLVMInt8TypeInContext(context: LLVMContext): LLVMType
+extern function LLVMInt16TypeInContext(context: LLVMContext): LLVMType
+extern function LLVMInt32TypeInContext(context: LLVMContext): LLVMType
+extern function LLVMInt64TypeInContext(context: LLVMContext): LLVMType
+extern function LLVMFloatTypeInContext(context: LLVMContext): LLVMType
+extern function LLVMDoubleTypeInContext(context: LLVMContext): LLVMType
+extern function LLVMGetTargetFromTriple(triple: Pointer<uint8>, target: Pointer<LLVMTarget>, errorMessage: Pointer<uint8>): int32
+extern function LLVMCreateTargetMachine(target: LLVMTarget, triple: Pointer<uint8>, cpu: Pointer<uint8>, features: Pointer<uint8>, level: uint32, reloc: uint32, codeModel: uint32): LLVMTargetMachine
+extern function LLVMCreateTargetDataLayout(targetMachine: LLVMTargetMachine): LLVMTargetData
+extern function LLVMPointerSize(data: LLVMTargetData): uint32
+extern function LLVMArrayType(elementType: LLVMType, elementCount: uint32): LLVMType
+extern function LLVMPointerType(elementType: LLVMType, addressSpace: uint32): LLVMType
+extern function LLVMStructCreateNamed(context: LLVMContext, name: Pointer<uint8>): LLVMType
+extern function LLVMStructSetBody(context: LLVMContext, elementTypes: Pointer<LLVMType>, elementCount: uint32, packed: int32)
+extern function LLVMCreateBuilderInContext(context: LLVMContext): LLVMBuilder
+extern function LLVMDisposeBuilder(buidler: LLVMBuilder)
+extern function LLVMAppendBasicBlockInContext(context: LLVMContext, fn: LLVMValue, name: Pointer<uint8>)
+extern function LLVMPositionBuilderAtEnd(builder: LLVMBuilder, block: LLVMBasicBlock)
+extern function LLVMBuildInBoundsGEP2(builder: LLVMBuilder, ty: LLVMType, pointer: LLVMValue, indices: Pointer<LLVMValue>, numIndices: uint32, name: Pointer<uint8>): LLVMValue

@@ -20,12 +20,7 @@ impl Linker {
         for line in cmd_output.split('\n') {
             let line = line.trim();
             if line.starts_with("libraries: =") {
-                return Ok(line["libraries: =".len()..line.len()]
-                    .trim()
-                    .split(':')
-                    .filter(|dir| Path::new(dir).is_dir())
-                    .map(String::from)
-                    .collect());
+                return Ok(line["libraries: =".len()..line.len()].trim().split(':').filter(|dir| Path::new(dir).is_dir()).map(String::from).collect());
             }
         }
         panic!("failed to parse output")
@@ -66,8 +61,7 @@ impl Linker {
         use std::ffi::CString;
 
         let output_dir = output_dir.into();
-        // let llvm_path =
-        //     std::env::var("LLVM_SYS_150_PREFIX").expect("no LLVM_SYS_150_PREFIX in env");
+        let llvm_path = std::env::var("LLVM_SYS_150_PREFIX").expect("no LLVM_SYS_150_PREFIX in env");
         let crt_dir = self.get_crt_libs_dir().unwrap();
 
         let mut args: Vec<String> = Vec::with_capacity(100);
@@ -92,28 +86,22 @@ impl Linker {
         args.push("-l:libunwind.a".to_owned());
         args.push(format!("-L{}", output_dir.as_os_str().to_str().unwrap().to_owned()));
         args.push("-l:librtdbg.a".to_owned());
-        // args.push(format!("-L{}/lib", llvm_path));
-        // for file in std::fs::read_dir(format!("{}/lib", llvm_path)).unwrap() {
-        //     let file = file.unwrap();
-        //     let name = file.file_name();
-        //     let name = name.to_str().unwrap();
-        //     if name.ends_with(".a") {
-        //         if name == "libMLIRMlirOptMain.a"
-        //             || name == "libFortran_main.a"
-        //             || name == "libbolt_rt_instr_osx.a"
-        //         {
-        //             // libMLIRMlirOptMain and libFortran_main contain a `main` symbol and cannot be linked to
-        //             // libbolt_rt_instr_osx causes weird errors
-        //             continue;
-        //         }
-        //         args.push(format!("-l:{}", name));
-        //     }
-        // }
-        // args.push(format!(
-        //     "-L{}/lib/clang/15.0.5/lib/x86_64-unknown-linux-gnu",
-        //     llvm_path
-        // ));
-        // args.push("-lclang_rt.builtins".to_owned());
+        args.push(format!("-L{}/lib", llvm_path));
+        for file in std::fs::read_dir(format!("{}/lib", llvm_path)).unwrap() {
+            let file = file.unwrap();
+            let name = file.file_name();
+            let name = name.to_str().unwrap();
+            if name.ends_with(".a") {
+                if name == "libMLIRMlirOptMain.a" || name == "libFortran_main.a" || name == "libbolt_rt_instr_osx.a" {
+                    // libMLIRMlirOptMain and libFortran_main contain a `main` symbol and cannot be linked to
+                    // libbolt_rt_instr_osx causes weird errors
+                    continue;
+                }
+                args.push(format!("-l:{}", name));
+            }
+        }
+        args.push(format!("-L{}/lib/clang/15.0.5/lib/x86_64-unknown-linux-gnu", llvm_path));
+        args.push("-lclang_rt.builtins".to_owned());
         for file in std::fs::read_dir(&output_dir).unwrap() {
             let dir_name = file.unwrap().path().to_str().unwrap().to_owned();
             if !dir_name.ends_with(".o") {

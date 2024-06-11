@@ -1,0 +1,137 @@
+namespace std.fs
+
+import (
+    core.io
+    core.string
+    std.io
+    std.os
+)
+
+public class Stats {
+    isFile: bool
+    isDirectory: bool
+}
+
+public function exists(path: string): bool => std.impl.fs.exists(path)
+
+public class FileSystemObject {
+    handle: usize
+    get open: bool => this.handle != 0
+
+    destructor {
+        this.close()
+    }
+
+    assertOpen() {
+        if not this.open {
+            throw error.io("file handle is closed")
+        }
+    }
+
+    abstract closeImpl()
+}
+
+implement Closeable for FileSystemObject {
+    close() {
+        // closing more than once is a no-op
+        if not this.open {
+            return
+        }
+
+        this.closeImpl()
+        this.handle = 0
+    }
+}
+
+public class Directory {
+    path: string
+
+    public constructor new(this.path: string) { }
+
+    public listFiles(): [string] {
+        let handle = std.impl.fs.openDirectory(this.path)
+        let files = std.impl.fs.listDirectory(handle)
+        std.impl.fs.closeDirectory(handle)
+        return files
+    }
+}
+
+public enum FileOpenMode {
+    ReadOnly
+    ReadWrite
+    ReadWriteTruncate
+    WriteOnly
+    AppendOnly
+    ReadAppend
+}
+
+public enum SeekWhence {
+    Start
+    Current
+    End
+}
+ 
+public class File extends FileSystemObject {
+    constructor new(this.handle: usize) { }
+
+    public static create(path: string, mode: FileOpenMode): File {
+        return File.new(std.impl.fs.createFile(path, mode))
+    }
+
+    public static open(path: string, mode: FileOpenMode): File {
+        return File.new(std.impl.fs.openFile(path, mode))
+    }
+
+    override closeImpl() {
+        std.impl.fs.closeFile(this.handle)
+    }
+
+    public seek(offset: int64, whence: SeekWhence): int64 {
+        return std.impl.fs.seekFile(this.handle, offset, whence)
+    }
+
+    public stat(path: string): Stats => std.impl.fs.stat(this.handle, true)
+
+    /// Reads all the bytes in the file from start to end, regardless of the current cursor position.
+    public readAllBytes(): [uint8] {
+        let pos = this.seek(0, SeekWhence.Current)
+        this.seek(0, SeekWhence.Start)
+        let buf = [uint8](0; this.length as usize)
+        this.read(buf)
+
+        this.seek(pos, SeekWhence.Start)
+
+        return buf
+    }
+
+    /// Writes all the bytes to the file, beginning at the start of the file.
+    /// This function does not affect the cursor position.
+    public writeAllBytes(bytes: [uint8]) {
+        let pos = std.impl.fs.seekFile(this.handle, 0, SeekWhence.Current)
+        this.seek(0, SeekWhence.Start)
+        this.write(bytes)
+        this.seek(pos, SeekWhence.Start)
+    }
+
+    public get length: int64 {
+        this.assertOpen()
+
+        return std.impl.fs.getFileLength(this.handle)
+    }
+}
+
+implement Reader for File {
+    read(buf: [uint8]): isize {
+        this.assertOpen()
+
+        return std.impl.fs.readFileBytes(this.handle, buf) as isize
+    }
+}
+
+implement Writer for File {
+    write(buf: [uint8]): isize {
+        this.assertOpen()
+
+        return std.impl.fs.writeFileBytes(this.handle, buf) as isize
+    }
+}

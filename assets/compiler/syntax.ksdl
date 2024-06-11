@@ -40,11 +40,11 @@ RULE CompoundType
     OPTIONAL REPEATED COMPOUND(OPERATOR +, $types = ALIAS NonCompoundValueType)
 END RULE
 
-ALIAS NonCompoundValueType OR(RULE ArrayType, RULE SliceType, RULE NullableType, RULE BasicType)
+ALIAS NonCompoundValueType OR(RULE ArrayType, RULE SliceType, RULE NullableType, RULE AnonymousTypeDecl, RULE BasicType)
 
 ALIAS ValueType OR(RULE CompoundType, RULE ArrayType, RULE SliceType, RULE NullableType, RULE BasicType)
 
-ALIAS Modifier OR(KEYWORD public, KEYWORD static, KEYWORD extern, KEYWORD unsafe, KEYWORD namespace, KEYWORD constructor)
+ALIAS Modifier OR(KEYWORD public, KEYWORD static, KEYWORD extern, KEYWORD unsafe, KEYWORD namespace, KEYWORD constructor, KEYWORD abstract, KEYWORD override)
 
 RULE GenericDecl
     MOVE
@@ -166,8 +166,15 @@ END RULE
 
 ALIAS AccessorDecl OR(RULE GetAccessorDecl, RULE SetAccessorDecl)
 
+RULE NewEnumExpr
+    $enum = RULE QualifiedPath
+    KEYWORD with
+    MOVE
+    $fields = RULE FieldSet
+END RULE
+
 RULE FuncCallExpr
-    $callee = OR(RULE GroupingExpr, IDENTIFIER, KEYWORD this, KEYWORD super)
+    $callee = OR(RULE GroupingExpr, IDENTIFIER, KEYWORD this, KEYWORD super, KEYWORD sizeof)
     $generics = OPTIONAL RULE GenericArgs
     OPERATOR (
     MOVE
@@ -187,7 +194,7 @@ END RULE
 
 RULE MatchTestEnumWithData
     $variant = IDENTIFIER
-    $data = RULE AnonymousType
+    $data = RULE DeconstructionExpr
 END RULE
 
 RULE MatchArm
@@ -200,10 +207,10 @@ END RULE
 RULE MatchExpr
     KEYWORD match
     MOVE
-    $matchee = RULE Expr
+    $operand = RULE Expr
     OPERATOR {
     REPEATED NEWLINE
-    OPTIONAL REPEATED COMPOUND($arms = RULE MatchArm, REPEATED NEWLINE)
+    OPTIONAL REPEATED COMPOUND($arms = RULE MatchArm)
     OPERATOR }
 END RULE
 
@@ -240,6 +247,11 @@ RULE DerefExpr
     $pointer = RULE Expr
 END RULE
 
+RULE LetVariableDecl
+    $name = IDENTIFIER
+    OPTIONAL COMPOUND(OPERATOR =, $initialValue = RULE Expr)
+END RULE
+
 RULE InlineLetStatement
     $modifiers = OPTIONAL REPEATED ALIAS Modifier
     $kind = OR(KEYWORD let, KEYWORD const)
@@ -247,7 +259,7 @@ RULE InlineLetStatement
     $name = IDENTIFIER
     OPTIONAL COMPOUND(OPERATOR :, $type = ALIAS ValueType)
     OPTIONAL COMPOUND(OPERATOR =, $initialValue = RULE Expr)
-    OPTIONAL REPEATED COMPOUND(OPERATOR COMMA, $name = IDENTIFIER, OPERATOR =, $initialValue = OPTIONAL RULE Expr)
+    OPTIONAL REPEATED COMPOUND(OPERATOR COMMA, $secondaries = RULE LetVariableDecl)
 END RULE
 
 RULE LetStatement
@@ -299,7 +311,7 @@ END RULE
 ALIAS SelfOperator OR(OPERATOR =, OPERATOR +=, OPERATOR -=, OPERATOR *=, OPERATOR /=, OPERATOR %=)
 
 RULE AssignStatement
-    $deref = OPTIONAL KEYWORD deref
+    $deref = OPTIONAL OPERATOR deref
     $lhs = RULE Expr
     $op = ALIAS SelfOperator
     MOVE
@@ -317,7 +329,7 @@ END RULE
 RULE WithStatement
     KEYWORD with
     MOVE
-    $let = RULE InlineLetStatement
+    $binding = RULE InlineLetStatement
     $block = RULE CodeBlock
 END RULE
 
@@ -332,7 +344,7 @@ ALIAS BlockStatement OR(RULE WithStatement, RULE ThrowStatement, RULE ReturnStat
 RULE CodeBlock
     OPERATOR {
     MOVE
-    OPTIONAL REPEATED OR(NEWLINE, ALIAS BlockStatement)
+    OPTIONAL REPEATED OR(NEWLINE, $statements = ALIAS BlockStatement)
     OPERATOR }
 END RULE
 
@@ -353,7 +365,7 @@ RULE PrefixOperator
 END RULE
 
 RULE InfixOperator
-    $op = OR(OPERATOR ., OPERATOR ==, OPERATOR !=, OPERATOR +, OPERATOR -, OPERATOR *, OPERATOR /, OPERATOR %, RULE LeftShift, RULE RightShift, OPERATOR or, OPERATOR and, OPERATOR <=, OPERATOR >=, OPERATOR <, OPERATOR >, OPERATOR ??)
+    $op = OR(OPERATOR ., OPERATOR ==, OPERATOR !=, OPERATOR +, OPERATOR -, OPERATOR *, OPERATOR /, OPERATOR %, OPERATOR |, OPERATOR ^, OPERATOR &, RULE LeftShift, RULE RightShift, OPERATOR or, OPERATOR and, OPERATOR <=, OPERATOR >=, OPERATOR <, OPERATOR >, OPERATOR ??)
 END RULE
 
 RULE LeftShift
@@ -389,7 +401,7 @@ RULE OpAs
     $type = ALIAS ValueType
 END RULE
 
-ALIAS ExprOperand OR(RULE FuncCallExpr, RULE GroupingExpr, RULE MatchExpr, RULE NewArrayExpr, RULE NewSliceExpr, RULE ConstSliceExpr, RULE DerefExpr, KEYWORD this, KEYWORD super, LITERAL, IDENTIFIER)
+ALIAS ExprOperand OR(RULE FuncCallExpr, RULE GroupingExpr, RULE NewEnumExpr, RULE MatchExpr, RULE NewArrayExpr, RULE NewSliceExpr, RULE ConstSliceExpr, RULE DerefExpr, KEYWORD this, KEYWORD super, LITERAL, IDENTIFIER)
 
 ALIAS InfixOperatorNewline COMPOUND($parts = RULE InfixOperator, OPTIONAL REPEATED NEWLINE)
 
@@ -445,7 +457,7 @@ END RULE
 
 RULE EnumDecl
     $modifiers = OPTIONAL REPEATED ALIAS Modifier
-    $type = KEYWORD enum
+    $kind = KEYWORD enum
     MOVE
     $name = IDENTIFIER
     $generics = OPTIONAL RULE GenericDecls
@@ -457,17 +469,45 @@ RULE EnumDecl
     NEWLINE
 END RULE
 
+RULE AnonymousTypeDeclField
+    $name = IDENTIFIER
+    OPERATOR :
+    $type = ALIAS ValueType
+END RULE
+
+RULE AnonymousTypeDecl
+    OPERATOR {
+    OPTIONAL REPEATED NEWLINE
+    OPTIONAL REPEATED COMPOUND($fields = RULE AnonymousTypeDeclField, ALIAS NewlineOrComma)
+    COMPOUND($fields = RULE AnonymousTypeDeclField, OPTIONAL ALIAS NewlineOrComma)
+    OPERATOR }
+END RULE
+
 RULE AnonymousTypeField
     $name = IDENTIFIER
-    OPTIONAL COMPOUND(OPERATOR :, $type = ALIAS ValueType)
+    OPTIONAL COMPOUND(OPERATOR =, $value = RULE Expr)
 END RULE
 
 RULE AnonymousType
     OPERATOR {
-    MOVE
     OPTIONAL REPEATED NEWLINE
     OPTIONAL REPEATED COMPOUND($fields = RULE AnonymousTypeField, ALIAS NewlineOrComma)
-    OPTIONAL COMPOUND($fields = RULE AnonymousTypeField, OPTIONAL ALIAS NewlineOrComma)
+    COMPOUND($fields = RULE AnonymousTypeField, OPTIONAL ALIAS NewlineOrComma)
+    OPERATOR }
+END RULE
+
+RULE DeconstructionExprField
+    $name = IDENTIFIER
+    OPTIONAL COMPOUND(KEYWORD as, $alias = IDENTIFIER)
+    OPTIONAL COMPOUND(OPERATOR :, $type = ALIAS ValueType)
+END RULE
+
+ALIAS EllipsisOrDeconstructionExprField OR(OPERATOR ..., RULE DeconstructionExprField)
+
+RULE DeconstructionExpr
+    OPERATOR {
+    OPTIONAL REPEATED COMPOUND($members = RULE DeconstructionExprField, ALIAS NewlineOrComma)
+    COMPOUND($members = ALIAS EllipsisOrDeconstructionExprField, OPTIONAL ALIAS NewlineOrComma)
     OPERATOR }
 END RULE
 
@@ -486,7 +526,7 @@ END RULE
 
 RULE EnumMemberStatement
     $name = IDENTIFIER
-    $data = OPTIONAL RULE AnonymousType
+    $data = OPTIONAL RULE AnonymousTypeDecl
     NEWLINE
 END RULE
 

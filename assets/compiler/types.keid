@@ -5,6 +5,9 @@ import (
     core::error
     core::object
     core::string
+    keidc::abi
+    keidc::ast
+    llvm
 )
 
 public class QualifiedIdent {
@@ -54,7 +57,7 @@ public enum ComplexType {
     }
     Array {
         element: Box<ComplexType>
-        length: uint64
+        length: uint32
     }
     Slice {
         element: Box<ComplexType>
@@ -64,6 +67,9 @@ public enum ComplexType {
     }
     Compound {
         types: List<ComplexType>
+    }
+    RawPointer {
+        element: Box<ComplexType>
     }
 }
 
@@ -82,6 +88,7 @@ implement ComplexTypeImpl for ComplexType {
             Array { element, length, } => element.root
             Slice { element, } => element.root
             Nullable { element, } => element.root
+            RawPointer { element, } => element.root
         }
     }
 
@@ -96,6 +103,9 @@ implement ComplexTypeImpl for ComplexType {
                 element = element.withRoot(root)
             }
             Nullable { element, } => new ComplexType.Nullable {
+                element = element.withRoot(root)
+            }
+            RawPointer { element, } => new ComplexType.RawPointer {
                 element = element.withRoot(root)
             }
         }
@@ -144,8 +154,67 @@ implement ToString for BasicType {
             ISize => "isize"
             Ident { ident } => ident.toString()
             Null => "null"
+            Unknown => "unknown"
             Never => "never"
-            _ => "unknown"
         }
+    }
+}
+
+public interface ToLLVMType {
+    get llvmType: LLVMType
+}
+
+implement ToLLVMType for BasicType {
+    get llvmType: LLVMType => match this {
+        Void => llvm.context.voidType
+        Bool => llvm.context.int1Type
+        Char => llvm.context.int32Type
+        UInt8 => llvm.context.int8Type
+        UInt16 => llvm.context.int16Type
+        UInt32 => llvm.context.int32Type
+        UInt64 => llvm.context.int64Type
+        Int8 => llvm.context.int8Type
+        Int16 => llvm.context.int16Type
+        Int32 => llvm.context.int32Type
+        Int64 => llvm.context.int64Type
+        Float32 => llvm.context.floatType
+        Float64 => llvm.context.doubleType
+        USize => llvm.context.intPtrType
+        ISize => llvm.context.intPtrType
+        Ident { ident: QualifiedIdent } => unreachable
+        Null => llvm.context.voidType
+        Unknown => llvm.context.voidType
+        Never => llvm.context.voidType
+    }
+}
+
+implement ToLLVMType for ComplexType {
+    get llvmType: LLVMType => match this {
+        Basic { basic, } => basic.llvmType
+        Array { element, length, } => AbiArray.create(element, length).llvmType
+        Slice { element, } => AbiSlice.create(element).llvmType
+        Nullable { element, } => AbiNullable.create(element).llvmType
+        Compound { types, } => llvm.context.getPointerType(AbiClassMetadata.create().llvmType)
+        RawPointer { element, } => llvm.context.getPointerType(element.llvmType)
+    }
+}
+
+implement ToLLVMType for AstFunction {
+    get llvmType: LLVMType {
+        let paramTypes = List.withCapacity<LLVMType>(this.params.length)
+        for param in this.params {
+            paramTypes.push(param.type.node.llvmType)
+        }
+        let returnType: LLVMType
+        if this.returnType == null {
+            returnType = llvm.context.voidType
+        } else {
+            returnType = this.returnType!.node.llvmType
+        }
+        let varargs = match this.varargs {
+            Native => true
+            _ => false
+        }
+        return llvm.context.getFunctionType(returnType, paramTypes, varargs)
     }
 }
